@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { RotateCw, Gift, Star, Coins } from 'lucide-react';
+import { RotateCw, Gift, Star, Coins, Video, Play, X } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 
 const PRIZES = [
@@ -12,6 +12,8 @@ const PRIZES = [
   { id: 7, name: '神秘大奖', points: 200, color: '#EC4899', probability: 2 },
 ];
 
+const AD_DURATION = 10; // 广告时长10秒
+
 interface LuckyWheelProps {
   onClose?: () => void;
 }
@@ -23,8 +25,12 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
   const [result, setResult] = useState<typeof PRIZES[0] | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [dailyFreeSpins, setDailyFreeSpins] = useState(3);
-  const [spinCost] = useState(10);
+  const [adSpins, setAdSpins] = useState(0);
+  const [showAd, setShowAd] = useState(false);
+  const [adTimeLeft, setAdTimeLeft] = useState(AD_DURATION);
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const adIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // 绘制转盘
   useEffect(() => {
@@ -39,15 +45,12 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
     const radius = Math.min(centerX, centerY) - 10;
     const sliceAngle = (2 * Math.PI) / PRIZES.length;
 
-    // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 绘制转盘 slices
     PRIZES.forEach((prize, i) => {
       const startAngle = i * sliceAngle - Math.PI / 2;
       const endAngle = startAngle + sliceAngle;
 
-      // 绘制扇形
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.arc(centerX, centerY, radius, startAngle, endAngle);
@@ -55,12 +58,10 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
       ctx.fillStyle = prize.color;
       ctx.fill();
 
-      // 绘制边框
       ctx.strokeStyle = '#1F2937';
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // 绘制文字
       ctx.save();
       ctx.translate(centerX, centerY);
       ctx.rotate(startAngle + sliceAngle / 2);
@@ -71,7 +72,6 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
       ctx.restore();
     });
 
-    // 绘制中心圆
     ctx.beginPath();
     ctx.arc(centerX, centerY, 30, 0, 2 * Math.PI);
     ctx.fillStyle = '#1F2937';
@@ -80,7 +80,6 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // 绘制中心文字
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
@@ -89,14 +88,55 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
 
   }, []);
 
-  const spin = (useFree: boolean) => {
-    if (isSpinning) return;
-    if (!useFree && points < spinCost) return;
-    if (useFree && dailyFreeSpins <= 0) return;
+  // 广告倒计时
+  useEffect(() => {
+    if (showAd && adTimeLeft > 0) {
+      adIntervalRef.current = setInterval(() => {
+        setAdTimeLeft(prev => {
+          if (prev <= 1) {
+            // 广告看完，发放次数
+            clearInterval(adIntervalRef.current!);
+            setShowAd(false);
+            setIsWatchingAd(false);
+            setAdSpins(prev => prev + 1);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
 
-    // 扣除积分
-    if (!useFree) {
-      addPoints(-spinCost, '大转盘抽奖');
+    return () => {
+      if (adIntervalRef.current) {
+        clearInterval(adIntervalRef.current);
+      }
+    };
+  }, [showAd, adTimeLeft]);
+
+  // 开始看广告
+  const startWatchAd = () => {
+    setShowAd(true);
+    setIsWatchingAd(true);
+    setAdTimeLeft(AD_DURATION);
+  };
+
+  // 跳过广告（不获得次数）
+  const skipAd = () => {
+    if (adIntervalRef.current) {
+      clearInterval(adIntervalRef.current);
+    }
+    setShowAd(false);
+    setIsWatchingAd(false);
+    setAdTimeLeft(AD_DURATION);
+  };
+
+  const spin = (useAdSpin: boolean) => {
+    if (isSpinning) return;
+    if (useAdSpin && adSpins <= 0) return;
+    if (!useAdSpin && dailyFreeSpins <= 0) return;
+
+    if (useAdSpin) {
+      setAdSpins(prev => prev - 1);
     } else {
       setDailyFreeSpins(prev => prev - 1);
     }
@@ -105,7 +145,6 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
     setShowResult(false);
     setResult(null);
 
-    // 根据概率随机选择奖品
     const random = Math.random() * 100;
     let cumulative = 0;
     let selectedPrize = PRIZES[0];
@@ -118,22 +157,19 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
       }
     }
 
-    // 计算旋转角度（需要旋转多圈 + 对准选中奖品）
     const sliceAngle = 360 / PRIZES.length;
     const prizeIndex = PRIZES.findIndex(p => p.id === selectedPrize.id);
-    const baseRotation = 360 * 5; // 旋转5圈
+    const baseRotation = 360 * 5;
     const prizeRotation = 360 - (prizeIndex * sliceAngle + sliceAngle / 2);
     const totalRotation = baseRotation + prizeRotation + Math.random() * 20 - 10;
 
     setRotation(prev => prev + totalRotation);
 
-    // 动画结束后显示结果
     setTimeout(() => {
       setIsSpinning(false);
       setResult(selectedPrize);
       setShowResult(true);
 
-      // 发放积分奖励
       if (selectedPrize.points > 0) {
         setTimeout(() => {
           addPoints(selectedPrize.points, `大转盘获得: ${selectedPrize.name}`);
@@ -141,6 +177,8 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
       }
     }, 4000);
   };
+
+  const totalSpins = dailyFreeSpins + adSpins;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -167,8 +205,8 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
             <p className="font-display text-2xl font-bold text-cyber-yellow">{dailyFreeSpins}</p>
           </div>
           <div className="bg-cyber-dark/50 rounded-xl px-4 py-2 text-center">
-            <p className="text-xs text-gray-400">消耗积分</p>
-            <p className="font-display text-2xl font-bold text-cyber-pink">{spinCost}</p>
+            <p className="text-xs text-gray-400">广告次数</p>
+            <p className="font-display text-2xl font-bold text-cyber-pink">{adSpins}</p>
           </div>
         </div>
 
@@ -192,7 +230,7 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
         {/* 抽奖按钮 */}
         <div className="flex gap-3 mb-4">
           <button
-            onClick={() => spin(true)}
+            onClick={() => spin(false)}
             disabled={isSpinning || dailyFreeSpins <= 0}
             className={`flex-1 py-3 rounded-xl font-medium transition-all ${
               isSpinning || dailyFreeSpins <= 0
@@ -204,18 +242,30 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
             免费抽奖 ({dailyFreeSpins})
           </button>
           <button
-            onClick={() => spin(false)}
-            disabled={isSpinning || points < spinCost}
+            onClick={() => spin(true)}
+            disabled={isSpinning || adSpins <= 0}
             className={`flex-1 py-3 rounded-xl font-medium transition-all ${
-              isSpinning || points < spinCost
+              isSpinning || adSpins <= 0
                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                 : 'bg-gradient-to-r from-cyber-yellow to-cyber-pink text-cyber-dark shadow-neon hover:shadow-lg'
             }`}
           >
             <Coins className="w-5 h-5 inline mr-2" />
-            积分抽奖 ({spinCost})
+            广告抽奖 ({adSpins})
           </button>
         </div>
+
+        {/* 看广告按钮 */}
+        {totalSpins === 0 && (
+          <button
+            onClick={startWatchAd}
+            disabled={isWatchingAd}
+            className="w-full py-3 rounded-xl font-medium transition-all bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-neon hover:shadow-lg mb-4"
+          >
+            <Video className="w-5 h-5 inline mr-2" />
+            {isWatchingAd ? '广告观看中...' : '看广告获取抽奖次数'}
+          </button>
+        )}
 
         {/* 奖品列表 */}
         <div className="bg-cyber-dark/50 rounded-xl p-3">
@@ -234,9 +284,59 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
           </div>
         </div>
 
+        {/* 广告弹窗 */}
+        {showAd && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90">
+            <div className="bg-cyber-dark2 rounded-3xl p-8 max-w-sm w-full mx-4 text-center border border-cyber-purple/30">
+              <div className="w-16 h-16 rounded-full mx-auto mb-4 bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                <Play className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="font-display text-xl font-bold text-white mb-2">观看广告</h3>
+              <p className="text-gray-400 mb-4">请完整观看广告获取抽奖次数</p>
+
+              {/* 倒计时显示 */}
+              <div className="relative w-32 h-32 mx-auto mb-4">
+                <svg className="w-full h-full transform -rotate-90">
+                  <circle
+                    cx="64"
+                    cy="64"
+                    r="58"
+                    stroke="#374151"
+                    strokeWidth="8"
+                    fill="none"
+                  />
+                  <circle
+                    cx="64"
+                    cy="64"
+                    r="58"
+                    stroke="#10B981"
+                    strokeWidth="8"
+                    fill="none"
+                    strokeDasharray={2 * Math.PI * 58}
+                    strokeDashoffset={2 * Math.PI * 58 * (1 - (AD_DURATION - adTimeLeft) / AD_DURATION)}
+                    className="transition-all duration-1000"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="font-display text-4xl font-bold text-white">{adTimeLeft}</span>
+                </div>
+              </div>
+
+              <p className="text-sm text-gray-400 mb-4">广告剩余 {adTimeLeft} 秒</p>
+
+              <button
+                onClick={skipAd}
+                className="px-6 py-2 bg-gray-700 text-gray-300 rounded-xl font-medium hover:bg-gray-600 transition-colors"
+              >
+                跳过
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 结果弹窗 */}
         {showResult && result && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80">
             <div className="bg-cyber-dark2 rounded-3xl p-8 text-center border border-cyber-purple/30 animate-bounce-in">
               <div className={`w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center ${
                 result.points > 0 ? 'bg-gradient-to-br from-cyber-yellow to-cyber-pink' : 'bg-gray-700'
