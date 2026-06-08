@@ -173,7 +173,15 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           await new Promise(resolve => setTimeout(resolve, 800));
-          const storedUsers: (User & { password: string })[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
+          
+          // 每次都从 localStorage 读取最新的用户数据
+          let storedUsers: (User & { password: string })[];
+          try {
+            const usersData = localStorage.getItem('ai_comic_users');
+            storedUsers = usersData ? JSON.parse(usersData) : [];
+          } catch {
+            storedUsers = [];
+          }
           
           // 规范化用户名和密码（去除空白字符）
           const normalizedUsername = credentials.username.trim();
