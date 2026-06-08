@@ -3,6 +3,7 @@ import { Studio, Generator, Preview, Login, PointsCenter } from '@/pages';
 import { useAuthStore } from '@/stores';
 import { Sparkles, Coins, LogOut, User, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import { AppVersion } from '@/components/AppVersion';
 
 function AppContent() {
   const navigate = useNavigate();
@@ -36,6 +37,7 @@ function AppContent() {
           </div>
 
           <div className="flex items-center gap-3">
+            <AppVersion />
             {isAuthenticated && (
               <button
                 onClick={() => navigate('/points')}

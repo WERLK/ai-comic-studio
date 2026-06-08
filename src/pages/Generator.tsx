@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
-import { AppVersion } from '@/components/AppVersion';
 import type { SceneStyle } from '@/types';
 
 const styleOptions = [
@@ -153,7 +152,6 @@ export function Generator() {
               导出
             </Button>
           )}
-          <AppVersion />
         </div>
       </header>
 
