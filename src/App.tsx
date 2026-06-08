@@ -1,5 +1,5 @@
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Studio, Generator, Preview, Login, PointsCenter } from '@/pages';
+import { Studio, Generator, Preview, Login, PointsCenter, Profile } from '@/pages';
 import { useAuthStore } from '@/stores';
 import { Sparkles, Coins, LogOut, User, Menu, X } from 'lucide-react';
 import { useState } from 'react';
@@ -37,6 +37,15 @@ function AppContent() {
           </div>
 
           <div className="flex items-center gap-3">
+            {isAuthenticated && (
+              <button
+                onClick={() => navigate('/profile')}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyber-dark border border-cyber-purple/30 hover:border-cyber-pink/50 transition-all"
+              >
+                <User className="w-4 h-4 text-cyber-pink" />
+                <span className="font-medium text-white hidden sm:inline">个人中心</span>
+              </button>
+            )}
             {isAuthenticated && (
               <button
                 onClick={() => navigate('/points')}
@@ -135,6 +144,7 @@ function AppContent() {
           <Route path="/preview/:projectId" element={<Preview />} />
           <Route path="/login" element={<Login />} />
           <Route path="/points" element={<PointsCenter />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
