@@ -15,6 +15,99 @@ const styleOptions = [
   { value: 'realistic', label: '写实风格' },
 ];
 
+function getExifOrientation(arrayBuffer: ArrayBuffer): number {
+  const view = new DataView(arrayBuffer);
+  let offset = 0;
+  let length = view.byteLength;
+
+  if (view.getUint16(offset, false) !== 0xFFD8) {
+    return -1;
+  }
+  offset += 2;
+
+  while (offset < length) {
+    if (view.getUint16(offset + 2, false) <= 8) return -1;
+    
+    const marker = view.getUint16(offset, false);
+    offset += 2;
+    
+    if (marker === 0xFFE1) {
+      const exifLength = view.getUint16(offset, false);
+      offset += 2;
+      
+      const exifData = new Uint8Array(arrayBuffer, offset, exifLength);
+      const exifString = String.fromCharCode(...exifData);
+      
+      const orientationMatch = exifString.match(/Orientation\s*(\d)/);
+      if (orientationMatch) {
+        return parseInt(orientationMatch[1], 10);
+      }
+      return -1;
+    }
+    
+    const chunkSize = view.getUint16(offset, false);
+    offset += 2 + chunkSize;
+  }
+  return -1;
+}
+
+function rotateImage(image: HTMLImageElement, orientation: number): Promise<string> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+      resolve(image.src);
+      return;
+    }
+
+    let width = image.width;
+    let height = image.height;
+    let rotation = 0;
+    let flipH = false;
+    let flipV = false;
+
+    switch (orientation) {
+      case 2: flipH = true; break;
+      case 3: rotation = 180; break;
+      case 4: flipV = true; break;
+      case 5: rotation = 90; flipH = true; break;
+      case 6: rotation = 90; break;
+      case 7: rotation = 90; flipV = true; break;
+      case 8: rotation = 270; break;
+      default:
+        resolve(image.src);
+        return;
+    }
+
+    if (rotation === 90 || rotation === 270) {
+      canvas.width = height;
+      canvas.height = width;
+    } else {
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    ctx.save();
+    
+    if (flipH) {
+      ctx.translate(width, 0);
+      ctx.scale(-1, 1);
+    }
+    if (flipV) {
+      ctx.translate(0, height);
+      ctx.scale(1, -1);
+    }
+    
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.drawImage(image, -width / 2, -height / 2);
+    ctx.restore();
+
+    resolve(canvas.toDataURL('image/jpeg', 0.95));
+  });
+}
+
 // 解析 Word .docx 文件
 async function extractDocxText(arrayBuffer: ArrayBuffer): Promise<string> {
   try {
@@ -199,12 +292,27 @@ export function Studio() {
 
     try {
       if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          setPreviewImage(ev.target?.result as string);
-          setIsAnalyzing(false);
+        const arrayBufferReader = new FileReader();
+        arrayBufferReader.onload = async (ev) => {
+          const arrayBuffer = ev.target?.result as ArrayBuffer;
+          const orientation = getExifOrientation(arrayBuffer);
+          
+          const dataUrlReader = new FileReader();
+          dataUrlReader.onload = async (ev) => {
+            const img = new Image();
+            img.onload = async () => {
+              let finalUrl = ev.target?.result as string;
+              if (orientation > 1) {
+                finalUrl = await rotateImage(img, orientation);
+              }
+              setPreviewImage(finalUrl);
+              setIsAnalyzing(false);
+            };
+            img.src = ev.target?.result as string;
+          };
+          dataUrlReader.readAsDataURL(file);
         };
-        reader.readAsDataURL(file);
+        arrayBufferReader.readAsArrayBuffer(file);
 
         const fileName = file.name.replace(/\.[^/.]+$/, '');
         if (fileName.length >= 2) {
@@ -367,7 +475,7 @@ export function Studio() {
                         </div>
                       ) : previewImage ? (
                         <div className="relative">
-                          <img src={previewImage} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                          <img src={previewImage} alt="Preview" className="max-h-48 max-w-full mx-auto rounded-lg object-contain" style={{ imageOrientation: 'from-image' }} />
                           <p className="text-sm text-gray-400 mt-2">{uploadedFile?.name}</p>
                           <button
                             onClick={(e) => { e.stopPropagation(); clearUpload(); }}
