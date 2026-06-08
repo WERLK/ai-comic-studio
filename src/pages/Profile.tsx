@@ -16,10 +16,24 @@ import {
   CreditCard,
   Activity,
   Cpu,
-  Heart
+  Heart,
+  Database,
+  Download,
+  Upload,
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
+import { 
+  clearDatabase, 
+  exportDatabase, 
+  importDatabase, 
+  downloadFile, 
+  uploadFile,
+  getDatabaseStatus,
+  formatBytes 
+} from '@/utils/database';
 
 const MenuItem = ({ 
   icon: Icon, 
@@ -60,13 +74,57 @@ export function Profile() {
   const { user, points, logout, clearAllData, transactions } = useAuthStore();
   
   const [showSettings, setShowSettings] = useState(false);
+  const [showDatabaseManager, setShowDatabaseManager] = useState(false);
+  const [dbStatus, setDbStatus] = useState(getDatabaseStatus());
 
   const handleClearAllData = () => {
     if (window.confirm('确定要清空所有数据吗？这将删除您的所有用户数据、积分记录和项目数据！')) {
       clearAllData();
+      setDbStatus(getDatabaseStatus());
       navigate('/');
       window.location.reload();
     }
+  };
+
+  // 数据库管理功能
+  const handleExportDatabase = () => {
+    const result = exportDatabase();
+    if (result.success) {
+      downloadFile(JSON.stringify(result.data, null, 2), result.filename);
+      alert('数据库导出成功！');
+    } else {
+      alert('数据库导出失败！');
+    }
+  };
+
+  const handleImportDatabase = () => {
+    uploadFile((content) => {
+      const result = importDatabase(content);
+      if (result.success) {
+        setDbStatus(getDatabaseStatus());
+        alert(`导入成功！共导入 ${result.importedCount} 条数据`);
+        window.location.reload();
+      } else {
+        alert(`导入失败！\n${result.errors.join('\n')}`);
+      }
+    });
+  };
+
+  const handleClearDatabase = () => {
+    if (window.confirm('确定要清空整个数据库吗？这将删除所有本地数据且无法恢复！')) {
+      const result = clearDatabase();
+      if (result.success) {
+        setDbStatus(getDatabaseStatus());
+        alert('数据库已清空！');
+        window.location.reload();
+      } else {
+        alert(`清空时出现错误:\n${result.errors.join('\n')}`);
+      }
+    }
+  };
+
+  const handleRefreshStatus = () => {
+    setDbStatus(getDatabaseStatus());
   };
 
   const getLevel = (pts: number) => {
@@ -198,6 +256,75 @@ export function Profile() {
             subLabel="应用配置"
             color="from-gray-500 to-gray-600"
           />
+
+          <button
+            onClick={() => setShowDatabaseManager(!showDatabaseManager)}
+            className="w-full flex items-center gap-4 bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 hover:border-cyber-blue/50 rounded-2xl p-4 transition-all group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
+              <Database className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-medium text-white">数据库管理</p>
+              <p className="text-xs text-gray-400">查看和管理本地数据</p>
+            </div>
+            <div className={`text-gray-500 transition-transform ${showDatabaseManager ? 'rotate-90' : ''}`}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </button>
+
+          {/* 数据库管理面板 */}
+          {showDatabaseManager && (
+            <div className="bg-cyber-dark/50 border border-cyber-purple/30 rounded-2xl p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium text-white">数据库状态</h3>
+                <button 
+                  onClick={handleRefreshStatus}
+                  className="p-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-cyber-dark2/80 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-cyber-blue">{dbStatus.recordCount}</p>
+                  <p className="text-xs text-gray-400">数据表数量</p>
+                </div>
+                <div className="bg-cyber-dark2/80 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-cyber-yellow">{formatBytes(dbStatus.totalSize)}</p>
+                  <p className="text-xs text-gray-400">占用空间</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleExportDatabase}
+                  className="flex-1 py-2 px-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  导出数据
+                </button>
+                <button
+                  onClick={handleImportDatabase}
+                  className="flex-1 py-2 px-3 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+                >
+                  <Upload className="w-4 h-4" />
+                  导入数据
+                </button>
+              </div>
+
+              <button
+                onClick={handleClearDatabase}
+                className="w-full py-2 px-3 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+                清空数据库
+              </button>
+            </div>
+          )}
           
           <MenuItem 
             icon={Bell} 
