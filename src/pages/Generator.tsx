@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
+import { AppVersion } from '@/components/AppVersion';
 import type { SceneStyle } from '@/types';
 
 const styleOptions = [
@@ -145,14 +146,15 @@ export function Generator() {
           )}
         </div>
         
-        {project.status === 'completed' && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {project.status === 'completed' && (
             <Button variant="ghost" size="sm" onClick={() => navigate(`/preview/${project.id}`)}>
               <Download className="w-4 h-4 mr-1" />
               导出
             </Button>
-          </div>
-        )}
+          )}
+          <AppVersion />
+        </div>
       </header>
 
       {/* Generation Progress / Content */}

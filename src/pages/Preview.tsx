@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
+import { AppVersion } from '@/components/AppVersion';
 import type { ExportFormat, ExportResolution } from '@/types';
 
 const formatOptions = [
@@ -75,6 +76,9 @@ export function Preview() {
             <ChevronLeft className="w-5 h-5" />
           </button>
           <h1 className="font-display font-medium text-white">{project.title} - 导出</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <AppVersion />
         </div>
       </header>
 

@@ -4,6 +4,7 @@ import { Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2, Volume
 import { useProjectStore, useAuthStore } from '@/stores';
 import { Button } from '@/components/common';
 import { VoiceSelector } from '@/components/voice/VoiceSelector';
+import { AppVersion } from '@/components/AppVersion';
 import type { SceneStyle } from '@/types';
 
 const styleOptions = [
@@ -219,6 +220,19 @@ export function Studio() {
 
   return (
     <div className="min-h-screen bg-cyber-dark cyber-grid">
+      {/* Header */}
+      <header className="h-14 bg-cyber-dark2/80 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+          <h1 className="font-display font-medium text-white text-sm md:text-base">AI 漫剧工作室</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <AppVersion />
+        </div>
+      </header>
+      
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid lg:grid-cols-2 gap-8">
           <div className="space-y-6">

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Lock, User, Mail, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/stores';
+import { AppVersion } from '@/components/AppVersion';
 
 export function Login() {
   const navigate = useNavigate();
@@ -40,14 +41,28 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-cyber-dark cyber-grid flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-neon">
-              <Sparkles className="w-8 h-8 text-white" />
-            </div>
+    <div className="min-h-screen bg-cyber-dark cyber-grid">
+      {/* Header */}
+      <header className="h-14 bg-cyber-dark2/80 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-white" />
           </div>
+          <h1 className="font-display font-medium text-white text-sm md:text-base">AI 漫剧工作室</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <AppVersion />
+        </div>
+      </header>
+      
+      <div className="flex items-center justify-center p-4 min-h-[calc(100vh-3.5rem)]">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-neon">
+                <Sparkles className="w-8 h-8 text-white" />
+              </div>
+            </div>
           <h1 className="font-display text-3xl font-bold neon-text-pink mb-2">
             {showRegister ? '注册账户' : '欢迎回来'}
           </h1>
@@ -151,6 +166,7 @@ export function Login() {
             ← 继续浏览
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

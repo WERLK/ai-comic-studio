@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Coins, Gift, Trophy, ArrowLeft, CheckCircle, ArrowUpRight, ArrowDownRight, ShoppingBag, Star, Users, Palette, Compass, Zap } from 'lucide-react';
+import { Coins, Gift, Trophy, ArrowLeft, CheckCircle, ArrowUpRight, ArrowDownRight, ShoppingBag, Star, Users, Palette, Compass, Zap, Sparkles } from 'lucide-react';
 import { useAuthStore } from '@/stores';
+import { AppVersion } from '@/components/AppVersion';
 import { TaskType } from '@/types';
 
 const TaskIcon = ({ type, completed }: { type: TaskType; completed?: boolean }) => {
@@ -110,14 +111,24 @@ export function PointsCenter() {
 
   return (
     <div className="min-h-screen bg-cyber-dark cyber-grid">
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 text-gray-400 hover:text-white transition-colors"
-          >
+      {/* Header */}
+      <header className="h-14 bg-cyber-dark2/80 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/')} className="p-2 text-gray-400 hover:text-white transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+          <h1 className="font-display font-medium text-white text-sm md:text-base">AI 漫剧工作室</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <AppVersion />
+        </div>
+      </header>
+      
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="flex items-center gap-4 mb-6">
           <h1 className="font-display text-2xl font-bold text-white">积分中心</h1>
         </div>
 
