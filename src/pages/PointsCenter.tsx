@@ -37,7 +37,7 @@ import { LuckyWheel } from '@/components/LuckyWheel';
 import { TaskType } from '@/types';
 
 const TaskIcon = ({ type, completed }: { type: TaskType; completed?: boolean }) => {
-  const className = `w-7 h-7 ${completed ? 'text-gray-400' : 'text-white'}`;
+  const className = `w-5 h-5 ${completed ? 'text-gray-400' : 'text-white'}`;
   
   switch (type) {
     case 'daily':
@@ -60,9 +60,10 @@ const TaskIcon = ({ type, completed }: { type: TaskType; completed?: boolean }) 
 };
 
 const PrizeIcon = ({ index }: { index: number }) => {
-  const icons = [Sparkles, Flame, TrendingUp, Heart, Star, Gift, Zap, Award, Crown, Rocket];
+  const icons = [Sparkles, Gift, Rocket, Star, Crown, Heart, Award, Zap];
   const Icon = icons[index % icons.length];
-  return <Icon className="w-7 h-7 text-white" />;
+  const colors = ['text-cyber-yellow', 'text-cyber-pink', 'text-cyber-blue', 'text-purple-400', 'text-pink-400', 'text-red-400', 'text-orange-400', 'text-cyan-400'];
+  return <Icon className={`w-6 h-6 ${colors[index % colors.length]}`} />;
 };
 
 export function PointsCenter() {
@@ -312,14 +313,14 @@ export function PointsCenter() {
                     } rounded-3xl p-5 transition-all hover:border-cyber-pink/30`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-5">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                           reward.isCompleted 
                             ? 'bg-gray-700/50' 
-                            : `bg-gradient-to-br ${taskTypeColors[activeTaskType]} shadow-lg shadow-cyber-purple/30`
+                            : `bg-gradient-to-br ${taskTypeColors[activeTaskType]} shadow-md shadow-cyber-purple/20`
                         }`}>
                           {reward.isCompleted ? (
-                            <CheckCircle className="w-7 h-7 text-green-400" />
+                            <CheckCircle className="w-5 h-5 text-green-400" />
                           ) : (
                             <TaskIcon type={activeTaskType} />
                           )}
@@ -374,8 +375,8 @@ export function PointsCenter() {
                 key={item.id}
                 className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-3xl p-5 hover:border-cyber-pink/30 transition-all hover:shadow-lg hover:shadow-cyber-purple/20"
               >
-                <div className="flex items-start gap-5 mb-5">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyber-blue via-cyber-purple to-cyber-pink flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyber-purple/30">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyber-blue/20 via-cyber-purple/20 to-cyber-pink/20 border border-cyber-purple/30 flex items-center justify-center flex-shrink-0">
                     <PrizeIcon index={index} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -425,16 +426,16 @@ export function PointsCenter() {
                   className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-5 hover:border-cyber-pink/30 transition-all"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
                         transaction.type === 'earn'
                           ? 'bg-green-500/20 border border-green-500/30'
                           : 'bg-red-500/20 border border-red-500/30'
                       }`}>
                         {transaction.type === 'earn' ? (
-                          <ArrowUpRight className="w-6 h-6 text-green-400" />
+                          <ArrowUpRight className="w-4 h-4 text-green-400" />
                         ) : (
-                          <ArrowDownRight className="w-6 h-6 text-red-400" />
+                          <ArrowDownRight className="w-4 h-4 text-red-400" />
                         )}
                       </div>
                       <div>
