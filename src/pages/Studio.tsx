@@ -405,7 +405,10 @@ export function Studio() {
               className="w-full"
               size="lg"
               onClick={handleCreateAndGenerate}
-              disabled={inputMode === 'text' && !storyText.trim()}
+              disabled={
+                (inputMode === 'text' && !storyText.trim()) ||
+                (inputMode === 'upload' && !uploadedFile)
+              }
             >
               <Wand2 className="w-5 h-5 mr-2" />
               一键生成漫剧
