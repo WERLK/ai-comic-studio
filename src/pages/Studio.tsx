@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Sparkles, Upload, FileText, Wand2, Play, Film, Menu, X, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles, Upload, FileText, Wand2, Film, Menu, X, ChevronRight, Trash2, FileUp, Image as ImageIcon, Check, Loader2 } from 'lucide-react';
 import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
 import type { SceneStyle } from '@/types';
@@ -13,10 +13,126 @@ const styleOptions = [
   { value: 'realistic', label: '写实风格' },
 ];
 
+const styleKeywords: Record<string, string[]> = {
+  anime: ['动漫', '日系', '二次元', '萌', '治愈', '校园', '恋爱', '热血', '冒险', '奇幻', '魔法', '少女', '少年'],
+  manga: ['漫画', '黑白', '网点', '分镜', '格斗', '悬疑', '推理', '恐怖', '搞笑', '日常'],
+  cyberpunk: ['赛博', '朋克', '未来', '科技', '机械', '霓虹', '黑客', '虚拟', 'AI', '机器人', '都市', '夜'],
+  realistic: ['写实', '真实', '照片', '写实主义', '纪录片', '历史', '战争', '现实主义'],
+};
+
+interface ParsedContent {
+  title: string;
+  storyText: string;
+  detectedStyle: SceneStyle;
+  detectedCharacterCount: number;
+  detectedFrameCount: number;
+  confidence: number;
+}
+
+function detectStyleFromText(text: string): SceneStyle {
+  const lowerText = text.toLowerCase();
+  let bestStyle: SceneStyle = 'anime';
+  let maxScore = 0;
+
+  for (const [style, keywords] of Object.entries(styleKeywords)) {
+    const score = keywords.reduce((acc, keyword) => {
+      const regex = new RegExp(keyword, 'gi');
+      const matches = lowerText.match(regex);
+      return acc + (matches ? matches.length : 0);
+    }, 0);
+    if (score > maxScore) {
+      maxScore = score;
+      bestStyle = style as SceneStyle;
+    }
+  }
+  return bestStyle;
+}
+
+function detectCharacterCount(text: string): number {
+  // 检测中文人名模式
+  const chineseNamePattern = /[\u4e00-\u9fa5]{2,4}(?:说|道|问|答|喊|叫|想|觉得|认为|看着)/g;
+  const names = new Set<string>();
+  let match;
+  while ((match = chineseNamePattern.exec(text)) !== null) {
+    const name = match[0].replace(/(?:说|道|问|答|喊|叫|想|觉得|认为|看着)$/, '');
+    if (name.length >= 2 && name.length <= 4) {
+      names.add(name);
+    }
+  }
+
+  // 检测 "小明"、"小红" 等常见人名引用
+  const commonNamePattern = /[""']([\u4e00-\u9fa5]{2,4})[""']/g;
+  while ((match = commonNamePattern.exec(text)) !== null) {
+    names.add(match[1]);
+  }
+
+  // 检测 "XX 和 XX" 模式
+  const andPattern = /([\u4e00-\u9fa5]{2,4})(?:、|和|与|同)([\u4e00-\u9fa5]{2,4})/g;
+  while ((match = andPattern.exec(text)) !== null) {
+    names.add(match[1]);
+    names.add(match[2]);
+  }
+
+  const count = names.size;
+  if (count >= 5) return 6;
+  if (count >= 4) return 5;
+  if (count >= 3) return 4;
+  if (count >= 2) return 3;
+  if (count >= 1) return 2;
+
+  // 根据文本长度估算
+  const length = text.length;
+  if (length > 2000) return 5;
+  if (length > 1000) return 4;
+  if (length > 500) return 3;
+  return 2;
+}
+
+function detectFrameCount(text: string): number {
+  const length = text.length;
+  // 根据文本长度和场景转换词估算分镜数
+  const sceneTransitions = (text.match(/(?:场景|画面|镜头|切换|转场|突然|这时|与此同时|接着|然后|后来|之后|不久|过了一会儿)/g) || []).length;
+
+  if (sceneTransitions >= 10 || length > 3000) return 12;
+  if (sceneTransitions >= 8 || length > 2000) return 10;
+  if (sceneTransitions >= 6 || length > 1500) return 8;
+  if (sceneTransitions >= 4 || length > 800) return 6;
+  return 4;
+}
+
+function extractTitle(text: string): string {
+  // 尝试提取第一行作为标题
+  const firstLine = text.trim().split(/\n/)[0].trim();
+  if (firstLine.length >= 2 && firstLine.length <= 30 && !firstLine.includes('。')) {
+    return firstLine;
+  }
+  // 尝试提取引号内的内容
+  const quoted = text.match(/[""']([^""']{2,20})[""']/);
+  if (quoted) return quoted[1];
+  // 返回前20个字符
+  return text.trim().substring(0, 20).replace(/\s+/g, '');
+}
+
+function parseStoryContent(text: string): ParsedContent {
+  const detectedStyle = detectStyleFromText(text);
+  const detectedCharacterCount = detectCharacterCount(text);
+  const detectedFrameCount = detectFrameCount(text);
+  const title = extractTitle(text);
+
+  return {
+    title,
+    storyText: text,
+    detectedStyle,
+    detectedCharacterCount,
+    detectedFrameCount,
+    confidence: Math.min(0.95, 0.5 + (detectedCharacterCount > 0 ? 0.2 : 0) + (detectedFrameCount > 4 ? 0.15 : 0)),
+  };
+}
+
 export function Studio() {
   const navigate = useNavigate();
   const { projects, createProject, deleteProject, setCurrentProject } = useProjectStore();
-  
+
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
   const [storyText, setStoryText] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
@@ -26,22 +142,65 @@ export function Studio() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [parsedContent, setParsedContent] = useState<ParsedContent | null>(null);
+  const [showAnalysisResult, setShowAnalysisResult] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const applyParsedContent = useCallback((parsed: ParsedContent) => {
+    setProjectTitle(parsed.title);
+    setStoryText(parsed.storyText);
+    setSelectedStyle(parsed.detectedStyle);
+    setCharacterCount(parsed.detectedCharacterCount);
+    setFrameCount(parsed.detectedFrameCount);
+  }, []);
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
-      const reader = new FileReader();
-      reader.onload = (ev) => setPreviewImage(ev.target?.result as string);
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setUploadedFile(file);
+    setIsAnalyzing(true);
+    setParsedContent(null);
+    setShowAnalysisResult(false);
+
+    try {
+      if (file.type.startsWith('image/')) {
+        // 图片文件：显示预览，尝试从文件名提取信息
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setPreviewImage(ev.target?.result as string);
+          setIsAnalyzing(false);
+        };
+        reader.readAsDataURL(file);
+
+        // 从文件名尝试提取标题
+        const fileName = file.name.replace(/\.[^/.]+$/, '');
+        if (fileName.length >= 2) {
+          setProjectTitle(fileName);
+        }
+      } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+        // 文本文件：读取内容并智能分析
+        const text = await file.text();
+        const parsed = parseStoryContent(text);
+        setParsedContent(parsed);
+        setShowAnalysisResult(true);
+        applyParsedContent(parsed);
+        setIsAnalyzing(false);
+      } else {
+        // 其他文件类型
+        setIsAnalyzing(false);
+      }
+    } catch (error) {
+      console.error('文件读取失败:', error);
+      setIsAnalyzing(false);
     }
-  };
+  }, [applyParsedContent]);
 
   const handleCreateAndGenerate = () => {
     const title = projectTitle.trim() || '新漫剧项目';
-    const content = inputMode === 'text' ? storyText : (uploadedFile ? '上传素材' : '');
+    const content = inputMode === 'text' ? storyText : (uploadedFile ? (storyText || '上传素材') : '');
     const project = createProject(title, content, inputMode);
     setCurrentProject(project.id);
     navigate(`/generator/${project.id}`);
@@ -50,6 +209,16 @@ export function Studio() {
   const handleProjectClick = (id: string) => {
     setCurrentProject(id);
     navigate(`/generator/${id}`);
+  };
+
+  const clearUpload = () => {
+    setUploadedFile(null);
+    setPreviewImage(null);
+    setParsedContent(null);
+    setShowAnalysisResult(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -108,7 +277,7 @@ export function Studio() {
               className="flex gap-2 mb-6"
             >
               <button
-                onClick={() => setInputMode('text')}
+                onClick={() => { setInputMode('text'); clearUpload(); }}
                 className={`flex-1 py-3 px-4 rounded-xl font-medium text-sm transition-all ${
                   inputMode === 'text'
                     ? 'bg-cyber-pink text-white shadow-neon'
@@ -119,7 +288,7 @@ export function Studio() {
                 文字输入
               </button>
               <button
-                onClick={() => setInputMode('upload')}
+                onClick={() => { setInputMode('upload'); setStoryText(''); }}
                 className={`flex-1 py-3 px-4 rounded-xl font-medium text-sm transition-all ${
                   inputMode === 'upload'
                     ? 'bg-cyber-pink text-white shadow-neon'
@@ -164,42 +333,105 @@ export function Studio() {
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-cyber-blue mb-2">项目名称</label>
-                    <input
-                      type="text"
-                      value={projectTitle}
-                      onChange={(e) => setProjectTitle(e.target.value)}
-                      placeholder="给你的作品起个名字..."
-                      className="w-full px-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors"
-                    />
-                  </div>
-                  <div>
                     <label className="block text-sm font-medium text-cyber-blue mb-2">上传素材</label>
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*,video/*"
+                      accept=".txt,text/plain,image/*"
+                      capture="environment"
                       onChange={handleFileSelect}
                       className="hidden"
                     />
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-cyber-purple/30 rounded-xl p-8 text-center cursor-pointer hover:border-cyber-pink/50 transition-colors"
+                      className="border-2 border-dashed border-cyber-purple/30 rounded-xl p-8 text-center cursor-pointer hover:border-cyber-pink/50 transition-colors active:scale-[0.98]"
                     >
-                      {previewImage ? (
+                      {isAnalyzing ? (
+                        <div className="py-4">
+                          <Loader2 className="w-10 h-10 mx-auto mb-3 text-cyber-pink animate-spin" />
+                          <p className="text-gray-400">正在智能分析文件内容...</p>
+                        </div>
+                      ) : previewImage ? (
                         <div className="relative">
                           <img src={previewImage} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
                           <p className="text-sm text-gray-400 mt-2">{uploadedFile?.name}</p>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); clearUpload(); }}
+                            className="absolute top-2 right-2 p-1 bg-cyber-dark/80 rounded-full text-gray-400 hover:text-cyber-pink"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : uploadedFile && parsedContent ? (
+                        <div className="py-2">
+                          <FileText className="w-10 h-10 mx-auto mb-3 text-cyber-blue" />
+                          <p className="text-gray-400 font-medium">{uploadedFile.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">已识别内容</p>
                         </div>
                       ) : (
                         <>
                           <Upload className="w-12 h-12 mx-auto mb-3 text-cyber-purple/50" />
-                          <p className="text-gray-400 mb-1">点击上传图片或视频</p>
-                          <p className="text-xs text-gray-500">支持 PNG, JPG, WEBP, MP4 格式</p>
+                          <p className="text-gray-400 mb-1">点击上传文件</p>
+                          <p className="text-xs text-gray-500">支持 .txt 文本文件、图片</p>
+                          <p className="text-xs text-gray-600 mt-1">上传故事文本可自动识别角色和风格</p>
                         </>
                       )}
                     </div>
                   </div>
+
+                  {/* Analysis Result */}
+                  <AnimatePresence>
+                    {showAnalysisResult && parsedContent && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="bg-cyber-purple/10 border border-cyber-purple/20 rounded-xl p-4"
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <Check className="w-4 h-4 text-cyber-blue" />
+                          <span className="text-sm font-medium text-white">智能分析结果</span>
+                          <span className="text-xs text-gray-500">(置信度: {Math.round(parsedContent.confidence * 100)}%)</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="bg-cyber-dark/50 rounded-lg p-2">
+                            <span className="text-gray-500 text-xs">检测标题</span>
+                            <p className="text-white truncate">{parsedContent.title}</p>
+                          </div>
+                          <div className="bg-cyber-dark/50 rounded-lg p-2">
+                            <span className="text-gray-500 text-xs">推荐风格</span>
+                            <p className="text-cyber-blue">{styleOptions.find(s => s.value === parsedContent.detectedStyle)?.label}</p>
+                          </div>
+                          <div className="bg-cyber-dark/50 rounded-lg p-2">
+                            <span className="text-gray-500 text-xs">角色数量</span>
+                            <p className="text-cyber-pink">{parsedContent.detectedCharacterCount} 个</p>
+                          </div>
+                          <div className="bg-cyber-dark/50 rounded-lg p-2">
+                            <span className="text-gray-500 text-xs">分镜数量</span>
+                            <p className="text-cyber-yellow">{parsedContent.detectedFrameCount} 格</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-cyber-purple/20">
+                          <p className="text-xs text-gray-500 mb-2">故事预览:</p>
+                          <p className="text-xs text-gray-400 line-clamp-3">{parsedContent.storyText.substring(0, 120)}...</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Manual Project Title for Upload Mode */}
+                  {!parsedContent && (
+                    <div>
+                      <label className="block text-sm font-medium text-cyber-blue mb-2">项目名称</label>
+                      <input
+                        type="text"
+                        value={projectTitle}
+                        onChange={(e) => setProjectTitle(e.target.value)}
+                        placeholder="给你的作品起个名字..."
+                        className="w-full px-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -303,7 +535,7 @@ export function Studio() {
                         </p>
                         <div className="flex items-center gap-2 mt-2">
                           <span className={`text-[10px] px-2 py-0.5 rounded ${
-                            project.status === 'completed' 
+                            project.status === 'completed'
                               ? 'bg-cyber-blue/20 text-cyber-blue'
                               : project.status === 'generating'
                               ? 'bg-cyber-yellow/20 text-cyber-yellow'
@@ -320,7 +552,7 @@ export function Studio() {
                         }}
                         className="p-2 text-gray-500 hover:text-cyber-pink opacity-0 group-hover:opacity-100 transition-all"
                       >
-                        删除
+                        <Trash2 className="w-4 h-4" />
                       </button>
                       <ChevronRight className="w-5 h-5 text-gray-500" />
                     </div>
