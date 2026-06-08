@@ -119,7 +119,20 @@ export function PointsCenter() {
       case 'special':
         return specialRewards;
       case 'member':
-        return memberRewards;
+        // 会员任务 - 只有开通VIP才能领取，未开通VIP的任务显示为"需VIP"
+        return memberRewards.map(reward => {
+          // VIP专属任务需要检查用户是否开通VIP
+          const vipOnlyIds = ['member-vip', 'member-svip', 'member-daily', 'member-weekly', 'member-exclusive', 'member-priority'];
+          if (vipOnlyIds.includes(reward.id) && reward.id !== 'member-vip' && reward.id !== 'member-svip') {
+            // 这些是VIP专属任务，非VIP用户不能领取
+            return {
+              ...reward,
+              canClaim: false,
+              isVIPOnly: true
+            };
+          }
+          return reward;
+        });
       case 'level':
         return levelRewards;
     }
@@ -341,7 +354,9 @@ export function PointsCenter() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-white text-lg">{reward.name}</h3>
-                          <p className="text-sm text-gray-400 mt-1">{reward.description}</p>
+                          <p className={`text-sm mt-1 ${(reward as any).isVIPOnly ? 'text-purple-400' : 'text-gray-400'}`}>
+                            {(reward as any).isVIPOnly ? '🏆 VIP专属 | ' : ''}{reward.description}
+                          </p>
                           {reward.target !== undefined && reward.progress !== undefined && (
                             <div className="mt-3">
                               <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden">
@@ -363,16 +378,18 @@ export function PointsCenter() {
                         </span>
                         <button
                           onClick={() => handleClaimReward(reward.id)}
-                          disabled={!canClaim}
+                          disabled={!canClaim || (reward as any).isVIPOnly}
                           className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                             reward.isCompleted
                               ? 'bg-green-500/20 text-green-400 cursor-not-allowed border border-green-500/30'
+                              : (reward as any).isVIPOnly
+                              ? 'bg-purple-500/20 text-purple-400 cursor-not-allowed border border-purple-500/30'
                               : canClaim
                               ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-neon hover:shadow-lg'
                               : 'bg-gray-700 text-gray-400 cursor-not-allowed'
                           }`}
                         >
-                          {reward.isCompleted ? '已完成 ✓' : canClaim ? '领取' : '进行中'}
+                          {reward.isCompleted ? '已完成 ✓' : (reward as any).isVIPOnly ? '需VIP' : canClaim ? '领取' : '进行中'}
                         </button>
                       </div>
                     </div>

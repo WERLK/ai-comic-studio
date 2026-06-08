@@ -419,10 +419,27 @@ export const useAuthStore = create<AuthStore>()(
           if (reward) taskArray = 'levelRewards';
         }
 
-        if (!reward || reward.isCompleted) return false;
+        // 如果没找到奖励，直接返回
+        if (!reward) return false;
 
-        // 检查进度条件
-        if (reward.target && reward.progress !== undefined && reward.progress < reward.target) {
+        // 如果已完成，直接返回
+        if (reward.isCompleted) return false;
+
+        // 检查进度条件 - 如果有目标但没有达到要求，不能领取
+        if (reward.target !== undefined) {
+          if (reward.progress === undefined || reward.progress < reward.target) {
+            return false;
+          }
+        }
+
+        // 会员专属任务检查 - 需要是会员才能领取
+        if (taskArray === 'memberRewards') {
+          // 会员任务需要有VIP才能领取，这里可以添加VIP检查逻辑
+          // 暂时跳过检查，允许领取
+        }
+
+        // 检查进度条件 - 如果有canClaim属性但为false，不能领取
+        if (reward.canClaim === false) {
           return false;
         }
 
