@@ -292,7 +292,7 @@ export function Studio() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".txt,text/plain,image/*"
+                      accept=".txt,.md,.png,.jpg,.jpeg,.gif,.webp,.mp4,.mov"
                       onChange={handleFileSelect}
                       className="hidden"
                     />
