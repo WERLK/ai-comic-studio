@@ -23,7 +23,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-cyber-dark cyber-grid">
+    <div className="min-h-screen bg-cyber-dark cyber-grid pb-16">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-cyber-dark2/90 backdrop-blur-xl border-b border-cyber-purple/20 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div 
@@ -37,7 +37,6 @@ function AppContent() {
           </div>
 
           <div className="flex items-center gap-3">
-            <AppVersion />
             {isAuthenticated && (
               <button
                 onClick={() => navigate('/points')}
@@ -139,6 +138,16 @@ function AppContent() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
+
+      {/* Footer with Version */}
+      <footer className="fixed bottom-0 left-0 right-0 z-50 bg-cyber-dark2/90 backdrop-blur-xl border-t border-cyber-purple/20 px-4 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="text-xs text-gray-500">
+            © 2026 AI漫剧工作室
+          </div>
+          <AppVersion />
+        </div>
+      </footer>
     </div>
   );
 }
