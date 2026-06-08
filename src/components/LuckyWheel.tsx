@@ -18,20 +18,59 @@ interface LuckyWheelProps {
   onClose?: () => void;
 }
 
+// 获取今天的日期字符串
+function getTodayKey(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+// 从 localStorage 加载抽奖状态
+function loadWheelState() {
+  try {
+    const saved = localStorage.getItem('luckyWheelState');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const today = getTodayKey();
+      if (parsed.date !== today) {
+        // 如果不是今天的数据，重置免费次数
+        return { dailyFreeSpins: 3, adSpins: parsed.adSpins || 0, date: today };
+      }
+      return { ...parsed, date: today };
+    }
+  } catch (e) {
+    console.error('Failed to load wheel state:', e);
+  }
+  return { dailyFreeSpins: 3, adSpins: 0, date: getTodayKey() };
+}
+
+// 保存抽奖状态到 localStorage
+function saveWheelState(state: { dailyFreeSpins: number; adSpins: number }) {
+  try {
+    localStorage.setItem('luckyWheelState', JSON.stringify({ ...state, date: getTodayKey() }));
+  } catch (e) {
+    console.error('Failed to save wheel state:', e);
+  }
+}
+
 export function LuckyWheel({ onClose }: LuckyWheelProps) {
   const { addPoints } = useAuthStore();
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<typeof PRIZES[0] | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [dailyFreeSpins, setDailyFreeSpins] = useState(3);
-  const [adSpins, setAdSpins] = useState(0);
+  const initialState = loadWheelState();
+  const [dailyFreeSpins, setDailyFreeSpins] = useState(initialState.dailyFreeSpins);
+  const [adSpins, setAdSpins] = useState(initialState.adSpins);
   const [showAd, setShowAd] = useState(false);
   const [adTimeLeft, setAdTimeLeft] = useState(AD_DURATION);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [adCompleted, setAdCompleted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const adIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 保存状态到 localStorage
+  useEffect(() => {
+    saveWheelState({ dailyFreeSpins, adSpins });
+  }, [dailyFreeSpins, adSpins]);
 
   // 绘制转盘
   useEffect(() => {
@@ -263,16 +302,14 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
         </div>
 
         {/* 看广告按钮 */}
-        {totalSpins === 0 && (
-          <button
-            onClick={startWatchAd}
-            disabled={isWatchingAd}
-            className="w-full py-3 rounded-xl font-medium transition-all bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-neon hover:shadow-lg mb-4"
-          >
-            <Video className="w-5 h-5 inline mr-2" />
-            {isWatchingAd ? '广告观看中...' : '看广告获取抽奖次数'}
-          </button>
-        )}
+        <button
+          onClick={startWatchAd}
+          disabled={isWatchingAd}
+          className="w-full py-3 rounded-xl font-medium transition-all bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-neon hover:shadow-lg mb-4"
+        >
+          <Video className="w-5 h-5 inline mr-2" />
+          {isWatchingAd ? '广告观看中...' : '看广告获取抽奖次数'}
+        </button>
 
         {/* 奖品列表 */}
         <div className="bg-cyber-dark/50 rounded-xl p-3">
