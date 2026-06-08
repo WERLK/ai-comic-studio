@@ -178,10 +178,16 @@ export const useAuthStore = create<AuthStore>()(
           await new Promise(resolve => setTimeout(resolve, 800));
           
           // 每次都从 localStorage 读取最新的用户数据
-          let storedUsers: (User & { password: string })[];
+          let storedUsers: (User & { password: string })[] = [];
           try {
             const usersData = localStorage.getItem('ai_comic_users');
-            storedUsers = usersData ? JSON.parse(usersData) : [];
+            if (usersData && usersData.trim()) {
+              storedUsers = JSON.parse(usersData);
+              // 确保是数组
+              if (!Array.isArray(storedUsers)) {
+                storedUsers = [];
+              }
+            }
           } catch {
             storedUsers = [];
           }
@@ -192,8 +198,8 @@ export const useAuthStore = create<AuthStore>()(
           
           // 匹配用户（忽略用户名大小写）
           const user = storedUsers.find((u) => 
-            u.username.trim().toLowerCase() === normalizedUsername.toLowerCase() && 
-            u.password === normalizedPassword
+            (u.username && u.username.trim().toLowerCase() === normalizedUsername.toLowerCase()) && 
+            (u.password === normalizedPassword)
           );
           
           if (user) {
@@ -268,7 +274,22 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           await new Promise(resolve => setTimeout(resolve, 800));
-          const storedUsers: (User & { password: string })[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
+          
+          // 从 localStorage 获取用户列表
+          let storedUsers: (User & { password: string })[] = [];
+          try {
+            const usersData = localStorage.getItem('ai_comic_users');
+            if (usersData && usersData.trim()) {
+              storedUsers = JSON.parse(usersData);
+              // 确保是数组
+              if (!Array.isArray(storedUsers)) {
+                storedUsers = [];
+              }
+            }
+          } catch {
+            // 如果解析失败，使用空数组
+            storedUsers = [];
+          }
           
           // 规范化用户名和邮箱
           const normalizedUsername = credentials.username.trim();
@@ -276,8 +297,8 @@ export const useAuthStore = create<AuthStore>()(
           
           // 检查用户是否已存在（忽略大小写）
           const userExists = storedUsers.some((u) => 
-            u.username.trim().toLowerCase() === normalizedUsername.toLowerCase() || 
-            u.email.trim().toLowerCase() === normalizedEmail
+            (u.username && u.username.trim().toLowerCase() === normalizedUsername.toLowerCase()) || 
+            (u.email && u.email.trim().toLowerCase() === normalizedEmail)
           );
           
           if (userExists) {
