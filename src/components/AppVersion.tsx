@@ -25,18 +25,31 @@ const VERSION_HISTORY = [
 
 export function AppVersion() {
   const [showChangelog, setShowChangelog] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<string>('');
+  const [currentTime, setCurrentTime] = useState<string>('');
 
   useEffect(() => {
-    // 获取当前时间显示上次更新时间
-    const now = new Date().toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    setLastUpdate(now);
+    // 更新当前时间
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(
+        now.toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
+      );
+    };
+
+    // 初始更新
+    updateTime();
+    
+    // 每秒更新一次时间
+    const interval = setInterval(updateTime, 1000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -70,7 +83,7 @@ export function AppVersion() {
             </div>
             
             <div className="text-xs text-gray-500 mb-3">
-              最后更新: {lastUpdate}
+              当前时间: <span className="text-cyber-blue font-mono">{currentTime}</span>
             </div>
 
             <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
