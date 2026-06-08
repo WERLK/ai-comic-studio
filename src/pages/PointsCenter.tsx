@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Coins, Gift, Trophy, ArrowLeft, CheckCircle, ArrowUpRight, ArrowDownRight, ShoppingBag, Star, Users, Palette, Compass, Zap, Sparkles, Crown, Award } from 'lucide-react';
+import { Coins, Gift, Trophy, ArrowLeft, CheckCircle, ArrowUpRight, ArrowDownRight, ShoppingBag, Star, Users, Palette, Compass, Zap, Sparkles, Crown, Award, RotateCw } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
+import { LuckyWheel } from '@/components/LuckyWheel';
 import { TaskType } from '@/types';
 
 const TaskIcon = ({ type, completed }: { type: TaskType; completed?: boolean }) => {
@@ -50,6 +51,7 @@ export function PointsCenter() {
   const [activeMainTab, setActiveMainTab] = useState<'tasks' | 'shop' | 'history'>('tasks');
   const [activeTaskType, setActiveTaskType] = useState<TaskType>('daily');
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showLuckyWheel, setShowLuckyWheel] = useState(false);
 
   const getCurrentTasks = () => {
     switch (activeTaskType) {
@@ -220,6 +222,13 @@ export function PointsCenter() {
             <Gift className="w-4 h-4 inline mr-2" />
             积分记录
           </button>
+          <button
+            onClick={() => setShowLuckyWheel(true)}
+            className="px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all bg-gradient-to-r from-cyber-yellow to-cyber-pink text-cyber-dark shadow-neon hover:shadow-lg animate-pulse"
+          >
+            <RotateCw className="w-4 h-4 inline mr-2" />
+            幸运大转盘
+          </button>
         </div>
 
         {activeMainTab === 'tasks' && (
@@ -386,6 +395,8 @@ export function PointsCenter() {
           </div>
         )}
       </div>
+
+      {showLuckyWheel && <LuckyWheel onClose={() => setShowLuckyWheel(false)} />}
     </div>
   );
 }
