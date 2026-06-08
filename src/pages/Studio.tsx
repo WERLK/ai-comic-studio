@@ -5,6 +5,7 @@ import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
 import { VoiceSelector } from '@/components/voice/VoiceSelector';
 import { AppVersion } from '@/components/AppVersion';
+import { VerticalClock } from '@/components/VerticalClock';
 import type { SceneStyle } from '@/types';
 
 const styleOptions = [
@@ -287,7 +288,8 @@ export function Studio() {
           </div>
           <h1 className="font-display font-medium text-white text-sm md:text-base">AI 漫剧工作室</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <VerticalClock />
           <AppVersion />
         </div>
       </header>
