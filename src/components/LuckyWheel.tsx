@@ -134,10 +134,13 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
       adIntervalRef.current = setInterval(() => {
         setAdTimeLeft(prev => {
           if (prev <= 1) {
-            // 广告看完，发放次数并显示成功
+            // 广告看完，发放随机次数并显示成功
             clearInterval(adIntervalRef.current!);
-            setAdSpins(prev => prev + 1);
+            const randomSpins = Math.floor(Math.random() * 3) + 1; // 随机1-3次
+            setAdSpins(prev => prev + randomSpins);
             setAdCompleted(true);
+            // 保存获得的随机次数用于显示
+            localStorage.setItem('lastAdSpins', randomSpins.toString());
             // 1.5秒后自动关闭广告弹窗
             setTimeout(() => {
               setShowAd(false);
@@ -338,10 +341,10 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
                     <Gift className="w-8 h-8 text-white" />
                   </div>
                   <h3 className="font-display text-xl font-bold text-white mb-2">获得抽奖次数!</h3>
-                  <p className="text-gray-400 mb-4">广告观看完毕，+1次抽奖机会</p>
+                  <p className="text-gray-400 mb-4">广告观看完毕，+{localStorage.getItem('lastAdSpins') || '1'}次抽奖机会</p>
                   <div className="flex justify-center gap-2 items-center">
                     <Coins className="w-5 h-5 text-cyber-yellow" />
-                    <span className="text-cyber-yellow font-bold">+1</span>
+                    <span className="text-cyber-yellow font-bold">+{localStorage.getItem('lastAdSpins') || '1'}</span>
                   </div>
                 </>
               ) : (

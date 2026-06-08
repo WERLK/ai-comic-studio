@@ -426,7 +426,12 @@ export const useAuthStore = create<AuthStore>()(
           return false;
         }
 
-        get().addPoints(reward.points, reward.name);
+        // 如果是每日签到任务，给予随机积分(1-20)
+        let finalPoints = reward.points;
+        if (rewardId === 'daily-login') {
+          finalPoints = Math.floor(Math.random() * 20) + 1;
+        }
+        get().addPoints(finalPoints, reward.name);
         
         // 更新任务状态
         set((state) => {

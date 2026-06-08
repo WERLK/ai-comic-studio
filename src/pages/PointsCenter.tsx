@@ -358,7 +358,9 @@ export function PointsCenter() {
                         </div>
                       </div>
                       <div className="flex items-center gap-4 ml-4">
-                        <span className="font-display text-xl font-bold neon-text-yellow">+{reward.points}</span>
+                        <span className="font-display text-xl font-bold neon-text-yellow">
+                          +{reward.id === 'daily-login' ? '1-20随机' : reward.points}
+                        </span>
                         <button
                           onClick={() => handleClaimReward(reward.id)}
                           disabled={!canClaim}
