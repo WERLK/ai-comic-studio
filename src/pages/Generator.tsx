@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -15,7 +15,9 @@ import {
   BookOpen,
   Wand2,
   Check,
-  Loader2
+  Loader2,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
@@ -37,15 +39,18 @@ export function Generator() {
     isGenerating, 
     generationProgress, 
     generateManga,
-    currentProject 
+    currentProject,
+    speakDialogue,
+    stopSpeaking
   } = useProjectStore();
   
-  const [viewMode, setViewMode] = useState<'manga' | 'video'>('manga');
+  const [viewMode, setViewMode] = useState<'manga' | 'video'>('video');
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<SceneStyle>('anime');
   const [frameCount, setFrameCount] = useState(6);
   const [characterCount, setCharacterCount] = useState(3);
+  const [isMuted, setIsMuted] = useState(false);
 
   const project = projectId ? getProject(projectId) : null;
 
@@ -59,18 +64,30 @@ export function Generator() {
   useEffect(() => {
     let interval: number;
     if (isPlaying && project && project.frames.length > 0) {
+      const currentFrameData = project.frames[currentFrame];
+      const duration = currentFrameData?.duration || 3000;
+      
+      // Play voiceover if not muted
+      if (!isMuted && currentFrameData?.dialogues[0]?.text) {
+        speakDialogue(currentFrameData.dialogues[0].text);
+      }
+      
       interval = window.setInterval(() => {
         setCurrentFrame((prev) => {
           if (prev >= project.frames.length - 1) {
             setIsPlaying(false);
+            stopSpeaking();
             return 0;
           }
           return prev + 1;
         });
-      }, 3000);
+      }, duration);
     }
-    return () => clearInterval(interval);
-  }, [isPlaying, project?.frames.length]);
+    return () => {
+      clearInterval(interval);
+      stopSpeaking();
+    };
+  }, [isPlaying, project?.frames.length, currentFrame, isMuted, speakDialogue, stopSpeaking]);
 
   if (!project) {
     return (
@@ -165,10 +182,11 @@ export function Generator() {
             <div className="mt-8 space-y-3 text-left">
               {[
                 { step: 1, label: '分析故事内容', progress: 10 },
-                { step: 2, label: '生成角色形象', progress: 30 },
-                { step: 3, label: '创作场景背景', progress: 50 },
-                { step: 4, label: '生成分镜布局', progress: 70 },
-                { step: 5, label: '添加对话旁白', progress: 90 },
+                { step: 2, label: '生成角色形象', progress: 25 },
+                { step: 3, label: '创作场景背景', progress: 45 },
+                { step: 4, label: '生成分镜布局', progress: 65 },
+                { step: 5, label: '添加对话旁白', progress: 80 },
+                { step: 6, label: '生成配音音频', progress: 95 },
               ].map(({ step, label, progress }) => (
                 <div key={step} className="flex items-center gap-3">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
@@ -294,6 +312,9 @@ export function Generator() {
                           </div>
                         ) : (
                           <div className="dialogue-bubble">
+                            {currentFrameData.dialogues[0].characterName && (
+                              <div className="text-xs text-cyber-pink font-medium mb-1">{currentFrameData.dialogues[0].characterName}</div>
+                            )}
                             <p className="text-sm">{currentFrameData.dialogues[0].text}</p>
                           </div>
                         )}
@@ -375,23 +396,38 @@ export function Generator() {
                 <SkipForward className="w-6 h-6" />
               </button>
 
+              {/* Mute Toggle */}
+              <button
+                onClick={() => setIsMuted(!isMuted)}
+                className={`p-2 transition-all ${isMuted ? 'text-cyber-pink' : 'text-gray-400 hover:text-white'}`}
+              >
+                {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+              </button>
+
               {/* Timeline */}
-              <div className="flex items-center gap-2 ml-8">
-                {project.frames.map((_, index) => (
+              <div className="flex items-center gap-2 ml-4">
+                {project.frames.map((frame, index) => (
                   <button
                     key={index}
                     onClick={() => {
                       setIsPlaying(false);
+                      stopSpeaking();
                       setCurrentFrame(index);
                     }}
-                    className={`w-3 h-3 rounded-full transition-all ${
+                    className={`w-3 h-3 rounded-full transition-all relative ${
                       index === currentFrame 
                         ? 'bg-cyber-pink shadow-neon' 
                         : index < currentFrame
                         ? 'bg-cyber-purple/50'
                         : 'bg-cyber-purple/20 hover:bg-cyber-purple/40'
                     }`}
-                  />
+                  >
+                    {frame.dialogues.length > 0 && !isMuted && (
+                      <span className="absolute -top-5 left-1/2 -translate-x-1/2">
+                        <Volume2 className="w-3 h-3 text-cyber-blue" />
+                      </span>
+                    )}
+                  </button>
                 ))}
               </div>
             </div>

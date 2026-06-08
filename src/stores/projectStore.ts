@@ -20,6 +20,36 @@ function saveToStorage(projects: Project[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
 }
 
+async function generateAudio(text: string, voiceName?: string): Promise<string | undefined> {
+  if ('speechSynthesis' in window) {
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-CN';
+      utterance.rate = 0.8;
+      
+      const voices = window.speechSynthesis.getVoices();
+      const chineseVoice = voices.find(v => v.lang.startsWith('zh')) || voices.find(v => v.lang.startsWith('en'));
+      if (chineseVoice) {
+        utterance.voice = chineseVoice;
+      }
+      
+      utterance.onend = () => {
+        resolve(undefined);
+      };
+      utterance.onerror = () => {
+        resolve(undefined);
+      };
+      
+      window.speechSynthesis.speak(utterance);
+    });
+  }
+  return undefined;
+}
+
+function generateAudioUrl(text: string): string {
+  return `data:text/plain;base64,${btoa(text)}`;
+}
+
 interface ProjectStore {
   projects: Project[];
   currentProject: Project | null;
@@ -32,6 +62,8 @@ interface ProjectStore {
   getProject: (id: string) => Project | undefined;
   generateManga: (projectId: string, prompt: GenerationPrompt) => Promise<void>;
   simulateGeneration: (projectId: string, prompt: GenerationPrompt) => Promise<void>;
+  speakDialogue: (text: string) => void;
+  stopSpeaking: () => void;
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -157,25 +189,32 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           '故事迎来了转折点',
         ];
 
-    // Generate frames
+    // Generate frames with voiceover
     const frames: Frame[] = [];
+    const dialogueNames = ['小明', '小红', '老师', '神秘人', '机器人'];
     
     for (let i = 0; i < frameCount; i++) {
       const scene = selectedScenes[i % selectedScenes.length];
       const character = characters[i % characters.length];
+      const segment = storySegments[i % storySegments.length];
+      
+      const isNarration = i % 4 === 0;
+      const dialogueText = segment || (isNarration ? '新的场景开始了...' : '对话内容');
       
       frames.push({
         id: generateId(),
         sceneImageUrl: scene.url,
         characterIds: character ? [character.id] : [],
-        dialogues: storySegments[i % storySegments.length] ? [{
+        dialogues: dialogueText ? [{
           id: generateId(),
-          type: i % 3 === 0 ? 'narration' : 'speech',
-          text: storySegments[i % storySegments.length],
+          type: isNarration ? 'narration' : 'speech',
+          text: dialogueText,
           position: { x: 50, y: 60 },
-          style: 'bubble',
+          style: isNarration ? 'caption' : 'bubble',
+          audioUrl: generateAudioUrl(dialogueText),
+          characterName: isNarration ? undefined : dialogueNames[i % dialogueNames.length],
         }] : [],
-        duration: 3000,
+        duration: 3000 + (dialogueText?.length || 0) * 50,
         transition: 'fade',
         position: { x: 0, y: 0, width: 100, height: 100 },
       });
@@ -190,5 +229,27 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     });
 
     set({ generationProgress: 100 });
+  },
+
+  speakDialogue: (text: string) => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-CN';
+      utterance.rate = 0.8;
+      
+      const voices = window.speechSynthesis.getVoices();
+      const chineseVoice = voices.find(v => v.lang.startsWith('zh')) || voices.find(v => v.lang.startsWith('en'));
+      if (chineseVoice) {
+        utterance.voice = chineseVoice;
+      }
+      
+      window.speechSynthesis.speak(utterance);
+    }
+  },
+
+  stopSpeaking: () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
   },
 }));

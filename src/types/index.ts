@@ -27,6 +27,8 @@ export interface Dialogue {
   text: string;
   position: { x: number; y: number };
   style: DialogueStyle;
+  audioUrl?: string;
+  characterName?: string;
 }
 
 export type TransitionType = 'none' | 'fade' | 'slide' | 'zoom';
