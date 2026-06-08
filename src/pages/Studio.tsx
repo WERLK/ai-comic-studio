@@ -359,13 +359,20 @@ export function Studio() {
 
   const handleCreateAndGenerate = () => {
     const title = projectTitle.trim() || '新漫剧项目';
-    const content = inputMode === 'text' ? storyText : (uploadedFile ? (storyText || '上传素材') : '');
+    const content = inputMode === 'text' ? storyText : (uploadedFile ? (storyText || '这是一个有趣的故事，主角经历了一场冒险，最终取得了成功') : '');
     const project = createProject(title, content, inputMode);
     
     // Store selected voices for this project
     if (selectedVoices.length > 0) {
       localStorage.setItem(`project_voices_${project.id}`, JSON.stringify(selectedVoices));
     }
+    
+    // Store generation settings
+    localStorage.setItem(`project_settings_${project.id}`, JSON.stringify({
+      selectedStyle,
+      frameCount,
+      characterCount
+    }));
     
     setCurrentProject(project.id);
     navigate(`/generator/${project.id}`);

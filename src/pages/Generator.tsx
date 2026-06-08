@@ -97,11 +97,19 @@ export function Generator() {
     const storedVoices = localStorage.getItem(`project_voices_${project.id}`);
     const selectedVoices = storedVoices ? JSON.parse(storedVoices) : [];
     
+    // Read generation settings from localStorage
+    const storedSettings = localStorage.getItem(`project_settings_${project.id}`);
+    const settings = storedSettings ? JSON.parse(storedSettings) : {
+      selectedStyle: 'anime',
+      frameCount: 6,
+      characterCount: 3
+    };
+    
     await generateManga(project.id, {
       storyText: project.sourceContent,
-      style: selectedStyle,
-      frameCount,
-      characterCount,
+      style: settings.selectedStyle,
+      frameCount: settings.frameCount,
+      characterCount: settings.characterCount,
       selectedVoices,
     });
   };
