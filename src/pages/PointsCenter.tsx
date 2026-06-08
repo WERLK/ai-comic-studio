@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Coins, Gift, Trophy, ArrowLeft, CheckCircle, ArrowUpRight, ArrowDownRight, ShoppingBag, Star, Users, Palette, Compass, Zap, Sparkles } from 'lucide-react';
+import { Coins, Gift, Trophy, ArrowLeft, CheckCircle, ArrowUpRight, ArrowDownRight, ShoppingBag, Star, Users, Palette, Compass, Zap, Sparkles, Crown, Award } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
 import { TaskType } from '@/types';
@@ -21,6 +21,10 @@ const TaskIcon = ({ type, completed }: { type: TaskType; completed?: boolean }) 
       return <Compass className={className} />;
     case 'special':
       return <Zap className={className} />;
+    case 'member':
+      return <Crown className={className} />;
+    case 'level':
+      return <Award className={className} />;
   }
 };
 
@@ -36,6 +40,8 @@ export function PointsCenter() {
     creationRewards, 
     exploreRewards, 
     specialRewards,
+    memberRewards,
+    levelRewards,
     exchangeItems, 
     claimReward, 
     exchangeItem 
@@ -59,6 +65,10 @@ export function PointsCenter() {
         return exploreRewards;
       case 'special':
         return specialRewards;
+      case 'member':
+        return memberRewards;
+      case 'level':
+        return levelRewards;
     }
   };
 
@@ -98,6 +108,8 @@ export function PointsCenter() {
     creation: '创作任务',
     explore: '探索任务',
     special: '特殊活动',
+    member: '会员任务',
+    level: '等级任务',
   };
 
   const taskTypeColors: Record<TaskType, string> = {
@@ -107,6 +119,8 @@ export function PointsCenter() {
     creation: 'from-pink-400 to-purple-500',
     explore: 'from-green-400 to-emerald-500',
     special: 'from-orange-400 to-red-500',
+    member: 'from-purple-400 to-pink-500',
+    level: 'from-yellow-400 to-orange-500',
   };
 
   return (
