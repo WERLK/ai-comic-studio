@@ -2,10 +2,15 @@ import { useState, useEffect } from 'react';
 import { Zap, Sparkles } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 
 // 版本历史记录
 const VERSION_HISTORY = [
+  {
+    version: '1.3.0',
+    date: '2026-06-08',
+    features: ['添加幸运大转盘', '优化文件上传', '修复登录问题'],
+  },
   {
     version: '1.2.0',
     date: '2026-06-08',

@@ -174,9 +174,15 @@ export const useAuthStore = create<AuthStore>()(
         try {
           await new Promise(resolve => setTimeout(resolve, 800));
           const storedUsers: (User & { password: string })[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
+          
+          // 规范化用户名和密码（去除空白字符）
+          const normalizedUsername = credentials.username.trim();
+          const normalizedPassword = credentials.password;
+          
+          // 匹配用户（忽略用户名大小写）
           const user = storedUsers.find((u) => 
-            u.username === credentials.username && 
-            u.password === credentials.password
+            u.username.trim().toLowerCase() === normalizedUsername.toLowerCase() && 
+            u.password === normalizedPassword
           );
           
           if (user) {
@@ -253,8 +259,14 @@ export const useAuthStore = create<AuthStore>()(
           await new Promise(resolve => setTimeout(resolve, 800));
           const storedUsers: (User & { password: string })[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
           
+          // 规范化用户名和邮箱
+          const normalizedUsername = credentials.username.trim();
+          const normalizedEmail = credentials.email.trim().toLowerCase();
+          
+          // 检查用户是否已存在（忽略大小写）
           const userExists = storedUsers.some((u) => 
-            u.username === credentials.username || u.email === credentials.email
+            u.username.trim().toLowerCase() === normalizedUsername.toLowerCase() || 
+            u.email.trim().toLowerCase() === normalizedEmail
           );
           
           if (userExists) {
@@ -264,8 +276,8 @@ export const useAuthStore = create<AuthStore>()(
 
           const newUser: User & { password: string } = {
             id: Date.now().toString(),
-            username: credentials.username,
-            email: credentials.email,
+            username: normalizedUsername,
+            email: normalizedEmail,
             points: 50,
             createdAt: new Date().toISOString(),
             lastLoginDate: getTodayKey(),
