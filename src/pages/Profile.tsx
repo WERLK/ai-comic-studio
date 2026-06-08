@@ -57,9 +57,17 @@ const MenuItem = ({
 
 export function Profile() {
   const navigate = useNavigate();
-  const { user, points, logout, transactions } = useAuthStore();
+  const { user, points, logout, clearAllData, transactions } = useAuthStore();
   
   const [showSettings, setShowSettings] = useState(false);
+
+  const handleClearAllData = () => {
+    if (window.confirm('确定要清空所有数据吗？这将删除您的所有用户数据、积分记录和项目数据！')) {
+      clearAllData();
+      navigate('/');
+      window.location.reload();
+    }
+  };
 
   const getLevel = (pts: number) => {
     if (pts >= 50000) return { level: 10, name: '传奇创作者' };
@@ -211,6 +219,21 @@ export function Profile() {
             subLabel="常见问题"
             color="from-orange-400 to-red-500"
           />
+
+          <div className="h-px bg-cyber-purple/20 my-4" />
+
+          <button
+            onClick={handleClearAllData}
+            className="w-full flex items-center gap-4 bg-orange-500/10 border border-orange-500/30 hover:border-orange-500/50 hover:bg-orange-500/20 rounded-2xl p-4 transition-all"
+          >
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-400 to-red-600 flex items-center justify-center flex-shrink-0">
+              <Activity className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="font-medium text-orange-400">清空所有数据</p>
+              <p className="text-xs text-gray-400">删除所有本地存储的数据</p>
+            </div>
+          </button>
 
           <div className="h-px bg-cyber-purple/20 my-4" />
 

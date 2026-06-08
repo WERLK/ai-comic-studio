@@ -15,6 +15,7 @@ interface AuthStore extends AuthState {
   memberRewards: PointReward[];
   levelRewards: PointReward[];
   exchangeItems: PointExchangeItem[];
+  clearAllData: () => void;
   login: (credentials: LoginCredentials) => Promise<boolean>;
   register: (credentials: RegisterCredentials) => Promise<boolean>;
   logout: () => void;
@@ -26,6 +27,8 @@ interface AuthStore extends AuthState {
   updateTaskProgress: (taskId: string, progress: number) => void;
   refreshDailyTasks: () => void;
 }
+
+const DATA_VERSION = 'v2'; // 数据版本号，更改此值可清空旧数据
 
 const getTodayKey = () => {
   return new Date().toISOString().split('T')[0];
@@ -315,6 +318,33 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: () => {
         set({ user: null, isAuthenticated: false });
+      },
+
+      clearAllData: () => {
+        // 清空 localStorage 中的所有用户数据
+        localStorage.removeItem('ai_comic_auth');
+        localStorage.removeItem('ai_comic_users');
+        localStorage.removeItem('manga-studio-projects');
+        localStorage.removeItem('luckyWheelState');
+        localStorage.removeItem('lastAdSpins');
+        
+        // 重置所有状态
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          points: 0,
+          transactions: [],
+          dailyRewards: mockDailyRewards,
+          achievementRewards: mockAchievementRewards,
+          socialRewards: mockSocialRewards,
+          creationRewards: mockCreationRewards,
+          exploreRewards: mockExploreRewards,
+          specialRewards: mockSpecialRewards,
+          memberRewards: mockMemberRewards,
+          levelRewards: mockLevelRewards,
+          exchangeItems: mockExchangeItems,
+        });
       },
 
       addPoints: (amount: number, description: string) => {
