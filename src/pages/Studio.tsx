@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2 } from 'lucide-react';
-import { useProjectStore } from '@/stores';
+import { useProjectStore, useAuthStore } from '@/stores';
 import { Button } from '@/components/common';
 import type { SceneStyle } from '@/types';
 
@@ -123,6 +123,7 @@ function parseStoryContent(text: string): ParsedContent {
 export function Studio() {
   const navigate = useNavigate();
   const { projects, createProject, deleteProject, setCurrentProject } = useProjectStore();
+  const { addPoints } = useAuthStore();
 
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
   const [storyText, setStoryText] = useState('');
@@ -209,17 +210,7 @@ export function Studio() {
 
   return (
     <div className="min-h-screen bg-cyber-dark cyber-grid">
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-neon">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="font-display text-2xl md:text-3xl font-bold neon-text-pink">AI 漫剧生成器</h1>
-          </div>
-          <p className="text-gray-500">输入故事内容，一键生成你的漫画和视频</p>
-        </div>
-
+      <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid lg:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div className="flex gap-2">
@@ -279,7 +270,6 @@ export function Studio() {
                       ref={fileInputRef}
                       type="file"
                       accept=".txt,text/plain,image/*"
-                      capture="environment"
                       onChange={handleFileSelect}
                       className="hidden"
                     />
@@ -300,7 +290,7 @@ export function Studio() {
                             onClick={(e) => { e.stopPropagation(); clearUpload(); }}
                             className="absolute top-2 right-2 p-1 bg-cyber-dark/80 rounded-full text-gray-400 hover:text-cyber-pink"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                           </button>
                         </div>
                       ) : uploadedFile && parsedContent ? (
@@ -437,7 +427,7 @@ export function Studio() {
                     onClick={() => handleProjectClick(project.id)}
                   >
                     <div className="flex items-start gap-4">
-                      <div className="w-16 h-16 rounded-lg bg-cyber-purple/10 flex items-center justify-center flex-shrink-0">
+                      <div className="w-16 h-16 rounded-xl bg-cyber-purple/20 flex items-center justify-center flex-shrink-0">
                         {project.status === 'completed' ? (
                           <Film className="w-8 h-8 text-cyber-pink" />
                         ) : project.status === 'generating' ? (
@@ -477,9 +467,9 @@ export function Studio() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-16">
-                <div className="w-20 h-20 rounded-2xl bg-cyber-purple/10 flex items-center justify-center mx-auto mb-4">
-                  <Film className="w-10 h-10 text-cyber-purple/40" />
+              <div className="text-center py-12">
+                <div className="w-16 h-16 rounded-2xl bg-cyber-purple/10 flex items-center justify-center mx-auto mb-4">
+                  <Film className="w-8 h-8 text-cyber-purple/40" />
                 </div>
                 <h3 className="font-medium text-white mb-2">还没有项目</h3>
                 <p className="text-sm text-gray-500">输入故事内容，一键生成你的第一部AI漫剧</p>
