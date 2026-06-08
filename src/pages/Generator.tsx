@@ -61,15 +61,16 @@ export function Generator() {
     }
   }, [project?.id]);
 
+  // Update play effect to use voiceId
   useEffect(() => {
     let interval: number;
     if (isPlaying && project && project.frames.length > 0) {
       const currentFrameData = project.frames[currentFrame];
       const duration = currentFrameData?.duration || 3000;
       
-      // Play voiceover if not muted
+      // Play voiceover if not muted with specific voice
       if (!isMuted && currentFrameData?.dialogues[0]?.text) {
-        speakDialogue(currentFrameData.dialogues[0].text);
+        speakDialogue(currentFrameData.dialogues[0].text, currentFrameData.dialogues[0].voiceId);
       }
       
       interval = window.setInterval(() => {
@@ -107,11 +108,17 @@ export function Generator() {
 
   const handleGenerate = async () => {
     if (!project) return;
+    
+    // Read selected voices from localStorage
+    const storedVoices = localStorage.getItem(`project_voices_${project.id}`);
+    const selectedVoices = storedVoices ? JSON.parse(storedVoices) : [];
+    
     await generateManga(project.id, {
       storyText: project.sourceContent,
       style: selectedStyle,
       frameCount,
       characterCount,
+      selectedVoices,
     });
   };
 

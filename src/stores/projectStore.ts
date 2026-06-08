@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Project, Frame, GenerationPrompt, Scene, Character } from '@/types';
+import { voiceActors, getVoiceById } from '@/data/voiceActors';
 
 const STORAGE_KEY = 'manga-studio-projects';
 
@@ -62,8 +63,9 @@ interface ProjectStore {
   getProject: (id: string) => Project | undefined;
   generateManga: (projectId: string, prompt: GenerationPrompt) => Promise<void>;
   simulateGeneration: (projectId: string, prompt: GenerationPrompt) => Promise<void>;
-  speakDialogue: (text: string) => void;
+  speakDialogue: (text: string, voiceId?: string) => void;
   stopSpeaking: () => void;
+  previewVoice: (voiceId: string) => void;
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -139,9 +141,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   simulateGeneration: async (projectId: string, prompt: GenerationPrompt) => {
-    const { storyText, style, characterCount, frameCount } = prompt;
+    const { storyText, style, characterCount, frameCount, selectedVoices } = prompt;
     
-    // Generate characters
+    // Generate characters with assigned voices
     const characters: Character[] = [];
     const characterNames = ['小明', '小红', '老师', '神秘人', '机器人', '武士', '魔法师', '侦探'];
     const genders: ('male' | 'female' | 'neutral')[] = ['male', 'female', 'neutral'];
@@ -151,12 +153,24 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     for (let i = 0; i < characterCount; i++) {
       const gender = genders[i % 3];
+      // Assign voice based on gender or use selected voices
+      let voiceId = selectedVoices?.[i] || null;
+      
+      if (!voiceId) {
+        // Auto-assign voice based on gender
+        const matchingVoices = voiceActors.filter(v => v.gender === gender && !v.tags.includes('旁白'));
+        if (matchingVoices.length > 0) {
+          voiceId = matchingVoices[i % matchingVoices.length].id;
+        }
+      }
+      
       characters.push({
         id: generateId(),
         name: characterNames[i % characterNames.length] + (i >= characterNames.length ? i : ''),
         imageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${generateId()}&backgroundColor=${gender === 'male' ? 'b6e3f4' : gender === 'female' ? 'ffdfbf' : 'c0aede'}`,
         gender,
         tags: [style, gender === 'male' ? '男性' : gender === 'female' ? '女性' : '中性'],
+        voiceId,
       });
     }
 
@@ -213,6 +227,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           style: isNarration ? 'caption' : 'bubble',
           audioUrl: generateAudioUrl(dialogueText),
           characterName: isNarration ? undefined : dialogueNames[i % dialogueNames.length],
+          voiceId: isNarration ? 'narration-male-1' : character?.voiceId,
         }] : [],
         duration: 3000 + (dialogueText?.length || 0) * 50,
         transition: 'fade',
@@ -231,16 +246,60 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({ generationProgress: 100 });
   },
 
-  speakDialogue: (text: string) => {
+  speakDialogue: (text: string, voiceId?: string) => {
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-CN';
-      utterance.rate = 0.8;
       
-      const voices = window.speechSynthesis.getVoices();
-      const chineseVoice = voices.find(v => v.lang.startsWith('zh')) || voices.find(v => v.lang.startsWith('en'));
-      if (chineseVoice) {
-        utterance.voice = chineseVoice;
+      // Get the voice actor if voiceId is provided
+      const voiceActor = voiceId ? getVoiceById(voiceId) : null;
+      
+      // Set language based on voice actor
+      if (voiceActor && voiceActor.languages.length > 0) {
+        utterance.lang = voiceActor.languages[0];
+      } else {
+        utterance.lang = 'zh-CN';
+      }
+      
+      // Adjust rate based on voice tone
+      if (voiceActor) {
+        switch (voiceActor.tone) {
+          case 'bright':
+          case 'energetic':
+            utterance.rate = 0.9;
+            break;
+          case 'calm':
+          case 'warm':
+            utterance.rate = 0.75;
+            break;
+          case 'cool':
+          case 'serious':
+            utterance.rate = 0.7;
+            break;
+          default:
+            utterance.rate = 0.8;
+        }
+      } else {
+        utterance.rate = 0.8;
+      }
+      
+      // Try to find a matching voice
+      const availableVoices = window.speechSynthesis.getVoices();
+      if (voiceActor) {
+        // Try to find a voice that matches the language
+        const matchingVoice = availableVoices.find(v => 
+          voiceActor.languages.some(lang => v.lang.startsWith(lang.split('-')[0]))
+        );
+        if (matchingVoice) {
+          utterance.voice = matchingVoice;
+        }
+      } else {
+        // Default to Chinese or English
+        const defaultVoice = availableVoices.find(v => 
+          v.lang.startsWith('zh') || v.lang.startsWith('en')
+        );
+        if (defaultVoice) {
+          utterance.voice = defaultVoice;
+        }
       }
       
       window.speechSynthesis.speak(utterance);
@@ -250,6 +309,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   stopSpeaking: () => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+    }
+  },
+
+  previewVoice: (voiceId: string) => {
+    const voiceActor = getVoiceById(voiceId);
+    if (voiceActor && voiceActor.previewText) {
+      get().speakDialogue(voiceActor.previewText, voiceId);
     }
   },
 }));

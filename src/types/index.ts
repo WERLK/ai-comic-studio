@@ -10,12 +10,28 @@ export interface Scene {
 
 export type CharacterGender = 'male' | 'female' | 'neutral';
 
+export type VoiceAge = 'child' | 'teen' | 'adult' | 'middle' | 'senior';
+export type VoiceTone = 'bright' | 'calm' | 'energetic' | 'warm' | 'cool' | 'serious';
+
+export interface VoiceActor {
+  id: string;
+  name: string;
+  description: string;
+  gender: CharacterGender;
+  age: VoiceAge;
+  tone: VoiceTone;
+  languages: string[];
+  tags: string[];
+  previewText?: string;
+}
+
 export interface Character {
   id: string;
   name: string;
   imageUrl: string;
   gender: CharacterGender;
   tags: string[];
+  voiceId?: string;
 }
 
 export type DialogueType = 'speech' | 'thought' | 'narration' | 'shout';
@@ -29,6 +45,7 @@ export interface Dialogue {
   style: DialogueStyle;
   audioUrl?: string;
   characterName?: string;
+  voiceId?: string;
 }
 
 export type TransitionType = 'none' | 'fade' | 'slide' | 'zoom';
@@ -61,6 +78,7 @@ export interface GenerationPrompt {
   style: SceneStyle;
   characterCount: number;
   frameCount: number;
+  selectedVoices?: string[];
 }
 
 export interface GenerationResult {

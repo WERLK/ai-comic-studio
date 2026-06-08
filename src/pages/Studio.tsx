@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2 } from 'lucide-react';
+import { Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2, Volume2 } from 'lucide-react';
 import { useProjectStore, useAuthStore } from '@/stores';
 import { Button } from '@/components/common';
+import { VoiceSelector } from '@/components/voice/VoiceSelector';
 import type { SceneStyle } from '@/types';
 
 const styleOptions = [
@@ -136,6 +137,8 @@ export function Studio() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [parsedContent, setParsedContent] = useState<ParsedContent | null>(null);
   const [showAnalysisResult, setShowAnalysisResult] = useState(false);
+  const [showVoiceSelector, setShowVoiceSelector] = useState(false);
+  const [selectedVoices, setSelectedVoices] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -189,6 +192,12 @@ export function Studio() {
     const title = projectTitle.trim() || '新漫剧项目';
     const content = inputMode === 'text' ? storyText : (uploadedFile ? (storyText || '上传素材') : '');
     const project = createProject(title, content, inputMode);
+    
+    // Store selected voices for this project
+    if (selectedVoices.length > 0) {
+      localStorage.setItem(`project_voices_${project.id}`, JSON.stringify(selectedVoices));
+    }
+    
     setCurrentProject(project.id);
     navigate(`/generator/${project.id}`);
   };
@@ -396,6 +405,32 @@ export function Studio() {
                       ))}
                     </select>
                   </div>
+                </div>
+                
+                {/* Voice Selection */}
+                <div className="mt-4">
+                  <button
+                    onClick={() => setShowVoiceSelector(!showVoiceSelector)}
+                    className="w-full py-3 px-4 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-cyber-purple/20 to-cyber-pink/20 border border-cyber-purple/30 hover:border-cyber-pink/50 text-white"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    {showVoiceSelector ? '收起配音设置' : '设置角色配音'}
+                    {selectedVoices.length > 0 && (
+                      <span className="ml-2 px-2 py-0.5 bg-cyber-pink text-white text-xs rounded-full">
+                        {selectedVoices.length}
+                      </span>
+                    )}
+                  </button>
+                  
+                  {showVoiceSelector && (
+                    <div className="mt-4">
+                      <VoiceSelector
+                        selectedVoices={selectedVoices}
+                        onChange={setSelectedVoices}
+                        characterCount={characterCount}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
