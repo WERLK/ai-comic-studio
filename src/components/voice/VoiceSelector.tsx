@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Volume2, Play, Pause, Check, User } from 'lucide-react';
 import { voiceActors, getVoicesByGender, getVoiceById } from '@/data/voiceActors';
 import { useProjectStore } from '@/stores';
-import type { VoiceActor, CharacterGender } from '@/types';
 
 interface VoiceSelectorProps {
   selectedVoices: string[];

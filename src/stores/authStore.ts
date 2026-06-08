@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, AuthState, LoginCredentials, RegisterCredentials, PointTransaction, PointReward, PointExchangeItem, TaskType } from '@/types';
+import { User, AuthState, LoginCredentials, RegisterCredentials, PointTransaction, PointReward, PointExchangeItem } from '@/types';
 
 interface AuthStore extends AuthState {
   user: User | null;
@@ -173,8 +173,8 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           await new Promise(resolve => setTimeout(resolve, 800));
-          const storedUsers = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-          const user = storedUsers.find((u: any) => 
+          const storedUsers: (User & { password: string })[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
+          const user = storedUsers.find((u) => 
             u.username === credentials.username && 
             u.password === credentials.password
           );
@@ -205,12 +205,13 @@ export const useAuthStore = create<AuthStore>()(
               consecutiveLoginDays,
             };
 
-            const updatedUsers = storedUsers.map((u: any) => 
+            const updatedUsers = storedUsers.map((u) => 
               u.id === user.id ? updatedUser : u
             );
             localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
 
-            const { password, ...userWithoutPassword } = updatedUser;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { password: _password, ...userWithoutPassword } = updatedUser;
             set((state) => {
               // 刷新每日任务
               const newDailyRewards = state.dailyRewards.map(r => ({
@@ -240,7 +241,7 @@ export const useAuthStore = create<AuthStore>()(
           }
           set({ isLoading: false });
           return false;
-        } catch (error) {
+        } catch {
           set({ isLoading: false });
           return false;
         }
@@ -250,9 +251,9 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           await new Promise(resolve => setTimeout(resolve, 800));
-          const storedUsers = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
+          const storedUsers: (User & { password: string })[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
           
-          const userExists = storedUsers.some((u: any) => 
+          const userExists = storedUsers.some((u) => 
             u.username === credentials.username || u.email === credentials.email
           );
           
@@ -276,7 +277,8 @@ export const useAuthStore = create<AuthStore>()(
           const updatedUsers = [...storedUsers, newUser];
           localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
 
-          const { password, ...userWithoutPassword } = newUser;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { password: _password, ...userWithoutPassword } = newUser;
           set({ 
             user: userWithoutPassword, 
             isAuthenticated: true, 
@@ -285,7 +287,7 @@ export const useAuthStore = create<AuthStore>()(
           });
 
           return true;
-        } catch (error) {
+        } catch {
           set({ isLoading: false });
           return false;
         }
@@ -308,8 +310,8 @@ export const useAuthStore = create<AuthStore>()(
 
           if (state.user) {
             const updatedUser = { ...state.user, points: newPoints };
-            const storedUsers = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-            const updatedUsers = storedUsers.map((u: any) => 
+            const storedUsers: (User & { password: string })[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
+            const updatedUsers = storedUsers.map((u) => 
               u.id === updatedUser.id ? { ...u, points: newPoints } : u
             );
             localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
@@ -338,8 +340,8 @@ export const useAuthStore = create<AuthStore>()(
 
           if (state.user) {
             const updatedUser = { ...state.user, points: newPoints };
-            const storedUsers = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-            const updatedUsers = storedUsers.map((u: any) => 
+            const storedUsers: (User & { password: string })[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
+            const updatedUsers = storedUsers.map((u) => 
               u.id === updatedUser.id ? { ...u, points: newPoints } : u
             );
             localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
@@ -413,7 +415,7 @@ export const useAuthStore = create<AuthStore>()(
               r.id === rewardId ? { ...r, isCompleted: true } : r
             );
 
-          const updates: any = {};
+          const updates: Partial<AuthStore> = {};
           if (taskArray === 'dailyRewards') updates.dailyRewards = updateFn(state.dailyRewards);
           if (taskArray === 'achievementRewards') updates.achievementRewards = updateFn(state.achievementRewards);
           if (taskArray === 'socialRewards') updates.socialRewards = updateFn(state.socialRewards);
@@ -431,8 +433,8 @@ export const useAuthStore = create<AuthStore>()(
             };
             updates.user = updatedUser;
             
-            const storedUsers = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-            const updatedUsers = storedUsers.map((u: any) => 
+            const storedUsers: (User & { password: string })[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
+            const updatedUsers = storedUsers.map((u) => 
               u.id === updatedUser.id ? updatedUser : u
             );
             localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
@@ -461,9 +463,6 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       markTaskComplete: (taskId: string) => {
-        // 标记任务完成并尝试领取奖励
-        const state = get();
-        
         // 先更新进度
         get().updateTaskProgress(taskId, 1);
         

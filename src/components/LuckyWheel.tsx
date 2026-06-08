@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { RotateCw, Gift, Star, Coins, Video, Play, X } from 'lucide-react';
+import { Gift, Star, Coins, Video, Play } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 
 const PRIZES = [
@@ -19,7 +19,7 @@ interface LuckyWheelProps {
 }
 
 export function LuckyWheel({ onClose }: LuckyWheelProps) {
-  const { points, addPoints, user } = useAuthStore();
+  const { addPoints } = useAuthStore();
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<typeof PRIZES[0] | null>(null);

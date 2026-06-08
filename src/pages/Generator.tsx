@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -10,36 +10,23 @@ import {
   SkipBack, 
   SkipForward,
   Download,
-  Image,
   Video,
   BookOpen,
   Wand2,
   Check,
-  Loader2,
   Volume2,
   VolumeX
 } from 'lucide-react';
 import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
-import type { SceneStyle } from '@/types';
-
-const styleOptions = [
-  { value: 'anime', label: '日系动漫风格' },
-  { value: 'manga', label: '经典漫画风格' },
-  { value: 'cyberpunk', label: '赛博朋克风格' },
-  { value: 'realistic', label: '写实风格' },
-];
 
 export function Generator() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { 
     getProject, 
-    updateProject, 
-    isGenerating, 
     generationProgress, 
     generateManga,
-    currentProject,
     speakDialogue,
     stopSpeaking
   } = useProjectStore();
@@ -47,9 +34,6 @@ export function Generator() {
   const [viewMode, setViewMode] = useState<'manga' | 'video'>('video');
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [selectedStyle, setSelectedStyle] = useState<SceneStyle>('anime');
-  const [frameCount, setFrameCount] = useState(6);
-  const [characterCount, setCharacterCount] = useState(3);
   const [isMuted, setIsMuted] = useState(false);
 
   const project = projectId ? getProject(projectId) : null;

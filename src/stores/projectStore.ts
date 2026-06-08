@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, Frame, GenerationPrompt, Scene, Character } from '@/types';
+import type { Project, Frame, GenerationPrompt, Character } from '@/types';
 import { voiceActors, getVoiceById } from '@/data/voiceActors';
 
 const STORAGE_KEY = 'manga-studio-projects';
@@ -19,32 +19,6 @@ function loadFromStorage(): Project[] {
 
 function saveToStorage(projects: Project[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-}
-
-async function generateAudio(text: string, voiceName?: string): Promise<string | undefined> {
-  if ('speechSynthesis' in window) {
-    return new Promise((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-CN';
-      utterance.rate = 0.8;
-      
-      const voices = window.speechSynthesis.getVoices();
-      const chineseVoice = voices.find(v => v.lang.startsWith('zh')) || voices.find(v => v.lang.startsWith('en'));
-      if (chineseVoice) {
-        utterance.voice = chineseVoice;
-      }
-      
-      utterance.onend = () => {
-        resolve(undefined);
-      };
-      utterance.onerror = () => {
-        resolve(undefined);
-      };
-      
-      window.speechSynthesis.speak(utterance);
-    });
-  }
-  return undefined;
 }
 
 function generateAudioUrl(text: string): string {

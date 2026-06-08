@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2, Volume2 } from 'lucide-react';
-import { useProjectStore, useAuthStore } from '@/stores';
+import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
 import { VoiceSelector } from '@/components/voice/VoiceSelector';
 import { AppVersion } from '@/components/AppVersion';
@@ -125,7 +125,6 @@ function parseStoryContent(text: string): ParsedContent {
 export function Studio() {
   const navigate = useNavigate();
   const { projects, createProject, deleteProject, setCurrentProject } = useProjectStore();
-  const { addPoints } = useAuthStore();
 
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
   const [storyText, setStoryText] = useState('');
