@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
+import { AppVersion } from '@/components/AppVersion';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.7.1.0';
+const APP_VERSION = '1.7.0';
 
 const VERSION_HISTORY = [
   {
@@ -77,7 +78,7 @@ const VERSION_HISTORY = [
   }
 ];
 
-export function AppVersion() {
+export function VersionHistory() {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
