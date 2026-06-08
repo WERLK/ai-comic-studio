@@ -14,6 +14,43 @@ const styleOptions = [
   { value: 'realistic', label: '写实风格' },
 ];
 
+// 解析 Word .docx 文件
+async function extractDocxText(arrayBuffer: ArrayBuffer): Promise<string> {
+  try {
+    // 动态创建 JSZip 来解压 docx
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    
+    // docx 文件中，文档内容在 word/document.xml
+    const docXml = await zip.file('word/document.xml')?.async('string');
+    
+    if (!docXml) {
+      throw new Error('无法找到文档内容');
+    }
+    
+    // 提取 XML 中的文本内容
+    // 移除所有 XML 标签，获取纯文本
+    let text = docXml
+      // 移除所有标签
+      .replace(/<[^>]+>/g, ' ')
+      // 规范化空白字符
+      .replace(/\s+/g, ' ')
+      // 移除 XML 实体
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      // 移除多余空格
+      .trim();
+    
+    return text;
+  } catch (error) {
+    console.error('docx 解析错误:', error);
+    throw error;
+  }
+}
+
 const styleKeywords: Record<string, string[]> = {
   anime: ['动漫', '日系', '二次元', '萌', '治愈', '校园', '恋爱', '热血', '冒险', '奇幻', '魔法', '少女', '少年'],
   manga: ['漫画', '黑白', '网点', '分镜', '格斗', '悬疑', '推理', '恐怖', '搞笑', '日常'],
@@ -172,13 +209,36 @@ export function Studio() {
         if (fileName.length >= 2) {
           setProjectTitle(fileName);
         }
-      } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+      } else if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
         const text = await file.text();
         const parsed = parseStoryContent(text);
         setParsedContent(parsed);
         setShowAnalysisResult(true);
         applyParsedContent(parsed);
         setIsAnalyzing(false);
+      } else if (file.name.endsWith('.docx')) {
+        // 处理 Word .docx 文件
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const text = await extractDocxText(arrayBuffer);
+          const parsed = parseStoryContent(text);
+          setParsedContent(parsed);
+          setShowAnalysisResult(true);
+          applyParsedContent(parsed);
+          setIsAnalyzing(false);
+        } catch (docxError) {
+          console.error('docx 解析失败:', docxError);
+          // 如果 docx 解析失败，尝试直接读取文本
+          try {
+            const text = await file.text();
+            const parsed = parseStoryContent(text);
+            setParsedContent(parsed);
+            setShowAnalysisResult(true);
+            applyParsedContent(parsed);
+          } catch {
+            setIsAnalyzing(false);
+          }
+        }
       } else {
         setIsAnalyzing(false);
       }
