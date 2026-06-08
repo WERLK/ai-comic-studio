@@ -29,6 +29,7 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
   const [showAd, setShowAd] = useState(false);
   const [adTimeLeft, setAdTimeLeft] = useState(AD_DURATION);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const [adCompleted, setAdCompleted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const adIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -94,11 +95,17 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
       adIntervalRef.current = setInterval(() => {
         setAdTimeLeft(prev => {
           if (prev <= 1) {
-            // 广告看完，发放次数
+            // 广告看完，发放次数并显示成功
             clearInterval(adIntervalRef.current!);
-            setShowAd(false);
-            setIsWatchingAd(false);
             setAdSpins(prev => prev + 1);
+            setAdCompleted(true);
+            // 1.5秒后自动关闭广告弹窗
+            setTimeout(() => {
+              setShowAd(false);
+              setIsWatchingAd(false);
+              setAdTimeLeft(AD_DURATION);
+              setAdCompleted(false);
+            }, 1500);
             return 0;
           }
           return prev - 1;
@@ -288,48 +295,64 @@ export function LuckyWheel({ onClose }: LuckyWheelProps) {
         {showAd && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90">
             <div className="bg-cyber-dark2 rounded-3xl p-8 max-w-sm w-full mx-4 text-center border border-cyber-purple/30">
-              <div className="w-16 h-16 rounded-full mx-auto mb-4 bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-                <Play className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="font-display text-xl font-bold text-white mb-2">观看广告</h3>
-              <p className="text-gray-400 mb-4">请完整观看广告获取抽奖次数</p>
+              {adCompleted ? (
+                <>
+                  <div className="w-16 h-16 rounded-full mx-auto mb-4 bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center animate-bounce">
+                    <Gift className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-white mb-2">获得抽奖次数!</h3>
+                  <p className="text-gray-400 mb-4">广告观看完毕，+1次抽奖机会</p>
+                  <div className="flex justify-center gap-2 items-center">
+                    <Coins className="w-5 h-5 text-cyber-yellow" />
+                    <span className="text-cyber-yellow font-bold">+1</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 rounded-full mx-auto mb-4 bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                    <Play className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-white mb-2">观看广告</h3>
+                  <p className="text-gray-400 mb-4">请完整观看广告获取抽奖次数</p>
 
-              {/* 倒计时显示 */}
-              <div className="relative w-32 h-32 mx-auto mb-4">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="58"
-                    stroke="#374151"
-                    strokeWidth="8"
-                    fill="none"
-                  />
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="58"
-                    stroke="#10B981"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeDasharray={2 * Math.PI * 58}
-                    strokeDashoffset={2 * Math.PI * 58 * (1 - (AD_DURATION - adTimeLeft) / AD_DURATION)}
-                    className="transition-all duration-1000"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="font-display text-4xl font-bold text-white">{adTimeLeft}</span>
-                </div>
-              </div>
+                  {/* 倒计时显示 */}
+                  <div className="relative w-32 h-32 mx-auto mb-4">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="58"
+                        stroke="#374151"
+                        strokeWidth="8"
+                        fill="none"
+                      />
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="58"
+                        stroke="#10B981"
+                        strokeWidth="8"
+                        fill="none"
+                        strokeDasharray={2 * Math.PI * 58}
+                        strokeDashoffset={2 * Math.PI * 58 * (1 - (AD_DURATION - adTimeLeft) / AD_DURATION)}
+                        className="transition-all duration-1000"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="font-display text-4xl font-bold text-white">{adTimeLeft}</span>
+                    </div>
+                  </div>
 
-              <p className="text-sm text-gray-400 mb-4">广告剩余 {adTimeLeft} 秒</p>
+                  <p className="text-sm text-gray-400 mb-4">广告剩余 {adTimeLeft} 秒</p>
 
-              <button
-                onClick={skipAd}
-                className="px-6 py-2 bg-gray-700 text-gray-300 rounded-xl font-medium hover:bg-gray-600 transition-colors"
-              >
-                跳过
-              </button>
+                  <button
+                    onClick={skipAd}
+                    className="px-6 py-2 bg-gray-700 text-gray-300 rounded-xl font-medium hover:bg-gray-600 transition-colors"
+                  >
+                    跳过
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
