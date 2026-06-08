@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.7.1.4';
+const APP_VERSION = '1.7.1.5';
 
 const VERSION_HISTORY = [
   {
