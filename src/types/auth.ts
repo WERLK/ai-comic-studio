@@ -4,6 +4,9 @@ export interface User {
   email: string;
   points: number;
   createdAt: string;
+  lastLoginDate?: string;
+  consecutiveLoginDays?: number;
+  completedTasks?: string[];
 }
 
 export interface AuthState {
@@ -31,13 +34,25 @@ export interface PointTransaction {
   createdAt: string;
 }
 
+export type TaskType = 
+  | 'daily' 
+  | 'achievement' 
+  | 'social' 
+  | 'creation' 
+  | 'explore' 
+  | 'special';
+
 export interface PointReward {
   id: string;
   name: string;
   description: string;
   points: number;
-  isDaily: boolean;
+  type: TaskType;
   isCompleted?: boolean;
+  canClaim?: boolean;
+  progress?: number;
+  target?: number;
+  icon?: string;
 }
 
 export interface PointExchangeItem {
