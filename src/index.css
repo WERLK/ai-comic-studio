@@ -1,0 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&family=Comic+Neue:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: #0D0D0D;
+  color: #E0E0E0;
+  min-height: 100vh;
+}
+
+/* Cyberpunk grid background */
+.cyber-grid {
+  background-image: 
+    linear-gradient(rgba(8, 247, 254, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8, 247, 254, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Neon text glow */
+.neon-text-pink {
+  text-shadow: 0 0 10px rgba(255, 46, 99, 0.8), 0 0 20px rgba(255, 46, 99, 0.5);
+}
+
+.neon-text-blue {
+  text-shadow: 0 0 10px rgba(8, 247, 254, 0.8), 0 0 20px rgba(8, 247, 254, 0.5);
+}
+
+.neon-text-yellow {
+  text-shadow: 0 0 10px rgba(247, 240, 82, 0.8), 0 0 20px rgba(247, 240, 82, 0.5);
+}
+
+/* Neon border */
+.neon-border-pink {
+  border: 1px solid #FF2E63;
+  box-shadow: 0 0 10px rgba(255, 46, 99, 0.5), inset 0 0 10px rgba(255, 46, 99, 0.1);
+}
+
+.neon-border-blue {
+  border: 1px solid #08F7FE;
+  box-shadow: 0 0 10px rgba(8, 247, 254, 0.5), inset 0 0 10px rgba(8, 247, 254, 0.1);
+}
+
+/* Manga speed lines effect */
+.speed-lines {
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.02) 2px,
+    rgba(255, 255, 255, 0.02) 4px
+  );
+}
+
+/* Dialogue bubble style */
+.dialogue-bubble {
+  position: relative;
+  background: white;
+  border-radius: 20px;
+  padding: 12px 18px;
+  color: #0D0D0D;
+  font-family: "Comic Neue", cursive;
+  font-weight: 700;
+}
+
+.dialogue-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 20px;
+  border: 10px solid transparent;
+  border-top-color: white;
+  border-bottom: 0;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1A1A2E;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2D1B4E;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF2E63;
+}
+
+/* Selection color */
+::selection {
+  background: rgba(255, 46, 99, 0.4);
+  color: #F7F052;
+}
