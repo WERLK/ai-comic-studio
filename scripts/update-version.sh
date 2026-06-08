@@ -14,18 +14,22 @@ echo ""
 # 版本文件路径
 VERSION_FILE="src/components/AppVersion.tsx"
 
-# 读取当前版本号
-CURRENT_VERSION=$(grep -oP "const APP_VERSION = '\K[^']+" "$VERSION_FILE")
+# 读取当前版本号（提取数字部分）
+CURRENT_VERSION=$(grep -oP "const APP_VERSION = '\K[0-9.]+(?=')" "$VERSION_FILE")
 echo "当前版本号: v$CURRENT_VERSION"
 
-# 解析版本号 (格式: x.y.z)
-IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
-MAJOR=${VERSION_PARTS[0]}
-MINOR=${VERSION_PARTS[1]}
+# 简单递增版本号 - 使用简单的计数方式
+# 格式: 1.MAJOR.MINOR (1.7.1.0 -> 1.7.1.1 -> 1.7.1.2 等)
+# 解析版本号: 拆分最后一部分
+IFS='.' read -ra PARTS <<< "$CURRENT_VERSION"
+PART1=${PARTS[0]}
+PART2=${PARTS[1]}
+PART3=${PARTS[2]}
+PART4=${PARTS[3]}
 
-# 增加小版本号 (MINOR + 0.1)
-NEW_MINOR=$(awk "BEGIN {printf \"%.1f\", $MINOR + 0.1}")
-NEW_VERSION="${MAJOR}.${NEW_MINOR}.0"
+# 增加最后一部分
+NEW_PART4=$((PART4 + 1))
+NEW_VERSION="${PART1}.${PART2}.${PART3}.${NEW_PART4}"
 
 echo "新版本号: v$NEW_VERSION"
 
