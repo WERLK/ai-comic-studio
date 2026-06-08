@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Upload, FileText, Wand2, Film, Menu, X, ChevronRight, Trash2, FileUp, Image as ImageIcon, Check, Loader2 } from 'lucide-react';
+import { Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2 } from 'lucide-react';
 import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
 import type { SceneStyle } from '@/types';
@@ -49,7 +48,6 @@ function detectStyleFromText(text: string): SceneStyle {
 }
 
 function detectCharacterCount(text: string): number {
-  // 检测中文人名模式
   const chineseNamePattern = /[\u4e00-\u9fa5]{2,4}(?:说|道|问|答|喊|叫|想|觉得|认为|看着)/g;
   const names = new Set<string>();
   let match;
@@ -60,13 +58,11 @@ function detectCharacterCount(text: string): number {
     }
   }
 
-  // 检测 "小明"、"小红" 等常见人名引用
   const commonNamePattern = /[""']([\u4e00-\u9fa5]{2,4})[""']/g;
   while ((match = commonNamePattern.exec(text)) !== null) {
     names.add(match[1]);
   }
 
-  // 检测 "XX 和 XX" 模式
   const andPattern = /([\u4e00-\u9fa5]{2,4})(?:、|和|与|同)([\u4e00-\u9fa5]{2,4})/g;
   while ((match = andPattern.exec(text)) !== null) {
     names.add(match[1]);
@@ -80,7 +76,6 @@ function detectCharacterCount(text: string): number {
   if (count >= 2) return 3;
   if (count >= 1) return 2;
 
-  // 根据文本长度估算
   const length = text.length;
   if (length > 2000) return 5;
   if (length > 1000) return 4;
@@ -90,7 +85,6 @@ function detectCharacterCount(text: string): number {
 
 function detectFrameCount(text: string): number {
   const length = text.length;
-  // 根据文本长度和场景转换词估算分镜数
   const sceneTransitions = (text.match(/(?:场景|画面|镜头|切换|转场|突然|这时|与此同时|接着|然后|后来|之后|不久|过了一会儿)/g) || []).length;
 
   if (sceneTransitions >= 10 || length > 3000) return 12;
@@ -101,15 +95,12 @@ function detectFrameCount(text: string): number {
 }
 
 function extractTitle(text: string): string {
-  // 尝试提取第一行作为标题
   const firstLine = text.trim().split(/\n/)[0].trim();
   if (firstLine.length >= 2 && firstLine.length <= 30 && !firstLine.includes('。')) {
     return firstLine;
   }
-  // 尝试提取引号内的内容
   const quoted = text.match(/[""']([^""']{2,20})[""']/);
   if (quoted) return quoted[1];
-  // 返回前20个字符
   return text.trim().substring(0, 20).replace(/\s+/g, '');
 }
 
@@ -141,7 +132,6 @@ export function Studio() {
   const [characterCount, setCharacterCount] = useState(3);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [parsedContent, setParsedContent] = useState<ParsedContent | null>(null);
   const [showAnalysisResult, setShowAnalysisResult] = useState(false);
@@ -167,7 +157,6 @@ export function Studio() {
 
     try {
       if (file.type.startsWith('image/')) {
-        // 图片文件：显示预览，尝试从文件名提取信息
         const reader = new FileReader();
         reader.onload = (ev) => {
           setPreviewImage(ev.target?.result as string);
@@ -175,13 +164,11 @@ export function Studio() {
         };
         reader.readAsDataURL(file);
 
-        // 从文件名尝试提取标题
         const fileName = file.name.replace(/\.[^/.]+$/, '');
         if (fileName.length >= 2) {
           setProjectTitle(fileName);
         }
       } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        // 文本文件：读取内容并智能分析
         const text = await file.text();
         const parsed = parseStoryContent(text);
         setParsedContent(parsed);
@@ -189,7 +176,6 @@ export function Studio() {
         applyParsedContent(parsed);
         setIsAnalyzing(false);
       } else {
-        // 其他文件类型
         setIsAnalyzing(false);
       }
     } catch (error) {
@@ -223,59 +209,20 @@ export function Studio() {
 
   return (
     <div className="min-h-screen bg-cyber-dark cyber-grid">
-      {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 h-16 bg-cyber-dark2/90 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-white" />
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-neon">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
+            <h1 className="font-display text-2xl md:text-3xl font-bold neon-text-pink">AI 漫剧生成器</h1>
           </div>
-          <span className="font-display font-bold text-white">AI 漫剧</span>
+          <p className="text-gray-500">输入故事内容，一键生成你的漫画和视频</p>
         </div>
-        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-400">
-          {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-      </header>
 
-      {/* Mobile Menu */}
-      {isMenuOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="lg:hidden fixed top-16 left-0 right-0 z-40 bg-cyber-dark2/95 backdrop-blur-xl border-b border-cyber-purple/20 p-4"
-        >
-          <nav className="space-y-2">
-            <a href="/" className="block px-4 py-3 rounded-xl bg-cyber-purple/20 text-cyber-pink font-medium">创建新漫剧</a>
-            <a href="/projects" className="block px-4 py-3 rounded-xl text-gray-400 hover:bg-cyber-purple/10 hover:text-white transition-colors">我的项目</a>
-          </nav>
-        </motion.div>
-      )}
-
-      <div className="pt-16 lg:pt-0 lg:flex min-h-screen">
-        {/* Left Panel - Input */}
-        <div className="lg:w-1/2 p-4 md:p-8 lg:p-12 flex flex-col">
-          <div className="flex-1 max-w-2xl mx-auto w-full">
-            {/* Logo */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="hidden lg:flex items-center gap-3 mb-8"
-            >
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-neon">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="font-display text-2xl font-bold neon-text-pink">AI 漫剧生成器</h1>
-                <p className="text-gray-500 text-sm">一键创作你的漫画和视频</p>
-              </div>
-            </motion.div>
-
-            {/* Input Mode Toggle */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="flex gap-2 mb-6"
-            >
+        <div className="grid lg:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div className="flex gap-2">
               <button
                 onClick={() => { setInputMode('text'); clearUpload(); }}
                 className={`flex-1 py-3 px-4 rounded-xl font-medium text-sm transition-all ${
@@ -298,15 +245,9 @@ export function Studio() {
                 <Upload className="w-4 h-4 inline mr-2" />
                 上传素材
               </button>
-            </motion.div>
+            </div>
 
-            {/* Input Form */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-6 mb-6"
-            >
+            <div className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-6">
               {inputMode === 'text' ? (
                 <div className="space-y-4">
                   <div>
@@ -344,10 +285,10 @@ export function Studio() {
                     />
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-cyber-purple/30 rounded-xl p-8 text-center cursor-pointer hover:border-cyber-pink/50 transition-colors active:scale-[0.98]"
+                      className="border-2 border-dashed border-cyber-purple/30 rounded-xl p-8 text-center cursor-pointer hover:border-cyber-pink/50 transition-colors"
                     >
                       {isAnalyzing ? (
-                        <div className="py-4">
+                        <div>
                           <Loader2 className="w-10 h-10 mx-auto mb-3 text-cyber-pink animate-spin" />
                           <p className="text-gray-400">正在智能分析文件内容...</p>
                         </div>
@@ -359,11 +300,11 @@ export function Studio() {
                             onClick={(e) => { e.stopPropagation(); clearUpload(); }}
                             className="absolute top-2 right-2 p-1 bg-cyber-dark/80 rounded-full text-gray-400 hover:text-cyber-pink"
                           >
-                            <X className="w-4 h-4" />
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                           </button>
                         </div>
                       ) : uploadedFile && parsedContent ? (
-                        <div className="py-2">
+                        <div>
                           <FileText className="w-10 h-10 mx-auto mb-3 text-cyber-blue" />
                           <p className="text-gray-400 font-medium">{uploadedFile.name}</p>
                           <p className="text-xs text-gray-500 mt-1">已识别内容</p>
@@ -379,47 +320,38 @@ export function Studio() {
                     </div>
                   </div>
 
-                  {/* Analysis Result */}
-                  <AnimatePresence>
-                    {showAnalysisResult && parsedContent && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="bg-cyber-purple/10 border border-cyber-purple/20 rounded-xl p-4"
-                      >
-                        <div className="flex items-center gap-2 mb-3">
-                          <Check className="w-4 h-4 text-cyber-blue" />
-                          <span className="text-sm font-medium text-white">智能分析结果</span>
-                          <span className="text-xs text-gray-500">(置信度: {Math.round(parsedContent.confidence * 100)}%)</span>
+                  {showAnalysisResult && parsedContent && (
+                    <div className="bg-cyber-purple/10 border border-cyber-purple/20 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Check className="w-4 h-4 text-cyber-blue" />
+                        <span className="text-sm font-medium text-white">智能分析结果</span>
+                        <span className="text-xs text-gray-500">(置信度: {Math.round(parsedContent.confidence * 100)}%)</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="bg-cyber-dark/50 rounded-lg p-2">
+                          <span className="text-gray-500 text-xs">检测标题</span>
+                          <p className="text-white truncate">{parsedContent.title}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="bg-cyber-dark/50 rounded-lg p-2">
-                            <span className="text-gray-500 text-xs">检测标题</span>
-                            <p className="text-white truncate">{parsedContent.title}</p>
-                          </div>
-                          <div className="bg-cyber-dark/50 rounded-lg p-2">
-                            <span className="text-gray-500 text-xs">推荐风格</span>
-                            <p className="text-cyber-blue">{styleOptions.find(s => s.value === parsedContent.detectedStyle)?.label}</p>
-                          </div>
-                          <div className="bg-cyber-dark/50 rounded-lg p-2">
-                            <span className="text-gray-500 text-xs">角色数量</span>
-                            <p className="text-cyber-pink">{parsedContent.detectedCharacterCount} 个</p>
-                          </div>
-                          <div className="bg-cyber-dark/50 rounded-lg p-2">
-                            <span className="text-gray-500 text-xs">分镜数量</span>
-                            <p className="text-cyber-yellow">{parsedContent.detectedFrameCount} 格</p>
-                          </div>
+                        <div className="bg-cyber-dark/50 rounded-lg p-2">
+                          <span className="text-gray-500 text-xs">推荐风格</span>
+                          <p className="text-cyber-blue">{styleOptions.find(s => s.value === parsedContent.detectedStyle)?.label}</p>
                         </div>
-                        <div className="mt-3 pt-3 border-t border-cyber-purple/20">
-                          <p className="text-xs text-gray-500 mb-2">故事预览:</p>
-                          <p className="text-xs text-gray-400 line-clamp-3">{parsedContent.storyText.substring(0, 120)}...</p>
+                        <div className="bg-cyber-dark/50 rounded-lg p-2">
+                          <span className="text-gray-500 text-xs">角色数量</span>
+                          <p className="text-cyber-pink">{parsedContent.detectedCharacterCount} 个</p>
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                        <div className="bg-cyber-dark/50 rounded-lg p-2">
+                          <span className="text-gray-500 text-xs">分镜数量</span>
+                          <p className="text-cyber-yellow">{parsedContent.detectedFrameCount} 格</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-cyber-purple/20">
+                        <p className="text-xs text-gray-500 mb-2">故事预览:</p>
+                        <p className="text-xs text-gray-400 line-clamp-3">{parsedContent.storyText.substring(0, 120)}...</p>
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Manual Project Title for Upload Mode */}
                   {!parsedContent && (
                     <div>
                       <label className="block text-sm font-medium text-cyber-blue mb-2">项目名称</label>
@@ -435,10 +367,9 @@ export function Studio() {
                 </div>
               )}
 
-              {/* Generation Settings */}
               <div className="mt-6 pt-6 border-t border-cyber-purple/20">
                 <h3 className="text-sm font-medium text-white mb-4">生成设置</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs text-gray-500 mb-2">画风格式</label>
                     <select
@@ -477,31 +408,21 @@ export function Studio() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
-            {/* Generate Button */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
+            <Button
+              variant="primary"
+              className="w-full"
+              size="lg"
+              onClick={handleCreateAndGenerate}
+              disabled={inputMode === 'text' && !storyText.trim()}
             >
-              <Button
-                variant="primary"
-                className="w-full"
-                size="lg"
-                onClick={handleCreateAndGenerate}
-                disabled={inputMode === 'text' && !storyText.trim()}
-              >
-                <Wand2 className="w-5 h-5 mr-2" />
-                一键生成漫剧
-              </Button>
-            </motion.div>
+              <Wand2 className="w-5 h-5 mr-2" />
+              一键生成漫剧
+            </Button>
           </div>
-        </div>
 
-        {/* Right Panel - Projects List */}
-        <div className="lg:w-1/2 p-4 md:p-8 lg:p-12 lg:pl-0 border-t lg:border-t-0 border-cyber-purple/20">
-          <div className="max-w-2xl mx-auto w-full">
+          <div>
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-display text-lg font-semibold text-white">我的项目</h2>
               <span className="text-sm text-gray-500">{projects.length} 个项目</span>
@@ -509,21 +430,18 @@ export function Studio() {
 
             {projects.length > 0 ? (
               <div className="space-y-3">
-                {projects.map((project, index) => (
-                  <motion.div
+                {projects.map((project) => (
+                  <div
                     key={project.id}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="group bg-cyber-dark2/60 backdrop-blur border border-cyber-purple/20 rounded-xl p-4 hover:border-cyber-pink/50 transition-all cursor-pointer"
+                    className="bg-cyber-dark2/60 backdrop-blur border border-cyber-purple/20 rounded-xl p-4 hover:border-cyber-pink/50 transition-all cursor-pointer"
                     onClick={() => handleProjectClick(project.id)}
                   >
                     <div className="flex items-start gap-4">
-                      <div className="w-16 h-16 rounded-lg bg-cyber-purple/20 flex items-center justify-center flex-shrink-0">
+                      <div className="w-16 h-16 rounded-lg bg-cyber-purple/10 flex items-center justify-center flex-shrink-0">
                         {project.status === 'completed' ? (
                           <Film className="w-8 h-8 text-cyber-pink" />
                         ) : project.status === 'generating' ? (
-                          <div className="w-6 h-6 border-2 border-cyber-pink border-t-transparent rounded-full animate-spin" />
+                          <Loader2 className="w-6 h-6 text-cyber-yellow animate-spin" />
                         ) : (
                           <FileText className="w-8 h-8 text-gray-500" />
                         )}
@@ -550,27 +468,22 @@ export function Studio() {
                           e.stopPropagation();
                           deleteProject(project.id);
                         }}
-                        className="p-2 text-gray-500 hover:text-cyber-pink opacity-0 group-hover:opacity-100 transition-all"
+                        className="p-2 text-gray-500 hover:text-cyber-pink transition-all"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                      <ChevronRight className="w-5 h-5 text-gray-500" />
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             ) : (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-16"
-              >
+              <div className="text-center py-16">
                 <div className="w-20 h-20 rounded-2xl bg-cyber-purple/10 flex items-center justify-center mx-auto mb-4">
                   <Film className="w-10 h-10 text-cyber-purple/40" />
                 </div>
                 <h3 className="font-medium text-white mb-2">还没有项目</h3>
                 <p className="text-sm text-gray-500">输入故事内容，一键生成你的第一部AI漫剧</p>
-              </motion.div>
+              </div>
             )}
           </div>
         </div>
