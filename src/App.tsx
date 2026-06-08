@@ -23,7 +23,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-cyber-dark cyber-grid pb-16">
+    <div className="min-h-screen bg-cyber-dark cyber-grid pb-24">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-cyber-dark2/90 backdrop-blur-xl border-b border-cyber-purple/20 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div 
