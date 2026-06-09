@@ -1,5 +1,5 @@
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Studio, Generator, Preview, Login, PointsCenter, Profile, Achievements, Settings, Notifications, PrivacySecurity, HelpFeedback } from '@/pages';
+import { Studio, Generator, Preview, Login, PointsCenter, Profile, Achievements, Settings, Notifications, PrivacySecurity, HelpFeedback, ApiConfig } from '@/pages';
 import { useAuthStore } from '@/stores';
 import { Sparkles, Coins, LogOut, User, Menu, X } from 'lucide-react';
 import { useState } from 'react';
@@ -150,6 +150,7 @@ function AppContent() {
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/privacy-security" element={<PrivacySecurity />} />
           <Route path="/help-feedback" element={<HelpFeedback />} />
+          <Route path="/api-config" element={<ApiConfig />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

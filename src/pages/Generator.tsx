@@ -13,10 +13,11 @@ import { motion } from 'framer-motion';
 import {
   Sparkles, ChevronLeft, ChevronRight, Play, Pause, SkipBack, SkipForward,
   Download, Film, Wand2, Check, Volume2, VolumeX, Users, Image,
-  Mic, Share2, Settings, Loader2, Eye, Settings2
+  Mic, Share2, Settings, Loader2, Eye, Settings2, Zap
 } from 'lucide-react';
 import { useProjectStore } from '@/stores';
 import { Button } from '@/components/common';
+import { generateVideo, getAIConfig } from '@/services/aiService';
 
 // ========== 工具函数 ==========
 
@@ -369,6 +370,8 @@ export function Generator() {
   const [exportDone, setExportDone] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>('douyin');
+  const [isAIGenerating, setIsAIGenerating] = useState(false);
+  const [aiVideoUrl, setAiVideoUrl] = useState<string | null>(null);
 
   // 导出设置
   const [fps, setFps] = useState(30);
@@ -439,6 +442,37 @@ export function Generator() {
       generateManga(project.id);
     }
   }, [project?.id]);
+
+  // AI视频生成
+  const handleAIGenerateVideo = useCallback(async () => {
+    if (!project?.frames.length) return;
+    
+    const aiConfig = getAIConfig();
+    const hasVideoConfig = aiConfig.seedanceApiKey || aiConfig.klingApiKey || aiConfig.viduApiKey;
+    if (!hasVideoConfig) {
+      alert('请先配置视频生成API Key（即梦/可灵/Vidu）');
+      return;
+    }
+
+    setIsAIGenerating(true);
+    setAiVideoUrl(null);
+
+    try {
+      const prompts = project.frames.map(f => f.description || f.dialogues.map(d => d.text).join(' ') || '场景画面');
+      const result = await generateVideo(prompts, { model: 'auto', style: selectedStyle });
+      
+      if (result.success && result.videoUrl) {
+        setAiVideoUrl(result.videoUrl);
+      } else {
+        alert(`AI视频生成失败: ${result.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error('AI视频生成错误:', error);
+      alert('AI视频生成失败，请检查API配置');
+    } finally {
+      setIsAIGenerating(false);
+    }
+  }, [project, selectedStyle]);
 
   // 导出视频
   const handleExportVideo = useCallback(async () => {
@@ -743,6 +777,51 @@ export function Generator() {
                 </p>
               </div>
             )}
+
+            {/* AI视频生成按钮 */}
+            <div className="bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30 rounded-xl p-3 mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-cyber-yellow" />
+                    AI 视频生成
+                  </p>
+                  <p className="text-xs text-gray-500">使用即梦/可灵/Vidu生成高质量视频</p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={handleAIGenerateVideo}
+                  disabled={isAIGenerating || frames.length === 0}
+                  isLoading={isAIGenerating}
+                >
+                  <Sparkles className="w-4 h-4 mr-1" />
+                  {isAIGenerating ? '生成中...' : 'AI生成'}
+                </Button>
+              </div>
+              {aiVideoUrl && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-3 p-3 bg-cyber-dark/50 rounded-lg"
+                >
+                  <p className="text-xs text-green-400 mb-2">✓ AI视频生成成功！</p>
+                  <video
+                    src={aiVideoUrl}
+                    controls
+                    className="w-full rounded-lg max-h-48"
+                    poster=""
+                  />
+                  <a
+                    href={aiVideoUrl}
+                    download={`${project?.title}_AI.mp4`}
+                    className="mt-2 inline-flex items-center text-xs text-cyber-blue hover:text-cyber-pink transition-colors"
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    下载AI生成视频
+                  </a>
+                </motion.div>
+              )}
+            </div>
 
             {/* 导出按钮 */}
             <div className="flex gap-2">

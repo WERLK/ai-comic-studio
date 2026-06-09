@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Project, Frame, GenerationPrompt, Character, Scene, Dialogue } from '@/types';
 import { voiceActors, getVoiceById } from '@/data/voiceActors';
+import { generateImage, getAIConfig } from '@/services/aiService';
 
 const STORAGE_KEY = 'manga-studio-projects-v2';
 
@@ -454,6 +455,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const project = get().getProject(projectId);
     if (!project) return;
 
+    // 检查是否配置了AI服务
+    const aiConfig = getAIConfig();
+    const hasAIConfig = aiConfig.openaiApiKey || aiConfig.stabilityApiKey;
+
     // 确保 storyText 可用：如果用户没填，使用项目里存储的
     const effectiveStory = (storyText || project.sourceContent || '这是一段默认的故事内容。').trim();
 
@@ -464,41 +469,56 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const detected = extractCharacters(effectiveStory, characterCount);
     const characters = assignVoices(detected, selectedVoices);
 
-    // === 步骤 2：生成场景 ===
-    set({ generationProgress: 30 });
+    // === 步骤 2：生成场景（使用AI图像生成）===
+    set({ generationProgress: 25 });
     await new Promise((r) => setTimeout(r, 300));
 
-    const sceneCount = Math.min(Math.max(Math.ceil(frameCount / 2), 3), SCENE_IMAGES.length);
+    const sceneCount = Math.min(Math.max(Math.ceil(frameCount / 2), 3), 8);
     const sceneOrder: Scene[] = [];
     const unitArr = splitIntoStoryUnits(effectiveStory, frameCount);
 
-    // 基于每个单元的内容挑一个场景
-    const usedSceneIdx = new Set<number>();
+    // 基于每个单元的内容生成场景
+    const usedScenes = new Set<string>();
     for (let i = 0; i < frameCount; i++) {
       const text = unitArr[i]?.narration || '';
-      // 每 1-2 帧换一次场景（控制换场景数量）
+      // 每 1-2 帧换一次场景
       if (i === 0 || i % 2 === 0) {
-        // 按关键词挑一个新场景
-        let bestIdx = 0;
-        let bestScore = -1;
-        SCENE_IMAGES.forEach((scene, idx) => {
-          if (usedSceneIdx.has(idx)) return;
-          let score = 0;
-          for (const tag of scene.tags) {
-            if (text.includes(tag)) score++;
+        let sceneImageUrl = '';
+        
+        // 如果有AI配置，使用AI生成图像
+        if (hasAIConfig && text.length > 5) {
+          set({ generationProgress: 25 + Math.min((i / frameCount) * 20, 18) });
+          const result = await generateImage(text, { style, model: 'auto' });
+          if (result.success && result.imageUrl) {
+            sceneImageUrl = result.imageUrl;
           }
-          score += Math.random() * 0.5; // 加些随机性
-          if (score > bestScore) { bestScore = score; bestIdx = idx; }
-        });
-        if (usedSceneIdx.size >= SCENE_IMAGES.length) usedSceneIdx.clear();
-        usedSceneIdx.add(bestIdx);
-        const chosen = SCENE_IMAGES[bestIdx];
+        }
+        
+        // 如果没有AI生成或失败，使用预设场景
+        if (!sceneImageUrl) {
+          let bestIdx = 0;
+          let bestScore = -1;
+          SCENE_IMAGES.forEach((scene, idx) => {
+            if (usedScenes.has(scene.name)) return;
+            let score = 0;
+            for (const tag of scene.tags) {
+              if (text.includes(tag)) score++;
+            }
+            score += Math.random() * 0.5;
+            if (score > bestScore) { bestScore = score; bestIdx = idx; }
+          });
+          if (usedScenes.size >= SCENE_IMAGES.length) usedScenes.clear();
+          const chosen = SCENE_IMAGES[bestIdx];
+          sceneImageUrl = chosen.url;
+          usedScenes.add(chosen.name);
+        }
+
         sceneOrder.push({
           id: generateId(),
-          name: chosen.name,
-          imageUrl: chosen.url,
+          name: `场景${sceneOrder.length + 1}`,
+          imageUrl: sceneImageUrl,
           style,
-          tags: chosen.tags,
+          tags: text.slice(0, 100).split('').filter(c => /[\u4e00-\u9fa5]/.test(c)).slice(0, 5).map(c => c),
         });
       } else {
         // 复用前一个场景
@@ -507,21 +527,35 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
 
     // === 步骤 3：生成分镜 ===
-    set({ generationProgress: 55 });
+    set({ generationProgress: 60 });
     await new Promise((r) => setTimeout(r, 400));
 
     const units = splitIntoStoryUnits(effectiveStory, frameCount);
     const frames = unitsToFrames(units, characters, sceneOrder);
 
-    // === 步骤 4：摘要描述 ===
-    set({ generationProgress: 80 });
+    // === 步骤 4：生成角色图像（使用AI）===
+    set({ generationProgress: 75 });
+    if (hasAIConfig) {
+      for (let i = 0; i < characters.length && i < 3; i++) {
+        const char = characters[i];
+        const prompt = `${char.name}, ${char.gender === 'male' ? 'male' : 'female'} character portrait, ${style} style, anime, detailed, beautiful`;
+        const result = await generateImage(prompt, { style, model: 'auto' });
+        if (result.success && result.imageUrl) {
+          char.imageUrl = result.imageUrl;
+        }
+        set({ generationProgress: 75 + Math.min(((i + 1) / characters.length) * 10, 10) });
+      }
+    }
+
+    // === 步骤 5：摘要描述 ===
+    set({ generationProgress: 90 });
     await new Promise((r) => setTimeout(r, 200));
 
-    const description = `${project.title} · ${characterCount}位角色 · ${frameCount}组分镜 · ${style}风格`;
+    const description = `${project.title} · ${characterCount}位角色 · ${frameCount}组分镜 · ${style}风格${hasAIConfig ? ' · AI生成' : ''}`;
 
     get().updateProject(projectId, {
       characters,
-      scenes: sceneOrder.filter((v, i, a) => a.findIndex(t => t.imageUrl === v.imageUrl) === i), // 去重
+      scenes: sceneOrder.filter((v, i, a) => a.findIndex(t => t.imageUrl === v.imageUrl) === i),
       frames,
       description,
       style,

@@ -19,6 +19,7 @@ import {
 import { useProjectStore, useAuthStore } from '@/stores';
 import { Button } from '@/components/common';
 import { AppVersion } from '@/components/AppVersion';
+import { analyzeScript, type AnalysisResult } from '@/services/aiService';
 import type { SceneStyle, Character, Frame } from '@/types';
 
 // ========== 工具函数 ==========
@@ -381,12 +382,23 @@ export function Studio() {
     setIsAnalyzing(false);
   }, []);
 
-  // 手动分析文本
-  const handleAnalyze = () => {
+  // 手动分析文本（使用真实AI服务）
+  const handleAnalyze = async () => {
     if (!storyText.trim()) return;
     setIsAnalyzing(true);
 
-    setTimeout(() => {
+    try {
+      const result: AnalysisResult = await analyzeScript(storyText, { model: 'auto' });
+      setProjectTitle(prev => prev || result.title);
+      setCharacters(result.characters);
+      setFrames(result.frames);
+      setFrameCount(result.frames.length);
+      setSelectedStyle(result.style as SceneStyle);
+      setAnalysisDone(true);
+      setCurrentStep(2);
+    } catch (error) {
+      console.error('AI分析失败:', error);
+      // Fallback到本地分析
       const parsed = parseScript(storyText);
       setProjectTitle(prev => prev || parsed.title);
       setCharacters(parsed.characters);
@@ -395,8 +407,9 @@ export function Studio() {
       setSelectedStyle(parsed.recommendedStyle);
       setAnalysisDone(true);
       setCurrentStep(2);
+    } finally {
       setIsAnalyzing(false);
-    }, 1500);
+    }
   };
 
   // 开始生成

@@ -9,6 +9,7 @@ import {
   Info,
   Download,
   Upload,
+  Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
@@ -301,6 +302,18 @@ export function Settings() {
               导入
             </button>
             <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportUserFile} className="hidden" />
+          </SettingItem>
+        </SettingsGroup>
+
+        {/* AI 服务 */}
+        <SettingsGroup title="AI 服务">
+          <SettingItem icon={Sparkles} label="API 配置">
+            <button
+              onClick={() => navigate('/api-config')}
+              className="px-4 py-2 bg-cyber-purple/15 hover:bg-cyber-purple/25 border border-cyber-purple/40 text-cyber-purple text-xs font-medium rounded-xl transition-colors"
+            >
+              配置 →
+            </button>
           </SettingItem>
         </SettingsGroup>
       </div>

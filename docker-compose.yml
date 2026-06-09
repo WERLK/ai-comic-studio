@@ -1,0 +1,64 @@
+# AI漫剧工作室 - Docker Compose 配置
+# 一键部署到本地或服务器
+
+version: '3.8'
+
+services:
+  # AI漫剧工作室前端
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      # 如果需要 HTTPS，使用 443 端口
+      # - "443:443"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      # 可选：挂载自定义配置
+      # - ./nginx.custom.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+    networks:
+      - ai-comic-network
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # 可选：后端API服务（如果需要）
+  # backend:
+  #   image: node:20-alpine
+  #   working_dir: /app
+  #   volumes:
+  #     - ./server:/app
+  #   command: npm start
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NODE_ENV=production
+  #     - MONGODB_URI=mongodb://mongo:27017/ai-comic
+  #   depends_on:
+  #     - mongo
+  #   networks:
+  #     - ai-comic-network
+
+  # 可选：MongoDB 数据库
+  # mongo:
+  #   image: mongo:7
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongo-data:/data/db
+  #   networks:
+  #     - ai-comic-network
+
+networks:
+  ai-comic-network:
+    driver: bridge
+
+# volumes:
+#   mongo-data:
