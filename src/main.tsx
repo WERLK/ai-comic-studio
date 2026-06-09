@@ -3,7 +3,7 @@ import App from './App'
 import './index.css'
 
 // 版本检测：如果检测到新版本则强制刷新
-const CURRENT_VERSION = '1.7.1.13';
+const CURRENT_VERSION = '1.7.1.17';
 const versionKey = 'app_version_cache';
 const cachedVersion = localStorage.getItem(versionKey);
 
