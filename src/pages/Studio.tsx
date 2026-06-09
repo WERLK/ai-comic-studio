@@ -1,709 +1,1055 @@
+/**
+ * AI 漫剧工作室 - Studio 主页
+ * 
+ * 完整创作流程：
+ * Step 1: 剧本输入 → AI 智能分析
+ * Step 2: 角色管理（角色卡片+语音配置）
+ * Step 3: 分镜规划（自动拆分+手动调整）
+ * Step 4: 生成设置（画风+模型+参数）
+ * Step 5: 一键生成
+ */
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2, Volume2 } from 'lucide-react';
-import { useProjectStore } from '@/stores';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2,
+  Volume2, ChevronRight, ChevronLeft, Users, Image, Video,
+  Play, Settings2, BookOpen, ArrowRight, Plus, Edit3, Trash, Mic, Star
+} from 'lucide-react';
+import { useProjectStore, useAuthStore } from '@/stores';
 import { Button } from '@/components/common';
-import { VoiceSelector } from '@/components/voice/VoiceSelector';
 import { AppVersion } from '@/components/AppVersion';
-import { VerticalClock } from '@/components/VerticalClock';
-import type { SceneStyle } from '@/types';
+import type { SceneStyle, Character, Frame } from '@/types';
+
+// ========== 工具函数 ==========
 
 const styleOptions = [
-  { value: 'anime', label: '日系动漫风格' },
-  { value: 'manga', label: '经典漫画风格' },
-  { value: 'cyberpunk', label: '赛博朋克风格' },
-  { value: 'realistic', label: '写实风格' },
+  { value: 'anime', label: '日系动漫', emoji: '🎌', desc: '唯美细腻的日系画风' },
+  { value: 'manga', label: '经典漫画', emoji: '📖', desc: '传统漫画分镜风格' },
+  { value: 'cyberpunk', label: '赛博朋克', emoji: '🤖', desc: '未来科技霓虹风格' },
+  { value: 'realistic', label: '写实风格', emoji: '📸', desc: '电影级写实画面' },
+  { value: 'watercolor', label: '水彩插画', emoji: '🎨', desc: '温柔水彩艺术风格' },
+  { value: 'chinese', label: '国风古韵', emoji: '🏮', desc: '中国传统古风画面' },
 ];
 
-function getExifOrientation(arrayBuffer: ArrayBuffer): number {
-  const view = new DataView(arrayBuffer);
-  let offset = 0;
-  let length = view.byteLength;
+const aspectOptions = [
+  { value: '9:16', label: '竖屏 9:16', desc: '抖音/快手短视频' },
+  { value: '16:9', label: '横屏 16:9', desc: 'B站/YouTube' },
+  { value: '1:1', label: '方形 1:1', desc: 'Instagram' },
+];
 
-  if (view.getUint16(offset, false) !== 0xFFD8) {
-    return -1;
-  }
-  offset += 2;
+const videoModels = [
+  { value: 'jimeng', label: '即梦 Seedance', desc: '运镜叙事强，适合文戏', icon: '🎬' },
+  { value: 'kling', label: '可灵 3.0', desc: '画质细腻，动作流畅', icon: '✨' },
+  { value: 'vidu', label: 'Vidu', desc: '物理模拟真实，适合奇幻', icon: '🌟' },
+  { value: 'hailuo', label: '海螺', desc: '风格迁移，美术感强', icon: '🎭' },
+];
 
-  while (offset < length) {
-    if (view.getUint16(offset + 2, false) <= 8) return -1;
-    
-    const marker = view.getUint16(offset, false);
-    offset += 2;
-    
-    if (marker === 0xFFE1) {
-      const exifLength = view.getUint16(offset, false);
-      offset += 2;
-      
-      const exifData = new Uint8Array(arrayBuffer, offset, exifLength);
-      const exifString = String.fromCharCode(...exifData);
-      
-      const orientationMatch = exifString.match(/Orientation\s*(\d)/);
-      if (orientationMatch) {
-        return parseInt(orientationMatch[1], 10);
-      }
-      return -1;
-    }
-    
-    const chunkSize = view.getUint16(offset, false);
-    offset += 2 + chunkSize;
-  }
-  return -1;
-}
-
-function rotateImage(image: HTMLImageElement, orientation: number): Promise<string> {
-  return new Promise((resolve) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    if (!ctx) {
-      resolve(image.src);
-      return;
-    }
-
-    let width = image.width;
-    let height = image.height;
-    let rotation = 0;
-    let flipH = false;
-    let flipV = false;
-
-    switch (orientation) {
-      case 2: flipH = true; break;
-      case 3: rotation = 180; break;
-      case 4: flipV = true; break;
-      case 5: rotation = 90; flipH = true; break;
-      case 6: rotation = 90; break;
-      case 7: rotation = 90; flipV = true; break;
-      case 8: rotation = 270; break;
-      default:
-        resolve(image.src);
-        return;
-    }
-
-    if (rotation === 90 || rotation === 270) {
-      canvas.width = height;
-      canvas.height = width;
-    } else {
-      canvas.width = width;
-      canvas.height = height;
-    }
-
-    ctx.save();
-    
-    if (flipH) {
-      ctx.translate(width, 0);
-      ctx.scale(-1, 1);
-    }
-    if (flipV) {
-      ctx.translate(0, height);
-      ctx.scale(1, -1);
-    }
-    
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate((rotation * Math.PI) / 180);
-    ctx.drawImage(image, -width / 2, -height / 2);
-    ctx.restore();
-
-    resolve(canvas.toDataURL('image/jpeg', 0.95));
-  });
-}
-
-// 解析 Word .docx 文件
-async function extractDocxText(arrayBuffer: ArrayBuffer): Promise<string> {
-  try {
-    // 动态创建 JSZip 来解压 docx
-    const JSZip = (await import('jszip')).default;
-    const zip = await JSZip.loadAsync(arrayBuffer);
-    
-    // docx 文件中，文档内容在 word/document.xml
-    const docXml = await zip.file('word/document.xml')?.async('string');
-    
-    if (!docXml) {
-      throw new Error('无法找到文档内容');
-    }
-    
-    // 提取 XML 中的文本内容
-    // 移除所有 XML 标签，获取纯文本
-    let text = docXml
-      // 移除所有标签
-      .replace(/<[^>]+>/g, ' ')
-      // 规范化空白字符
-      .replace(/\s+/g, ' ')
-      // 移除 XML 实体
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      // 移除多余空格
-      .trim();
-    
-    return text;
-  } catch (error) {
-    console.error('docx 解析错误:', error);
-    throw error;
-  }
-}
-
-const styleKeywords: Record<string, string[]> = {
-  anime: ['动漫', '日系', '二次元', '萌', '治愈', '校园', '恋爱', '热血', '冒险', '奇幻', '魔法', '少女', '少年'],
-  manga: ['漫画', '黑白', '网点', '分镜', '格斗', '悬疑', '推理', '恐怖', '搞笑', '日常'],
-  cyberpunk: ['赛博', '朋克', '未来', '科技', '机械', '霓虹', '黑客', '虚拟', 'AI', '机器人', '都市', '夜'],
-  realistic: ['写实', '真实', '照片', '写实主义', '纪录片', '历史', '战争', '现实主义'],
-};
-
-interface ParsedContent {
+// 智能分析：从剧本文本中提取信息
+function parseScript(text: string): {
   title: string;
-  storyText: string;
-  detectedStyle: SceneStyle;
-  detectedCharacterCount: number;
-  detectedFrameCount: number;
-  confidence: number;
-}
-
-function detectStyleFromText(text: string): SceneStyle {
-  const lowerText = text.toLowerCase();
-  let bestStyle: SceneStyle = 'anime';
-  let maxScore = 0;
-
-  for (const [style, keywords] of Object.entries(styleKeywords)) {
-    const score = keywords.reduce((acc, keyword) => {
-      const regex = new RegExp(keyword, 'gi');
-      const matches = lowerText.match(regex);
-      return acc + (matches ? matches.length : 0);
-    }, 0);
-    if (score > maxScore) {
-      maxScore = score;
-      bestStyle = style as SceneStyle;
-    }
-  }
-  return bestStyle;
-}
-
-function detectCharacterCount(text: string): number {
-  const chineseNamePattern = /[\u4e00-\u9fa5]{2,4}(?:说|道|问|答|喊|叫|想|觉得|认为|看着)/g;
-  const names = new Set<string>();
-  let match;
-  while ((match = chineseNamePattern.exec(text)) !== null) {
-    const name = match[0].replace(/(?:说|道|问|答|喊|叫|想|觉得|认为|看着)$/, '');
-    if (name.length >= 2 && name.length <= 4) {
-      names.add(name);
-    }
-  }
-
-  const commonNamePattern = /[""']([\u4e00-\u9fa5]{2,4})[""']/g;
-  while ((match = commonNamePattern.exec(text)) !== null) {
-    names.add(match[1]);
-  }
-
-  const andPattern = /([\u4e00-\u9fa5]{2,4})(?:、|和|与|同)([\u4e00-\u9fa5]{2,4})/g;
-  while ((match = andPattern.exec(text)) !== null) {
-    names.add(match[1]);
-    names.add(match[2]);
-  }
-
-  const count = names.size;
-  if (count >= 5) return 6;
-  if (count >= 4) return 5;
-  if (count >= 3) return 4;
-  if (count >= 2) return 3;
-  if (count >= 1) return 2;
-
-  const length = text.length;
-  if (length > 2000) return 5;
-  if (length > 1000) return 4;
-  if (length > 500) return 3;
-  return 2;
-}
-
-function detectFrameCount(text: string): number {
-  const length = text.length;
-  const sceneTransitions = (text.match(/(?:场景|画面|镜头|切换|转场|突然|这时|与此同时|接着|然后|后来|之后|不久|过了一会儿)/g) || []).length;
-
-  if (sceneTransitions >= 10 || length > 3000) return 12;
-  if (sceneTransitions >= 8 || length > 2000) return 10;
-  if (sceneTransitions >= 6 || length > 1500) return 8;
-  if (sceneTransitions >= 4 || length > 800) return 6;
-  return 4;
-}
-
-function extractTitle(text: string): string {
+  characters: { name: string; description: string; role: string }[];
+  scenes: string[];
+  recommendedStyle: SceneStyle;
+  recommendedFrames: number;
+  frames: { description: string; dialogue?: string; shotType: string }[];
+} {
+  // 提取标题
   const firstLine = text.trim().split(/\n/)[0].trim();
-  if (firstLine.length >= 2 && firstLine.length <= 30 && !firstLine.includes('。')) {
-    return firstLine;
+  const title = firstLine.length <= 30 && !firstLine.includes('。')
+    ? firstLine
+    : `AI漫剧-${Date.now().toString(36).toUpperCase()}`;
+
+  // 智能识别角色
+  const namePatterns = [
+    /[""']([\u4e00-\u9fa5]{2,4})[""'][：:是]?\s*(.{5,30}?)(?=\n|[""']|$)/g,
+    /([\u4e00-\u9fa5]{2,4})(?:说|道|问|答|喊|叫|想|觉得|认为|看着)[：:]\s*(.{3,30}?)(?=\n|$)/g,
+  ];
+  const foundNames = new Set<string>();
+  const charDescriptions: Record<string, string> = {};
+  
+  for (const pattern of namePatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const name = match[1].trim();
+      const desc = match[2].trim();
+      if (name.length >= 2 && name.length <= 4) {
+        foundNames.add(name);
+        if (!charDescriptions[name]) {
+          charDescriptions[name] = desc;
+        }
+      }
+    }
   }
-  const quoted = text.match(/[""']([^""']{2,20})[""']/);
-  if (quoted) return quoted[1];
-  return text.trim().substring(0, 20).replace(/\s+/g, '');
-}
 
-function parseStoryContent(text: string): ParsedContent {
-  const detectedStyle = detectStyleFromText(text);
-  const detectedCharacterCount = detectCharacterCount(text);
-  const detectedFrameCount = detectFrameCount(text);
-  const title = extractTitle(text);
+  const characters = Array.from(foundNames).slice(0, 6).map((name, i) => ({
+    name,
+    description: charDescriptions[name] || `故事中的重要角色，性格独特，形象鲜明`,
+    role: i === 0 ? '主角' : i === 1 ? '配角' : '角色',
+  }));
 
-  return {
-    title,
-    storyText: text,
-    detectedStyle,
-    detectedCharacterCount,
-    detectedFrameCount,
-    confidence: Math.min(0.95, 0.5 + (detectedCharacterCount > 0 ? 0.2 : 0) + (detectedFrameCount > 4 ? 0.15 : 0)),
+  // 智能识别场景
+  const sceneKeywords = ['场景', '地点', '在', '来到', '走进', '回到', '来到'];
+  const sceneMatches = text.match(/(?:场景[：:]\s*)?([^。！？\n]{3,30}?)/g) || [];
+  const scenes = sceneMatches.slice(0, 8).map(s => s.replace(/场景[：:]\s*/, '').trim()).filter(Boolean);
+
+  // 推荐画风
+  const styleScores: Record<string, number> = { anime: 0, manga: 0, cyberpunk: 0, realistic: 0, watercolor: 0, chinese: 0 };
+  const keywords: Record<string, string[]> = {
+    anime: ['动漫', '日系', '二次元', '萌', '校园', '恋爱', '热血'],
+    manga: ['漫画', '黑白', '网点', '格斗', '悬疑', '推理'],
+    cyberpunk: ['未来', '科技', '机械', '霓虹', '黑客', '机器人', '都市'],
+    realistic: ['写实', '真实', '照片', '历史', '战争'],
+    watercolor: ['水彩', '插画', '温柔', '治愈'],
+    chinese: ['古风', '仙侠', '武侠', '宫廷', '神话'],
   };
+  for (const [style, kws] of Object.entries(keywords)) {
+    for (const kw of kws) {
+      if (text.includes(kw)) styleScores[style]++;
+    }
+  }
+  const recommendedStyle = (Object.entries(styleScores).sort((a, b) => b[1] - a[1])[0]?.[0] || 'anime') as SceneStyle;
+
+  // 推荐分镜数
+  const sceneCount = (text.match(/(?:场景|画面|镜头|切换|突然|这时|与此同时)/g) || []).length;
+  const recommendedFrames = sceneCount >= 8 ? 12 : sceneCount >= 5 ? 8 : sceneCount >= 3 ? 6 : 4;
+
+  // 智能拆分分镜
+  const paragraphs = text.split(/\n{2,}|\n(?=[\u4e00-\u9fa5])/g).filter(p => p.trim().length > 10);
+  const shotTypes = ['全景', '中景', '近景', '特写', '侧面', '俯视', '仰视', '跟随'];
+  const frames = paragraphs.slice(0, recommendedFrames).map((p, i) => ({
+    description: p.trim(),
+    dialogue: p.includes('说') || p.includes('道') ? p.split(/[：:]/).slice(1).join('：').trim() : undefined,
+    shotType: shotTypes[i % shotTypes.length],
+  }));
+
+  return { title, characters, scenes, recommendedStyle, recommendedFrames, frames };
 }
 
+// 读取 docx 文件
+async function extractDocxText(arrayBuffer: ArrayBuffer): Promise<string> {
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(arrayBuffer);
+  const docXml = await zip.file('word/document.xml')?.async('string');
+  if (!docXml) throw new Error('无法解析文档');
+  return docXml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// ========== 角色编辑卡片 ==========
+function CharacterCard({
+  char,
+  index,
+  onUpdate,
+  onDelete,
+  voiceId,
+  onVoiceChange,
+}: {
+  char: { name: string; description: string; role: string };
+  index: number;
+  onUpdate: (c: typeof char) => void;
+  onDelete: () => void;
+  voiceId?: string;
+  onVoiceChange: (id: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const roleColors = ['from-pink-500 to-rose-500', 'from-blue-500 to-cyan-500', 'from-green-500 to-emerald-500', 'from-yellow-500 to-orange-500', 'from-purple-500 to-violet-500', 'from-red-500 to-pink-500'];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-cyber-dark/60 border border-cyber-purple/20 rounded-xl p-4 hover:border-cyber-pink/30 transition-all"
+    >
+      <div className="flex items-start gap-3">
+        {/* 角色头像 */}
+        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${roleColors[index % roleColors.length]} flex items-center justify-center flex-shrink-0 text-white font-bold text-lg`}>
+          {char.name.slice(0, 1)}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <div className="space-y-2">
+              <input
+                value={char.name}
+                onChange={e => onUpdate({ ...char, name: e.target.value })}
+                className="w-full px-3 py-1.5 bg-cyber-dark2 border border-cyber-purple/30 rounded-lg text-white text-sm"
+                placeholder="角色名"
+              />
+              <input
+                value={char.role}
+                onChange={e => onUpdate({ ...char, role: e.target.value })}
+                className="w-full px-3 py-1.5 bg-cyber-dark2 border border-cyber-purple/30 rounded-lg text-white text-xs"
+                placeholder="角色定位（主角/配角）"
+              />
+              <textarea
+                value={char.description}
+                onChange={e => onUpdate({ ...char, description: e.target.value })}
+                className="w-full px-3 py-1.5 bg-cyber-dark2 border border-cyber-purple/30 rounded-lg text-white text-xs resize-none"
+                rows={2}
+                placeholder="角色外观描述"
+              />
+              <div className="flex gap-2">
+                <button onClick={() => setEditing(false)} className="px-3 py-1 bg-cyber-pink text-white text-xs rounded-lg">保存</button>
+                <button onClick={onDelete} className="px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded-lg">删除</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <h4 className="font-medium text-white text-sm">{char.name}</h4>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyber-purple/20 text-cyber-purple">{char.role}</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1 line-clamp-2">{char.description}</p>
+
+              {/* 语音配置 */}
+              <div className="mt-3 flex items-center gap-2">
+                <Mic className="w-3 h-3 text-gray-500" />
+                <select
+                  value={voiceId || ''}
+                  onChange={e => onVoiceChange(e.target.value)}
+                  className="flex-1 px-2 py-1 bg-cyber-dark2 border border-cyber-purple/20 rounded text-white text-xs"
+                >
+                  <option value="">自动分配</option>
+                  <option value="male-young">青年男声</option>
+                  <option value="male-deep">低沉男声</option>
+                  <option value="female-young">少女声音</option>
+                  <option value="female-sweet">甜美女声</option>
+                  <option value="male-old">老年男声</option>
+                  <option value="narrator">旁白</option>
+                </select>
+                <button onClick={() => setEditing(true)} className="p-1 text-gray-500 hover:text-white">
+                  <Edit3 className="w-3 h-3" />
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ========== 分镜编辑卡片 ==========
+function FrameCard({
+  frame,
+  index,
+  onUpdate,
+}: {
+  frame: { description: string; dialogue?: string; shotType: string };
+  index: number;
+  onUpdate: (f: typeof frame) => void;
+}) {
+  const shotTypeOptions = ['全景', '中景', '近景', '特写', '侧面', '俯视', '仰视', '跟随', '推镜', '拉镜'];
+  const shotIcons: Record<string, string> = {
+    '全景': '🏞️', '中景': '🎭', '近景': '👤', '特写': '🔍',
+    '侧面': '↩️', '俯视': '⬇️', '仰视': '⬆️', '跟随': '🚶',
+    '推镜': '➡️', '拉镜': '⬅️',
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className="bg-cyber-dark/40 border border-cyber-purple/10 rounded-xl p-3 hover:border-cyber-blue/30 transition-all"
+    >
+      <div className="flex items-start gap-3">
+        {/* 序号 */}
+        <div className="w-8 h-8 rounded-lg bg-cyber-purple/20 flex items-center justify-center flex-shrink-0">
+          <span className="text-cyber-purple font-bold text-sm">{index + 1}</span>
+        </div>
+
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* 景别 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">景别：</span>
+            <select
+              value={frame.shotType}
+              onChange={e => onUpdate({ ...frame, shotType: e.target.value })}
+              className="px-2 py-0.5 bg-cyber-dark2 border border-cyber-purple/20 rounded text-white text-xs"
+            >
+              {shotTypeOptions.map(s => (
+                <option key={s} value={s}>{shotIcons[s]} {s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 分镜描述 */}
+          <textarea
+            value={frame.description}
+            onChange={e => onUpdate({ ...frame, description: e.target.value })}
+            className="w-full px-3 py-2 bg-cyber-dark2 border border-cyber-purple/20 rounded-lg text-white text-xs resize-none leading-relaxed"
+            rows={2}
+            placeholder="描述这个镜头的画面内容..."
+          />
+
+          {/* 台词 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">💬</span>
+            <input
+              value={frame.dialogue || ''}
+              onChange={e => onUpdate({ ...frame, dialogue: e.target.value })}
+              className="flex-1 px-3 py-1.5 bg-cyber-dark2 border border-cyber-purple/20 rounded-lg text-white text-xs"
+              placeholder="角色对话/旁白（选填）"
+            />
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ========== 主组件 ==========
 export function Studio() {
   const navigate = useNavigate();
   const { projects, createProject, deleteProject, setCurrentProject } = useProjectStore();
+  const { isAuthenticated } = useAuthStore();
 
+  // 工作流步骤
+  const steps = [
+    { id: 1, label: '剧本输入', icon: BookOpen },
+    { id: 2, label: '角色管理', icon: Users },
+    { id: 3, label: '分镜规划', icon: Film },
+    { id: 4, label: '生成设置', icon: Settings2 },
+  ];
+
+  const [currentStep, setCurrentStep] = useState(1);
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
   const [storyText, setStoryText] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
-  const [selectedStyle, setSelectedStyle] = useState<SceneStyle>('anime');
-  const [frameCount, setFrameCount] = useState(6);
-  const [characterCount, setCharacterCount] = useState(3);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [parsedContent, setParsedContent] = useState<ParsedContent | null>(null);
-  const [showAnalysisResult, setShowAnalysisResult] = useState(false);
-  const [showVoiceSelector, setShowVoiceSelector] = useState(false);
-  const [selectedVoices, setSelectedVoices] = useState<string[]>([]);
+
+  // Step 2: 角色
+  const [characters, setCharacters] = useState<{ name: string; description: string; role: string }[]>([]);
+  const [charVoices, setCharVoices] = useState<Record<string, string>>({});
+
+  // Step 3: 分镜
+  const [frames, setFrames] = useState<{ description: string; dialogue?: string; shotType: string }[]>([]);
+
+  // Step 4: 生成设置
+  const [selectedStyle, setSelectedStyle] = useState<SceneStyle>('anime');
+  const [aspectRatio, setAspectRatio] = useState('9:16');
+  const [videoModel, setVideoModel] = useState('jimeng');
+  const [frameCount, setFrameCount] = useState(6);
+  const [narratorVoice, setNarratorVoice] = useState('narrator');
+
+  // 分析完成
+  const [analysisDone, setAnalysisDone] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const applyParsedContent = useCallback((parsed: ParsedContent) => {
-    setProjectTitle(parsed.title);
-    setStoryText(parsed.storyText);
-    setSelectedStyle(parsed.detectedStyle);
-    setCharacterCount(parsed.detectedCharacterCount);
-    setFrameCount(parsed.detectedFrameCount);
-  }, []);
-
+  // 处理文件上传
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadedFile(file);
     setIsAnalyzing(true);
-    setParsedContent(null);
-    setShowAnalysisResult(false);
 
     try {
-      if (file.type.startsWith('image/')) {
-        const arrayBufferReader = new FileReader();
-        arrayBufferReader.onload = async (ev) => {
-          const arrayBuffer = ev.target?.result as ArrayBuffer;
-          const orientation = getExifOrientation(arrayBuffer);
-          
-          const dataUrlReader = new FileReader();
-          dataUrlReader.onload = async (ev) => {
-            const img = new Image();
-            img.onload = async () => {
-              let finalUrl = ev.target?.result as string;
-              if (orientation > 1) {
-                finalUrl = await rotateImage(img, orientation);
-              }
-              setPreviewImage(finalUrl);
-              setIsAnalyzing(false);
-            };
-            img.src = ev.target?.result as string;
-          };
-          dataUrlReader.readAsDataURL(file);
-        };
-        arrayBufferReader.readAsArrayBuffer(file);
+      let text = '';
 
-        const fileName = file.name.replace(/\.[^/.]+$/, '');
-        if (fileName.length >= 2) {
-          setProjectTitle(fileName);
-        }
-      } else if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
-        const text = await file.text();
-        const parsed = parseStoryContent(text);
-        setParsedContent(parsed);
-        setShowAnalysisResult(true);
-        applyParsedContent(parsed);
-        setIsAnalyzing(false);
+      if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+        text = await file.text();
       } else if (file.name.endsWith('.docx')) {
-        // 处理 Word .docx 文件
-        try {
-          const arrayBuffer = await file.arrayBuffer();
-          const text = await extractDocxText(arrayBuffer);
-          const parsed = parseStoryContent(text);
-          setParsedContent(parsed);
-          setShowAnalysisResult(true);
-          applyParsedContent(parsed);
-          setIsAnalyzing(false);
-        } catch (docxError) {
-          console.error('docx 解析失败:', docxError);
-          // 如果 docx 解析失败，尝试直接读取文本
-          try {
-            const text = await file.text();
-            const parsed = parseStoryContent(text);
-            setParsedContent(parsed);
-            setShowAnalysisResult(true);
-            applyParsedContent(parsed);
-          } catch {
-            setIsAnalyzing(false);
-          }
-        }
-      } else {
+        const arrayBuffer = await file.arrayBuffer();
+        text = await extractDocxText(arrayBuffer);
+      } else if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => setPreviewImage(reader.result as string);
+        reader.readAsDataURL(file);
         setIsAnalyzing(false);
+        return;
       }
-    } catch (error) {
-      console.error('文件读取失败:', error);
-      setIsAnalyzing(false);
-    }
-  }, [applyParsedContent]);
 
-  const handleCreateAndGenerate = () => {
-    const title = projectTitle.trim() || '新漫剧项目';
-    const content = inputMode === 'text' ? storyText : (uploadedFile ? (storyText || '这是一个有趣的故事，主角经历了一场冒险，最终取得了成功') : '');
-    const project = createProject(title, content, inputMode);
-    
-    // Store selected voices for this project
-    if (selectedVoices.length > 0) {
-      localStorage.setItem(`project_voices_${project.id}`, JSON.stringify(selectedVoices));
+      if (text) {
+        const parsed = parseScript(text);
+        setProjectTitle(parsed.title);
+        setStoryText(text);
+        setCharacters(parsed.characters);
+        setFrames(parsed.frames);
+        setFrameCount(parsed.recommendedFrames);
+        setSelectedStyle(parsed.recommendedStyle);
+        setAnalysisDone(true);
+        setCurrentStep(2);
+      }
+    } catch (err) {
+      console.error('文件解析失败:', err);
     }
-    
-    // Store generation settings
+    setIsAnalyzing(false);
+  }, []);
+
+  // 手动分析文本
+  const handleAnalyze = () => {
+    if (!storyText.trim()) return;
+    setIsAnalyzing(true);
+
+    setTimeout(() => {
+      const parsed = parseScript(storyText);
+      setProjectTitle(prev => prev || parsed.title);
+      setCharacters(parsed.characters);
+      setFrames(parsed.frames);
+      setFrameCount(parsed.recommendedFrames);
+      setSelectedStyle(parsed.recommendedStyle);
+      setAnalysisDone(true);
+      setCurrentStep(2);
+      setIsAnalyzing(false);
+    }, 1500);
+  };
+
+  // 开始生成
+  const handleGenerate = () => {
+    if (!projectTitle.trim()) {
+      setProjectTitle('AI漫剧-' + Date.now().toString(36).toUpperCase());
+    }
+    const content = storyText || '这是一个有趣的漫剧故事';
+    const project = createProject(projectTitle || '未命名项目', content, inputMode);
+
+    // 保存角色和分镜数据
+    if (characters.length > 0) {
+      localStorage.setItem(`project_chars_${project.id}`, JSON.stringify(characters));
+      localStorage.setItem(`project_voices_${project.id}`, JSON.stringify(charVoices));
+    }
+    if (frames.length > 0) {
+      localStorage.setItem(`project_frames_${project.id}`, JSON.stringify(frames));
+    }
+
+    // 保存生成设置
     localStorage.setItem(`project_settings_${project.id}`, JSON.stringify({
       selectedStyle,
+      aspectRatio,
+      videoModel,
       frameCount,
-      characterCount
+      narratorVoice,
     }));
-    
+
     setCurrentProject(project.id);
     navigate(`/generator/${project.id}`);
   };
 
+  // 跳转到已有项目
   const handleProjectClick = (id: string) => {
     setCurrentProject(id);
     navigate(`/generator/${id}`);
   };
 
-  const clearUpload = () => {
-    setUploadedFile(null);
-    setPreviewImage(null);
-    setParsedContent(null);
-    setShowAnalysisResult(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
+  const canProceedStep2 = characters.length > 0 || analysisDone;
+  const canProceedStep3 = frames.length > 0;
+  const canProceedStep4 = frames.length > 0 || characters.length > 0;
 
   return (
     <div className="min-h-screen bg-cyber-dark cyber-grid">
       {/* Header */}
-      <header className="h-14 bg-cyber-dark2/80 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between">
+      <header className="sticky top-0 z-50 h-16 bg-cyber-dark2/95 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-white" />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-neon">
+            <Sparkles className="w-5 h-5 text-white" />
           </div>
-          <h1 className="font-display font-medium text-white text-sm md:text-base">AI 漫剧工作室</h1>
+          <div>
+            <h1 className="font-display font-bold text-white text-base">AI 漫剧工作室</h1>
+            <p className="text-[10px] text-gray-500 hidden sm:block">智能生成 · 专业品质 · 零门槛创作</p>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <VerticalClock />
+
+        {/* 步骤指示器 */}
+        <div className="flex items-center gap-1">
+          {steps.map((step, idx) => {
+            const Icon = step.icon;
+            const isActive = currentStep === step.id;
+            const isDone = currentStep > step.id;
+            return (
+              <div key={step.id} className="flex items-center">
+                <button
+                  onClick={() => {
+                    if (isDone || (step.id === 1) || (step.id === 2 && canProceedStep2) || (step.id === 3 && canProceedStep3) || (step.id === 4 && canProceedStep4)) {
+                      setCurrentStep(step.id);
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    isActive ? 'bg-cyber-pink text-white shadow-neon' :
+                    isDone ? 'bg-cyber-purple/30 text-cyber-purple' :
+                    'text-gray-500'
+                  }`}
+                >
+                  {isDone ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                  <span className="hidden sm:inline">{step.label}</span>
+                </button>
+                {idx < steps.length - 1 && (
+                  <ChevronRight className="w-3 h-3 text-gray-600 mx-0.5" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-3">
           <AppVersion />
         </div>
       </header>
-      
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setInputMode('text'); clearUpload(); }}
-                className={`flex-1 py-3 px-4 rounded-xl font-medium text-sm transition-all ${
-                  inputMode === 'text'
-                    ? 'bg-cyber-pink text-white shadow-neon'
-                    : 'bg-cyber-dark2 text-gray-400 border border-cyber-purple/20 hover:border-cyber-purple/40'
-                }`}
-              >
-                <FileText className="w-4 h-4 inline mr-2" />
-                文字输入
-              </button>
-              <button
-                onClick={() => { setInputMode('upload'); setStoryText(''); }}
-                className={`flex-1 py-3 px-4 rounded-xl font-medium text-sm transition-all ${
-                  inputMode === 'upload'
-                    ? 'bg-cyber-pink text-white shadow-neon'
-                    : 'bg-cyber-dark2 text-gray-400 border border-cyber-purple/20 hover:border-cyber-purple/40'
-                }`}
-              >
-                <Upload className="w-4 h-4 inline mr-2" />
-                上传素材
-              </button>
-            </div>
 
-            <div className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-6">
-              {inputMode === 'text' ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-cyber-blue mb-2">项目名称</label>
-                    <input
-                      type="text"
-                      value={projectTitle}
-                      onChange={(e) => setProjectTitle(e.target.value)}
-                      placeholder="给你的作品起个名字..."
-                      className="w-full px-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-cyber-blue mb-2">故事内容</label>
-                    <textarea
-                      value={storyText}
-                      onChange={(e) => setStoryText(e.target.value)}
-                      placeholder="在这里输入你的故事... 例如：在一个未来的城市里，年轻的机器人工程师小明发现了一个神秘的能量核心..."
-                      rows={8}
-                      className="w-full px-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors resize-none"
-                    />
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <AnimatePresence mode="wait">
+          {/* ========== Step 1: 剧本输入 ========== */}
+          {currentStep === 1 && (
+            <motion.div
+              key="step1"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              {/* 模式切换 */}
+              <div className="flex gap-3">
+                {[
+                  { key: 'text', label: '文字输入', icon: FileText },
+                  { key: 'upload', label: '上传素材', icon: Upload },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setInputMode(tab.key as any); setAnalysisDone(false); }}
+                    className={`flex-1 py-3 px-5 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                      inputMode === tab.key
+                        ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-neon'
+                        : 'bg-cyber-dark2 text-gray-400 border border-cyber-purple/20 hover:border-cyber-purple/40'
+                    }`}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid lg:grid-cols-5 gap-6">
+                {/* 左侧：输入区 */}
+                <div className="lg:col-span-3 space-y-4">
+                  <div className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-6">
+                    {inputMode === 'text' ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-cyber-blue mb-2">
+                            📝 项目名称
+                          </label>
+                          <input
+                            type="text"
+                            value={projectTitle}
+                            onChange={e => setProjectTitle(e.target.value)}
+                            placeholder="给你的漫剧起个名字..."
+                            className="w-full px-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-cyber-blue mb-2">
+                            📖 故事剧本
+                          </label>
+                          <textarea
+                            value={storyText}
+                            onChange={e => setStoryText(e.target.value)}
+                            placeholder={`在这里输入你的故事...\n\n例如：\n场景：未来都市的夜晚，霓虹灯闪烁\n小明走在街头，发现了一个神秘的机器人。\n"你好，我叫小智。"机器人说道。\n小明惊讶地后退一步，"你...你会说话？"...\n\n支持输入完整的剧本，系统会自动识别角色、场景和分镜。`}
+                            rows={12}
+                            className="w-full px-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors resize-none leading-relaxed"
+                          />
+                        </div>
+
+                        <Button
+                          variant="primary"
+                          className="w-full"
+                          size="lg"
+                          onClick={handleAnalyze}
+                          disabled={!storyText.trim() || isAnalyzing}
+                        >
+                          {isAnalyzing ? (
+                            <>
+                              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                              AI 智能分析中...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-5 h-5 mr-2" />
+                              AI 智能分析剧本
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* 上传区 */}
+                        <div>
+                          <label className="block text-sm font-medium text-cyber-blue mb-2">
+                            📁 上传剧本文件
+                          </label>
+                          <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" accept=".txt,.md,.docx" />
+                          <div
+                            onClick={() => fileInputRef.current?.click()}
+                            className="border-2 border-dashed border-cyber-purple/30 rounded-xl p-10 text-center cursor-pointer hover:border-cyber-pink/50 transition-colors"
+                          >
+                            {isAnalyzing ? (
+                              <div>
+                                <Loader2 className="w-12 h-12 mx-auto mb-3 text-cyber-pink animate-spin" />
+                                <p className="text-gray-400">正在解析文件内容...</p>
+                              </div>
+                            ) : previewImage ? (
+                              <div>
+                                <img src={previewImage} alt="Preview" className="max-h-32 mx-auto rounded-lg mb-3" />
+                                <p className="text-gray-400 text-sm">{uploadedFile?.name}</p>
+                              </div>
+                            ) : (
+                              <>
+                                <Upload className="w-12 h-12 mx-auto mb-3 text-cyber-purple/40" />
+                                <p className="text-gray-400 mb-1">点击上传剧本文件</p>
+                                <p className="text-xs text-gray-600">支持 .txt / .md / .docx</p>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 分析结果预览 */}
+                        {analysisDone && characters.length > 0 && (
+                          <div className="bg-cyber-purple/10 border border-cyber-purple/20 rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Check className="w-4 h-4 text-green-400" />
+                              <span className="text-sm font-medium text-white">剧本解析完成</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="bg-cyber-dark/50 rounded-lg p-2">
+                                <span className="text-gray-500">识别角色</span>
+                                <p className="text-white font-medium">{characters.length} 个</p>
+                              </div>
+                              <div className="bg-cyber-dark/50 rounded-lg p-2">
+                                <span className="text-gray-500">推荐分镜</span>
+                                <p className="text-cyber-yellow font-medium">{frames.length} 格</p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="primary"
+                              className="w-full mt-3"
+                              onClick={() => setCurrentStep(2)}
+                            >
+                              <ArrowRight className="w-4 h-4 mr-2" />
+                              继续 → 角色管理
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-cyber-blue mb-2">上传素材</label>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-cyber-purple/30 rounded-xl p-8 text-center cursor-pointer hover:border-cyber-pink/50 transition-colors"
-                    >
-                      {isAnalyzing ? (
-                        <div>
-                          <Loader2 className="w-10 h-10 mx-auto mb-3 text-cyber-pink animate-spin" />
-                          <p className="text-gray-400">正在智能分析文件内容...</p>
-                        </div>
-                      ) : previewImage ? (
-                        <div className="relative">
-                          <img src={previewImage} alt="Preview" className="max-h-48 max-w-full mx-auto rounded-lg object-contain" style={{ imageOrientation: 'from-image' }} />
-                          <p className="text-sm text-gray-400 mt-2">{uploadedFile?.name}</p>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); clearUpload(); }}
-                            className="absolute top-2 right-2 p-1 bg-cyber-dark/80 rounded-full text-gray-400 hover:text-cyber-pink"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
-                          </button>
-                        </div>
-                      ) : uploadedFile && parsedContent ? (
-                        <div>
-                          <FileText className="w-10 h-10 mx-auto mb-3 text-cyber-blue" />
-                          <p className="text-gray-400 font-medium">{uploadedFile.name}</p>
-                          <p className="text-xs text-gray-500 mt-1">已识别内容</p>
-                        </div>
-                      ) : (
-                        <>
-                          <Upload className="w-12 h-12 mx-auto mb-3 text-cyber-purple/50" />
-                          <p className="text-gray-400 mb-1">点击上传文件</p>
-                          <p className="text-xs text-gray-500">支持 .txt 文本文件、图片</p>
-                          <p className="text-xs text-gray-600 mt-1">上传故事文本可自动识别角色和风格</p>
-                        </>
-                      )}
-                    </div>
+
+                {/* 右侧：提示 */}
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="bg-gradient-to-br from-cyber-purple/10 to-cyber-pink/10 border border-cyber-purple/20 rounded-2xl p-5">
+                    <h3 className="font-medium text-white mb-3 flex items-center gap-2">
+                      <Star className="w-4 h-4 text-cyber-yellow" />
+                      创作小贴士
+                    </h3>
+                    <ul className="space-y-2 text-xs text-gray-400">
+                      <li>• 剧本中包含角色对话（如"xxx说："）可自动识别角色</li>
+                      <li>• 场景切换词（突然、这时、与此同时）有助于智能分镜</li>
+                      <li>• 描述越详细，AI 生成效果越好</li>
+                      <li>• 可上传 .docx / .txt 格式的完整剧本</li>
+                      <li>• 建议单集剧本控制在 500-2000 字</li>
+                    </ul>
                   </div>
 
-                  {showAnalysisResult && parsedContent && (
-                    <div className="bg-cyber-purple/10 border border-cyber-purple/20 rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Check className="w-4 h-4 text-cyber-blue" />
-                        <span className="text-sm font-medium text-white">智能分析结果</span>
-                        <span className="text-xs text-gray-500">(置信度: {Math.round(parsedContent.confidence * 100)}%)</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="bg-cyber-dark/50 rounded-lg p-2">
-                          <span className="text-gray-500 text-xs">检测标题</span>
-                          <p className="text-white truncate">{parsedContent.title}</p>
+                  <div className="bg-cyber-dark2/60 border border-cyber-purple/20 rounded-2xl p-5">
+                    <h3 className="font-medium text-white mb-3">✨ AI 会帮你做什么</h3>
+                    <div className="space-y-3">
+                      {[
+                        { icon: '👤', text: '智能识别剧本中的角色' },
+                        { icon: '🎬', text: '自动规划分镜和景别' },
+                        { icon: '🖼️', text: '生成角色和场景图片' },
+                        { icon: '🎥', text: '合成动态视频片段' },
+                        { icon: '🔊', text: '智能配音和音效' },
+                        { icon: '📤', text: '一键导出成片' },
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-3 text-sm">
+                          <span className="text-lg">{item.icon}</span>
+                          <span className="text-gray-400">{item.text}</span>
                         </div>
-                        <div className="bg-cyber-dark/50 rounded-lg p-2">
-                          <span className="text-gray-500 text-xs">推荐风格</span>
-                          <p className="text-cyber-blue">{styleOptions.find(s => s.value === parsedContent.detectedStyle)?.label}</p>
-                        </div>
-                        <div className="bg-cyber-dark/50 rounded-lg p-2">
-                          <span className="text-gray-500 text-xs">角色数量</span>
-                          <p className="text-cyber-pink">{parsedContent.detectedCharacterCount} 个</p>
-                        </div>
-                        <div className="bg-cyber-dark/50 rounded-lg p-2">
-                          <span className="text-gray-500 text-xs">分镜数量</span>
-                          <p className="text-cyber-yellow">{parsedContent.detectedFrameCount} 格</p>
-                        </div>
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-cyber-purple/20">
-                        <p className="text-xs text-gray-500 mb-2">故事预览:</p>
-                        <p className="text-xs text-gray-400 line-clamp-3">{parsedContent.storyText.substring(0, 120)}...</p>
-                      </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
-                  {!parsedContent && (
-                    <div>
-                      <label className="block text-sm font-medium text-cyber-blue mb-2">项目名称</label>
-                      <input
-                        type="text"
-                        value={projectTitle}
-                        onChange={(e) => setProjectTitle(e.target.value)}
-                        placeholder="给你的作品起个名字..."
-                        className="w-full px-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors"
-                      />
-                    </div>
-                  )}
+          {/* ========== Step 2: 角色管理 ========== */}
+          {currentStep === 2 && (
+            <motion.div
+              key="step2"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">👥 角色管理</h2>
+                  <p className="text-sm text-gray-500 mt-1">管理剧本中的角色，为每个角色配置外观描述和配音</p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCharacters([...characters, { name: `角色${characters.length + 1}`, description: '角色外观描述', role: '角色' }])}
+                >
+                  <Plus className="w-4 h-4 mr-1" /> 添加角色
+                </Button>
+              </div>
+
+              {characters.length > 0 ? (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {characters.map((char, i) => (
+                    <CharacterCard
+                      key={i}
+                      char={char}
+                      index={i}
+                      onUpdate={c => {
+                        const updated = [...characters];
+                        updated[i] = c;
+                        setCharacters(updated);
+                      }}
+                      onDelete={() => setCharacters(characters.filter((_, j) => j !== i))}
+                      voiceId={charVoices[char.name]}
+                      onVoiceChange={id => setCharVoices({ ...charVoices, [char.name]: id })}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16 bg-cyber-dark2/40 border border-cyber-purple/10 rounded-2xl">
+                  <Users className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                  <p className="text-gray-500">从剧本中未识别到角色</p>
+                  <p className="text-xs text-gray-600 mt-1">可以手动添加角色，或返回修改剧本</p>
+                  <Button variant="secondary" className="mt-4" onClick={() => setCharacters([{ name: '主角', description: '故事的主人公，形象阳光积极', role: '主角' }])}>
+                    <Plus className="w-4 h-4 mr-1" /> 添加默认角色
+                  </Button>
                 </div>
               )}
 
-              <div className="mt-6 pt-6 border-t border-cyber-purple/20">
-                <h3 className="text-sm font-medium text-white mb-4">生成设置</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-2">画风格式</label>
-                    <select
-                      value={selectedStyle}
-                      onChange={(e) => setSelectedStyle(e.target.value as SceneStyle)}
-                      className="w-full px-3 py-2 bg-cyber-dark border border-cyber-purple/30 rounded-lg text-white text-sm focus:outline-none focus:border-cyber-pink"
-                    >
-                      {styleOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-2">分镜数量</label>
-                    <select
-                      value={frameCount}
-                      onChange={(e) => setFrameCount(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-cyber-dark border border-cyber-purple/30 rounded-lg text-white text-sm focus:outline-none focus:border-cyber-pink"
-                    >
-                      {[4, 6, 8, 10, 12].map((n) => (
-                        <option key={n} value={n}>{n} 格</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-2">角色数量</label>
-                    <select
-                      value={characterCount}
-                      onChange={(e) => setCharacterCount(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-cyber-dark border border-cyber-purple/30 rounded-lg text-white text-sm focus:outline-none focus:border-cyber-pink"
-                    >
-                      {[2, 3, 4, 5, 6].map((n) => (
-                        <option key={n} value={n}>{n} 个角色</option>
-                      ))}
-                    </select>
-                  </div>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setCurrentStep(1)}>
+                  <ChevronLeft className="w-4 h-4 mr-1" /> 返回剧本
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1"
+                  onClick={() => {
+                    if (frames.length === 0 && storyText) {
+                      const parsed = parseScript(storyText);
+                      setFrames(parsed.frames);
+                    }
+                    setCurrentStep(3);
+                  }}
+                >
+                  继续 → 分镜规划 <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ========== Step 3: 分镜规划 ========== */}
+          {currentStep === 3 && (
+            <motion.div
+              key="step3"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">🎬 分镜规划</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    系统已自动拆分 {frames.length} 个分镜，你可以调整每个镜头的景别和描述
+                  </p>
                 </div>
-                
-                {/* Voice Selection */}
-                <div className="mt-4">
-                  <button
-                    onClick={() => setShowVoiceSelector(!showVoiceSelector)}
-                    className="w-full py-3 px-4 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-cyber-purple/20 to-cyber-pink/20 border border-cyber-purple/30 hover:border-cyber-pink/50 text-white"
+                <div className="flex items-center gap-3">
+                  <select
+                    value={frameCount}
+                    onChange={e => {
+                      const n = Number(e.target.value);
+                      setFrameCount(n);
+                      if (n > frames.length) {
+                        setFrames([...frames, ...Array(n - frames.length).fill(null).map((_, i) => ({
+                          description: `分镜 ${frames.length + i + 1}`,
+                          dialogue: '',
+                          shotType: '中景',
+                        }))]);
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-cyber-dark2 border border-cyber-purple/30 rounded-lg text-white text-sm"
                   >
-                    <Volume2 className="w-4 h-4" />
-                    {showVoiceSelector ? '收起配音设置' : '设置角色配音'}
-                    {selectedVoices.length > 0 && (
-                      <span className="ml-2 px-2 py-0.5 bg-cyber-pink text-white text-xs rounded-full">
-                        {selectedVoices.length}
-                      </span>
-                    )}
-                  </button>
-                  
-                  {showVoiceSelector && (
-                    <div className="mt-4">
-                      <VoiceSelector
-                        selectedVoices={selectedVoices}
-                        onChange={setSelectedVoices}
-                        characterCount={characterCount}
-                      />
-                    </div>
-                  )}
+                    {[4, 6, 8, 10, 12].map(n => (
+                      <option key={n} value={n}>{n} 格分镜</option>
+                    ))}
+                  </select>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setFrames([...frames, { description: '', dialogue: '', shotType: '中景' }])}
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> 添加分镜
+                  </Button>
                 </div>
               </div>
-            </div>
 
-            <Button
-              variant="primary"
-              className="w-full"
-              size="lg"
-              onClick={handleCreateAndGenerate}
-              disabled={
-                (inputMode === 'text' && !storyText.trim()) ||
-                (inputMode === 'upload' && !uploadedFile)
-              }
-            >
-              <Wand2 className="w-5 h-5 mr-2" />
-              一键生成漫剧
-            </Button>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-display text-lg font-semibold text-white">我的项目</h2>
-              <span className="text-sm text-gray-500">{projects.length} 个项目</span>
-            </div>
-
-            {projects.length > 0 ? (
-              <div className="space-y-3">
-                {projects.map((project) => (
-                  <div
-                    key={project.id}
-                    className="bg-cyber-dark2/60 backdrop-blur border border-cyber-purple/20 rounded-xl p-4 hover:border-cyber-pink/50 transition-all cursor-pointer"
-                    onClick={() => handleProjectClick(project.id)}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="w-16 h-16 rounded-xl bg-cyber-purple/20 flex items-center justify-center flex-shrink-0">
-                        {project.status === 'completed' ? (
-                          <Film className="w-8 h-8 text-cyber-pink" />
-                        ) : project.status === 'generating' ? (
-                          <Loader2 className="w-6 h-6 text-cyber-yellow animate-spin" />
-                        ) : (
-                          <FileText className="w-8 h-8 text-gray-500" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-white truncate">{project.title}</h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {project.sourceType === 'text' ? '文字输入' : '上传素材'} · {project.frames.length} 格
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className={`text-[10px] px-2 py-0.5 rounded ${
-                            project.status === 'completed'
-                              ? 'bg-cyber-blue/20 text-cyber-blue'
-                              : project.status === 'generating'
-                              ? 'bg-cyber-yellow/20 text-cyber-yellow'
-                              : 'bg-gray-500/20 text-gray-400'
-                          }`}>
-                            {project.status === 'completed' ? '已完成' : project.status === 'generating' ? '生成中' : '草稿'}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteProject(project.id);
-                        }}
-                        className="p-2 text-gray-500 hover:text-cyber-pink transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+              <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+                {frames.map((frame, i) => (
+                  <FrameCard
+                    key={i}
+                    frame={frame}
+                    index={i}
+                    onUpdate={f => {
+                      const updated = [...frames];
+                      updated[i] = f;
+                      setFrames(updated);
+                    }}
+                  />
                 ))}
               </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 rounded-2xl bg-cyber-purple/10 flex items-center justify-center mx-auto mb-4">
-                  <Film className="w-8 h-8 text-cyber-purple/40" />
+
+              {frames.length === 0 && (
+                <div className="text-center py-12 bg-cyber-dark2/40 border border-cyber-purple/10 rounded-2xl">
+                  <Film className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                  <p className="text-gray-500">暂无分镜数据</p>
+                  <Button variant="secondary" className="mt-4" onClick={() => {
+                    const parsed = parseScript(storyText || '一个有趣的故事');
+                    setFrames(parsed.frames);
+                  }}>
+                    <Wand2 className="w-4 h-4 mr-1" /> AI 生成分镜
+                  </Button>
                 </div>
-                <h3 className="font-medium text-white mb-2">还没有项目</h3>
-                <p className="text-sm text-gray-500">输入故事内容，一键生成你的第一部AI漫剧</p>
+              )}
+
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setCurrentStep(2)}>
+                  <ChevronLeft className="w-4 h-4 mr-1" /> 返回角色
+                </Button>
+                <Button variant="primary" className="flex-1" onClick={() => setCurrentStep(4)}>
+                  继续 → 生成设置 <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
               </div>
-            )}
+            </motion.div>
+          )}
+
+          {/* ========== Step 4: 生成设置 ========== */}
+          {currentStep === 4 && (
+            <motion.div
+              key="step4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div>
+                <h2 className="text-xl font-bold text-white">⚙️ 生成设置</h2>
+                <p className="text-sm text-gray-500 mt-1">配置画风、视频模型和导出参数</p>
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-6">
+                {/* 画风选择 */}
+                <div className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-5">
+                  <h3 className="font-medium text-white mb-4 flex items-center gap-2">
+                    <Image className="w-4 h-4 text-cyber-blue" /> 画风选择
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {styleOptions.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setSelectedStyle(opt.value as SceneStyle)}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          selectedStyle === opt.value
+                            ? 'border-cyber-pink bg-cyber-pink/10 shadow-neon'
+                            : 'border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-purple/40'
+                        }`}
+                      >
+                        <div className="text-2xl mb-1">{opt.emoji}</div>
+                        <div className={`font-medium text-sm ${selectedStyle === opt.value ? 'text-white' : 'text-gray-400'}`}>
+                          {opt.label}
+                        </div>
+                        <div className="text-[10px] text-gray-600 mt-0.5">{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 视频模型 */}
+                <div className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-5">
+                  <h3 className="font-medium text-white mb-4 flex items-center gap-2">
+                    <Video className="w-4 h-4 text-cyber-yellow" /> 视频生成模型
+                  </h3>
+                  <div className="space-y-2">
+                    {videoModels.map(model => (
+                      <button
+                        key={model.value}
+                        onClick={() => setVideoModel(model.value)}
+                        className={`w-full p-3 rounded-xl border text-left flex items-center gap-3 transition-all ${
+                          videoModel === model.value
+                            ? 'border-cyber-yellow bg-cyber-yellow/10'
+                            : 'border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-purple/40'
+                        }`}
+                      >
+                        <span className="text-xl">{model.icon}</span>
+                        <div className="flex-1">
+                          <div className={`font-medium text-sm ${videoModel === model.value ? 'text-white' : 'text-gray-400'}`}>
+                            {model.label}
+                          </div>
+                          <div className="text-[10px] text-gray-600">{model.desc}</div>
+                        </div>
+                        {videoModel === model.value && <Check className="w-4 h-4 text-cyber-yellow" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 比例和旁白 */}
+                <div className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-5">
+                  <h3 className="font-medium text-white mb-4">📐 输出比例</h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    {aspectOptions.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setAspectRatio(opt.value)}
+                        className={`p-3 rounded-xl border text-center transition-all ${
+                          aspectRatio === opt.value
+                            ? 'border-cyber-pink bg-cyber-pink/10'
+                            : 'border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-purple/40'
+                        }`}
+                      >
+                        <div className={`font-bold text-lg ${aspectRatio === opt.value ? 'text-white' : 'text-gray-500'}`}>
+                          {opt.value}
+                        </div>
+                        <div className="text-[10px] text-gray-600">{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="block text-xs text-gray-500 mb-2">旁白音色</label>
+                    <select
+                      value={narratorVoice}
+                      onChange={e => setNarratorVoice(e.target.value)}
+                      className="w-full px-3 py-2 bg-cyber-dark border border-cyber-purple/30 rounded-lg text-white text-sm"
+                    >
+                      <option value="narrator">旁白（默认）</option>
+                      <option value="male-young">青年男声</option>
+                      <option value="female-young">少女声音</option>
+                      <option value="female-sweet">甜美女声</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 摘要 */}
+                <div className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-5">
+                  <h3 className="font-medium text-white mb-4">📋 创作摘要</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">项目名称</span>
+                      <span className="text-white">{projectTitle || '未命名'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">角色数量</span>
+                      <span className="text-cyber-pink">{characters.length} 个</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">分镜数量</span>
+                      <span className="text-cyber-yellow">{frames.length} 格</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">画风</span>
+                      <span className="text-cyber-blue">{styleOptions.find(s => s.value === selectedStyle)?.label}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">输出比例</span>
+                      <span className="text-white">{aspectRatio}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">视频模型</span>
+                      <span className="text-white">{videoModels.find(m => m.value === videoModel)?.label}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 开始生成按钮 */}
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setCurrentStep(3)}>
+                  <ChevronLeft className="w-4 h-4 mr-1" /> 返回分镜
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1"
+                  size="lg"
+                  onClick={handleGenerate}
+                >
+                  <Wand2 className="w-5 h-5 mr-2" />
+                  {isAuthenticated ? '开始生成漫剧' : '登录后开始生成'}
+                  {!isAuthenticated && (
+                    <span className="ml-2 text-xs opacity-70">（登录解锁完整功能）</span>
+                  )}
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ========== 项目列表 ========== */}
+        {projects.length > 0 && (
+          <div className="mt-8 pt-8 border-t border-cyber-purple/20">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-white text-lg">📚 我的项目</h2>
+              <span className="text-xs text-gray-500">{projects.length} 个项目</span>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {projects.map(project => (
+                <motion.div
+                  key={project.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-cyber-dark2/60 backdrop-blur border border-cyber-purple/20 rounded-xl p-4 hover:border-cyber-pink/30 transition-all cursor-pointer group"
+                  onClick={() => handleProjectClick(project.id)}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      project.status === 'completed' ? 'bg-gradient-to-br from-cyber-blue to-cyan-500' :
+                      project.status === 'generating' ? 'bg-gradient-to-br from-cyber-yellow to-orange-500' :
+                      'bg-cyber-purple/20'
+                    }`}>
+                      {project.status === 'completed' ? <Film className="w-6 h-6 text-white" /> :
+                       project.status === 'generating' ? <Loader2 className="w-6 h-6 text-white animate-spin" /> :
+                       <BookOpen className="w-6 h-6 text-gray-500" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-white truncate group-hover:text-cyber-pink transition-colors">
+                        {project.title}
+                      </h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {project.sourceType === 'text' ? '📝 文字' : '📁 文件'} · {project.frames.length} 格
+                      </p>
+                      <div className="mt-2">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          project.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                          project.status === 'generating' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {project.status === 'completed' ? '已完成' :
+                           project.status === 'generating' ? '生成中' : '草稿'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteProject(project.id); }}
+                      className="p-1.5 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
