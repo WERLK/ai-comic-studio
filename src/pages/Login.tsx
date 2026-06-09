@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Lock, User, Mail, Loader2 } from 'lucide-react';
+import { Sparkles, Lock, User, Mail, Loader2, Trash2 } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
+import { clearDatabase } from '@/utils/database';
 
 export function Login() {
   const navigate = useNavigate();
@@ -12,6 +13,15 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  const handleClearData = () => {
+    if (window.confirm('确定要清除所有本地数据吗？这将删除所有用户账号、积分和项目数据！')) {
+      clearDatabase();
+      useAuthStore.getState().clearAllData();
+      setError('');
+      alert('数据已清除！您现在可以重新注册账号。');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,6 +174,16 @@ export function Login() {
             className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
           >
             ← 继续浏览
+          </button>
+        </div>
+
+        <div className="mt-4 text-center">
+          <button
+            onClick={handleClearData}
+            className="text-red-400/70 hover:text-red-400 text-xs transition-colors flex items-center gap-1 mx-auto"
+          >
+            <Trash2 className="w-3 h-3" />
+            清除本地数据（可重新注册）
           </button>
         </div>
       </div>
