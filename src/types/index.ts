@@ -67,8 +67,11 @@ export interface Project {
   description?: string;
   sourceContent: string;
   sourceType: 'text' | 'upload';
+  characters: Character[];
+  scenes: Scene[];
   frames: Frame[];
   status: 'draft' | 'generating' | 'completed';
+  style?: SceneStyle;
   createdAt: string;
   updatedAt: string;
 }

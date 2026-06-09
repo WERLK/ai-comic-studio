@@ -3,10 +3,16 @@ export interface User {
   username: string;
   email: string;
   points: number;
+  totalEarnedPoints?: number;
+  level?: number;
+  projectsCount?: number;
+  isVIP?: boolean;
   createdAt: string;
   lastLoginDate?: string;
   consecutiveLoginDays?: number;
   completedTasks?: string[];
+  visitedPages?: string[];
+  usedStyles?: string[];
 }
 
 export interface AuthState {
@@ -40,7 +46,9 @@ export type TaskType =
   | 'social' 
   | 'creation' 
   | 'explore' 
-  | 'special';
+  | 'special'
+  | 'member'
+  | 'level';
 
 export interface PointReward {
   id: string;
@@ -53,6 +61,8 @@ export interface PointReward {
   progress?: number;
   target?: number;
   icon?: string;
+  isVIPOnly?: boolean;
+  autoUnlockHint?: string;
 }
 
 export interface PointExchangeItem {

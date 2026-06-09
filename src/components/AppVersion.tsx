@@ -2,9 +2,31 @@ import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.7.1.17';
+const APP_VERSION = '1.8.1';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.8.1',
+    date: '2026-06-09',
+    features: [
+      '任务系统全面重写',
+      '成就/社交/创作/探索/特殊/会员/等级任务逻辑修复',
+      '真实行为驱动任务进度',
+      '任务领取状态区分（可领取/进行中/已领取/需VIP）',
+      '视觉优化：可领取任务高亮闪烁'
+    ]
+  },
+  {
+    version: '1.8.0',
+    date: '2026-06-09',
+    features: [
+      '真实短剧生成引擎',
+      '角色智能识别角色和场景',
+      '故事板视图展示角色/场景/分镜',
+      '三视图：故事板/漫画视图/视频预览',
+      '配音同步播放'
+    ]
+  },
   {
     version: '1.7.0',
     date: '2026-06-08',

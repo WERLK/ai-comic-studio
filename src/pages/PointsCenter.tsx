@@ -1,495 +1,567 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Coins, 
-  Gift, 
-  Trophy, 
-  ArrowLeft, 
-  CheckCircle, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  ShoppingBag, 
-  Star, 
-  Users, 
-  Palette, 
-  Compass, 
-  Zap, 
-  Sparkles, 
-  Crown, 
-  Award, 
-  RotateCw,
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Coins,
+  Gift,
+  Trophy,
+  ArrowLeft,
+  CheckCircle,
+  ArrowUpRight,
+  ArrowDownRight,
+  ShoppingBag,
+  Star,
+  Users,
+  Palette,
+  Compass,
+  Zap,
+  Crown,
+  Award,
   Flame,
-  TrendingUp,
-  Heart,
-  MessageSquare,
-  Share2,
-  Rocket,
-  MapPin,
-  Wrench,
-  Globe,
-  Calendar,
-  DollarSign,
-  ZapOff
+  Lock,
+  Sparkles,
+  X
 } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
 import { LuckyWheel } from '@/components/LuckyWheel';
-import { ResponsiveIcon } from '@/components/ResponsiveIcon';
-import { TaskType } from '@/types';
+import type { TaskType, PointReward } from '@/types';
 
-const TaskIcon = ({ type, completed }: { type: TaskType; completed?: boolean }) => {
-  const className = `${completed ? 'text-gray-400' : 'text-white'}`;
-  
-  let iconComponent;
-  switch (type) {
-    case 'daily':
-      iconComponent = Calendar;
-      break;
-    case 'achievement':
-      iconComponent = Trophy;
-      break;
-    case 'social':
-      iconComponent = Users;
-      break;
-    case 'creation':
-      iconComponent = Palette;
-      break;
-    case 'explore':
-      iconComponent = Compass;
-      break;
-    case 'special':
-      iconComponent = Zap;
-      break;
-    case 'member':
-      iconComponent = Crown;
-      break;
-    case 'level':
-      iconComponent = Award;
-      break;
-    default:
-      iconComponent = Trophy;
-  }
-  
-  return <ResponsiveIcon icon={iconComponent} className={className} mobileSize={16} desktopSize={20} />;
+const ICON_MAP: Record<TaskType, any> = {
+  daily: Star,
+  achievement: Trophy,
+  social: Users,
+  creation: Palette,
+  explore: Compass,
+  special: Zap,
+  member: Crown,
+  level: Award,
 };
 
-const PrizeIcon = ({ index }: { index: number }) => {
-  const icons = [Sparkles, Gift, Rocket, Star, Crown, Heart, Award, Zap];
-  const Icon = icons[index % icons.length];
-  const colors = ['text-cyber-yellow', 'text-cyber-pink', 'text-cyber-blue', 'text-purple-400', 'text-pink-400', 'text-red-400', 'text-orange-400', 'text-cyan-400'];
-  return <ResponsiveIcon icon={Icon} className={colors[index % colors.length]} mobileSize={18} desktopSize={24} />;
+const LABELS: Record<TaskType, string> = {
+  daily: '每日任务',
+  achievement: '成就',
+  social: '社交',
+  creation: '创作',
+  explore: '探索',
+  special: '活动',
+  member: 'VIP',
+  level: '等级',
+};
+
+const GRADIENTS: Record<TaskType, string> = {
+  daily: 'from-cyan-400 to-blue-600',
+  achievement: 'from-yellow-400 to-orange-600',
+  social: 'from-pink-400 to-purple-600',
+  creation: 'from-rose-400 to-red-600',
+  explore: 'from-emerald-400 to-teal-600',
+  special: 'from-orange-400 to-pink-600',
+  member: 'from-purple-400 to-violet-700',
+  level: 'from-amber-400 to-yellow-700',
 };
 
 export function PointsCenter() {
   const navigate = useNavigate();
-  const { 
-    user, 
-    points, 
-    transactions, 
-    dailyRewards, 
-    achievementRewards, 
-    socialRewards, 
-    creationRewards, 
-    exploreRewards, 
+  const {
+    user,
+    points,
+    level,
+    totalEarnedPoints,
+    projectsCount,
+    isVIP,
+    transactions,
+    dailyRewards,
+    achievementRewards,
+    socialRewards,
+    creationRewards,
+    exploreRewards,
     specialRewards,
     memberRewards,
     levelRewards,
-    exchangeItems, 
-    claimReward, 
-    exchangeItem 
+    exchangeItems,
+    claimReward,
+    exchangeItem,
+    recordPageVisit,
+    refreshTasks,
   } = useAuthStore();
 
-  const [activeMainTab, setActiveMainTab] = useState<'tasks' | 'shop' | 'history'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'shop' | 'history'>('tasks');
   const [activeTaskType, setActiveTaskType] = useState<TaskType>('daily');
-  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const [showLuckyWheel, setShowLuckyWheel] = useState(false);
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showWheel, setShowWheel] = useState(false);
+  const [showHint, setShowHint] = useState<string | null>(null);
 
-  const getCurrentTasks = () => {
-    switch (activeTaskType) {
-      case 'daily':
-        return dailyRewards;
-      case 'achievement':
-        return achievementRewards;
-      case 'social':
-        return socialRewards;
-      case 'creation':
-        return creationRewards;
-      case 'explore':
-        return exploreRewards;
-      case 'special':
-        return specialRewards;
-      case 'member':
-        // 会员任务 - 只有开通VIP才能领取，未开通VIP的任务显示为"需VIP"
-        return memberRewards.map(reward => {
-          // VIP专属任务需要检查用户是否开通VIP
-          const vipOnlyIds = ['member-vip', 'member-svip', 'member-daily', 'member-weekly', 'member-exclusive', 'member-priority'];
-          if (vipOnlyIds.includes(reward.id) && reward.id !== 'member-vip' && reward.id !== 'member-svip') {
-            // 这些是VIP专属任务，非VIP用户不能领取
-            return {
-              ...reward,
-              canClaim: false,
-              isVIPOnly: true
-            };
-          }
-          return reward;
-        });
-      case 'level':
-        return levelRewards;
-    }
+  useEffect(() => {
+    recordPageVisit('points');
+    refreshTasks();
+  }, []);
+
+  const allLists: Record<TaskType, PointReward[]> = {
+    daily: dailyRewards,
+    achievement: achievementRewards,
+    social: socialRewards,
+    creation: creationRewards,
+    explore: exploreRewards,
+    special: specialRewards,
+    member: memberRewards,
+    level: levelRewards,
   };
 
-  const handleClaimReward = (rewardId: string) => {
-    const success = claimReward(rewardId);
-    if (success) {
-      setMessage({ text: '领取成功！', type: 'success' });
+  const currentTasks = allLists[activeTaskType];
+
+  const handleClaim = (t: PointReward) => {
+    if (t.isCompleted) return;
+    if ((t as any).isVIPOnly && !isVIP) {
+      setToast({ text: '需要VIP才能领取此任务', type: 'error' });
+      setTimeout(() => setToast(null), 2000);
+      return;
+    }
+    if (t.target !== undefined && (t.progress ?? 0) < t.target) {
+      setToast({ text: '任务进度尚未完成', type: 'error' });
+      setTimeout(() => setToast(null), 2000);
+      return;
+    }
+    const ok = claimReward(t.id);
+    if (ok) {
+      setToast({ text: `领取成功！+${t.id === 'daily-login' ? '随机' : t.points}积分`, type: 'success' });
     } else {
-      setMessage({ text: '领取失败，任务未完成或已领取', type: 'error' });
+      setToast({ text: '领取失败，请稍后再试', type: 'error' });
     }
-    setTimeout(() => setMessage(null), 3000);
+    setTimeout(() => setToast(null), 2000);
   };
 
-  const handleExchangeItem = (itemId: string) => {
-    const success = exchangeItem(itemId);
-    if (success) {
-      setMessage({ text: '兑换成功！', type: 'success' });
+  const handleExchange = (id: string, price: number) => {
+    if (points < price) {
+      setToast({ text: '积分不足', type: 'error' });
+      setTimeout(() => setToast(null), 2000);
+      return;
+    }
+    const ok = exchangeItem(id);
+    if (ok) {
+      setToast({ text: '兑换成功！', type: 'success' });
     } else {
-      setMessage({ text: '积分不足或库存不足', type: 'error' });
+      setToast({ text: '兑换失败', type: 'error' });
     }
-    setTimeout(() => setMessage(null), 3000);
+    setTimeout(() => setToast(null), 2000);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('zh-CN', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const formatDate = (ds: string) => {
+    try {
+      return new Date(ds).toLocaleString('zh-CN', {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    } catch { return ds; }
   };
 
-  const taskTypeLabels: Record<TaskType, string> = {
-    daily: '每日任务',
-    achievement: '成就任务',
-    social: '社交任务',
-    creation: '创作任务',
-    explore: '探索任务',
-    special: '特殊活动',
-    member: '会员任务',
-    level: '等级任务',
+  const progressPct = (t: PointReward) => {
+    if (t.target === undefined) return t.isCompleted ? 100 : 0;
+    return Math.min(100, Math.round(((t.progress ?? 0) / t.target) * 100));
   };
 
-  const taskTypeColors: Record<TaskType, string> = {
-    daily: 'from-cyber-blue to-cyber-purple',
-    achievement: 'from-cyber-yellow to-cyber-pink',
-    social: 'from-cyan-400 to-blue-500',
-    creation: 'from-pink-400 to-purple-500',
-    explore: 'from-green-400 to-emerald-500',
-    special: 'from-orange-400 to-red-500',
-    member: 'from-purple-400 to-pink-500',
-    level: 'from-yellow-400 to-orange-500',
+  const canClaimNow = (t: PointReward): boolean => {
+    if (t.isCompleted) return false;
+    if ((t as any).isVIPOnly && !isVIP) return false;
+    if (t.target === undefined) return false; // 无目标的任务不能直接领取（避免作弊）
+    return (t.progress ?? 0) >= t.target;
+  };
+
+  // 判断任务卡片的视觉等级：
+  // - completed（已完成灰色）
+  // - available（可领取：高亮+闪烁）
+  // - inProgress（进行中：半透明暗）
+  // - locked（未达条件或需要VIP：强暗+锁）
+  const cardState = (t: PointReward): 'completed' | 'available' | 'inProgress' | 'locked' => {
+    if (t.isCompleted) return 'completed';
+    if ((t as any).isVIPOnly && !isVIP) return 'locked';
+    if (canClaimNow(t)) return 'available';
+    return 'inProgress';
   };
 
   return (
-    <div className="min-h-screen bg-cyber-dark cyber-grid">
-      {/* Header */}
-      <header className="h-14 bg-cyber-dark2/80 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between">
+    <div className="min-h-screen bg-cyber-dark pb-20">
+      <header className="sticky top-0 z-30 bg-cyber-dark2/90 backdrop-blur-xl border-b border-cyber-purple/20 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="p-2 text-gray-400 hover:text-white transition-colors">
-            <ResponsiveIcon icon={ArrowLeft} mobileSize={20} desktopSize={20} />
+          <button onClick={() => navigate('/')} className="p-2 rounded-xl hover:bg-cyber-purple/20 transition-colors text-gray-300">
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyber-yellow to-cyber-pink flex items-center justify-center">
-            <ResponsiveIcon icon={Coins} className="text-cyber-dark" mobileSize={16} desktopSize={18} />
+          <div>
+            <h1 className="font-display font-bold text-white text-base md:text-lg">积分中心</h1>
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              {isVIP && <span className="text-purple-300 font-medium">★ VIP</span>}
+              <span>Lv.{level}</span>
+              <span>· 累计 {totalEarnedPoints} 分</span>
+              {projectsCount > 0 && <span>· 作品 {projectsCount}</span>}
+            </div>
           </div>
-          <h1 className="font-display font-bold text-white text-sm md:text-base">积分中心</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <AppVersion />
+        <div className="flex items-center gap-2 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 px-3 py-1.5 rounded-xl">
+          <Coins className="w-4 h-4 text-yellow-400" />
+          <span className="font-display font-bold text-yellow-300">{points}</span>
         </div>
       </header>
-      
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Points Header Card */}
-        <div className="bg-gradient-to-br from-cyber-purple/25 via-cyber-pink/20 to-cyber-yellow/15 border border-cyber-purple/30 rounded-3xl p-6 mb-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-cyber-yellow/10 to-cyber-pink/10 rounded-full blur-3xl" />
-          <div className="flex items-center gap-4 md:gap-5 relative z-10">
-            <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl md:rounded-3xl bg-gradient-to-br from-cyber-yellow via-cyber-pink to-cyber-purple flex items-center justify-center shadow-2xl shadow-cyber-yellow/30">
-              <ResponsiveIcon icon={Coins} className="text-cyber-dark" mobileSize={32} desktopSize={40} />
+
+      <div className="max-w-3xl mx-auto px-4 py-5 space-y-4">
+        {/* 顶部信息卡 */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-cyber-purple/20 via-cyber-pink/10 to-cyber-yellow/20 border border-cyber-purple/30 rounded-2xl p-5"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-400 mb-1">当前积分</p>
+              <p className="font-display text-4xl font-bold text-yellow-300 tracking-wide">{points}</p>
+              <p className="text-xs text-gray-500 mt-2">
+                连续登录 <span className="text-cyan-300 font-medium">{user?.consecutiveLoginDays || 1}</span> 天
+              </p>
             </div>
-            <div className="flex-1">
-              <p className="text-gray-400 text-sm mb-1">当前积分</p>
-              <p className="font-display text-4xl md:text-5xl font-bold neon-text-yellow">{points}</p>
-            </div>
-            <div className="flex flex-col gap-2">
-              {user?.consecutiveLoginDays && user.consecutiveLoginDays > 0 && (
-                <div className="bg-cyber-dark/70 backdrop-blur-xl rounded-2xl px-4 py-2 border border-cyber-yellow/20">
-                  <p className="text-gray-400 text-xs mb-1">连续登录</p>
-                  <p className="font-display text-lg md:text-xl font-bold text-cyber-yellow flex items-center gap-1">
-                    <ResponsiveIcon icon={Flame} className="text-orange-400" mobileSize={14} desktopSize={16} />
-                    {user.consecutiveLoginDays}天
-                  </p>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => setShowWheel(true)}
+              className="flex flex-col items-center justify-center gap-1 w-20 h-20 rounded-2xl bg-gradient-to-br from-cyber-pink to-cyber-yellow text-white shadow-lg shadow-pink-500/20 hover:scale-105 active:scale-95 transition-transform"
+            >
+              <Gift className="w-7 h-7" />
+              <span className="text-xs font-medium">大转盘</span>
+            </button>
           </div>
-        </div>
 
-        {message && (
-          <div className={`mb-6 rounded-2xl p-4 backdrop-blur-xl ${
-            message.type === 'success' 
-              ? 'bg-green-500/20 border border-green-500/30' 
-              : 'bg-red-500/20 border border-red-500/30'
-          }`}>
-            <p className={`text-sm ${
-              message.type === 'success' ? 'text-green-400' : 'text-red-400'
-            }`}>
-              {message.text}
-            </p>
-          </div>
-        )}
-
-        {/* Lucky Wheel Banner */}
-        <button
-            onClick={() => setShowLuckyWheel(true)}
-            className="w-full mb-6 bg-gradient-to-r from-cyber-yellow via-cyber-pink to-cyber-purple rounded-2xl p-5 text-left shadow-2xl shadow-cyber-pink/30 hover:shadow-cyber-purple/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-cyber-dark/30 flex items-center justify-center animate-pulse">
-                  <ResponsiveIcon icon={Gift} className="text-cyber-dark" mobileSize={20} desktopSize={28} />
-                </div>
-              <div>
-                <h3 className="font-display font-bold text-lg text-cyber-dark">幸运大转盘</h3>
-                <p className="text-sm text-cyber-dark/80">免费抽奖赢取积分大奖！</p>
-              </div>
+          {/* 进度条显示距离下一级 */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
+              <span>等级进度</span>
+              <span>Lv.{level} → Lv.{level + 1}</span>
             </div>
-            <div className="bg-cyber-dark/20 rounded-xl px-4 py-2">
-              <span className="font-medium text-cyber-dark">立即抽奖 →</span>
-            </div>
-          </div>
-        </button>
-
-        {/* Main Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          <button
-            onClick={() => setActiveMainTab('tasks')}
-            className={`px-5 py-3 rounded-2xl font-semibold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${
-              activeMainTab === 'tasks'
-                ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-neon'
-                : 'bg-cyber-dark2 text-gray-400 hover:text-white hover:bg-cyber-dark2/80'
-            }`}
-          >
-            <ResponsiveIcon icon={Trophy} mobileSize={16} desktopSize={18} />
-            任务中心
-          </button>
-          <button
-            onClick={() => setActiveMainTab('shop')}
-            className={`px-5 py-3 rounded-2xl font-semibold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${
-              activeMainTab === 'shop'
-                ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-neon'
-                : 'bg-cyber-dark2 text-gray-400 hover:text-white hover:bg-cyber-dark2/80'
-            }`}
-          >
-            <ResponsiveIcon icon={ShoppingBag} mobileSize={16} desktopSize={18} />
-            积分商城
-          </button>
-          <button
-            onClick={() => setActiveMainTab('history')}
-            className={`px-5 py-3 rounded-2xl font-semibold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${
-              activeMainTab === 'history'
-                ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-neon'
-                : 'bg-cyber-dark2 text-gray-400 hover:text-white hover:bg-cyber-dark2/80'
-            }`}
-          >
-            <ResponsiveIcon icon={Sparkles} mobileSize={16} desktopSize={18} />
-            积分记录
-          </button>
-        </div>
-
-        {/* Tasks Tab */}
-        {activeMainTab === 'tasks' && (
-          <>
-            {/* Task Type Tabs */}
-            <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-              {(Object.keys(taskTypeLabels) as TaskType[]).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setActiveTaskType(type)}
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 ${
-                    activeTaskType === type
-                      ? `bg-gradient-to-r ${taskTypeColors[type]} text-white shadow-neon`
-                      : 'bg-cyber-dark2 text-gray-400 hover:text-white hover:bg-cyber-dark2/80'
-                  }`}
-                >
-                  <TaskIcon type={type} />
-                  {taskTypeLabels[type]}
-                </button>
-              ))}
-            </div>
-
-            {/* Task List */}
-            <div className="space-y-4">
-              {getCurrentTasks().map((reward, index) => {
-                const canClaim = !reward.isCompleted && 
-                  (reward.target === undefined || (reward.progress !== undefined && reward.progress >= reward.target));
-                
-                return (
-                  <div
-                    key={reward.id}
-                    className={`bg-cyber-dark2/80 backdrop-blur-xl border ${
-                      reward.isCompleted ? 'border-green-500/20' : 'border-cyber-purple/20'
-                    } rounded-3xl p-4 md:p-5 transition-all hover:border-cyber-pink/30`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 md:gap-4">
-                        <div className={`w-9 h-9 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center ${
-                          reward.isCompleted 
-                            ? 'bg-gray-700/50' 
-                            : `bg-gradient-to-br ${taskTypeColors[activeTaskType]} shadow-md shadow-cyber-purple/20`
-                        }`}>
-                          {reward.isCompleted ? (
-                            <ResponsiveIcon icon={CheckCircle} className="text-green-400" mobileSize={16} desktopSize={20} />
-                          ) : (
-                            <TaskIcon type={activeTaskType} />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-white text-lg">{reward.name}</h3>
-                          <p className={`text-sm mt-1 ${(reward as any).isVIPOnly ? 'text-purple-400' : 'text-gray-400'}`}>
-                            {(reward as any).isVIPOnly ? '🏆 VIP专属 | ' : ''}{reward.description}
-                          </p>
-                          {reward.target !== undefined && reward.progress !== undefined && (
-                            <div className="mt-3">
-                              <div className="h-2.5 bg-gray-700 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-cyber-purple via-cyber-pink to-cyber-yellow transition-all"
-                                  style={{ width: `${Math.min((reward.progress / reward.target) * 100, 100)}%` }}
-                                />
-                              </div>
-                              <p className="text-xs text-gray-500 mt-2 font-medium">
-                                进度: {reward.progress}/{reward.target}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 ml-4">
-                        <span className="font-display text-xl font-bold neon-text-yellow">
-                          +{reward.id === 'daily-login' ? '1-20随机' : reward.points}
-                        </span>
-                        <button
-                          onClick={() => handleClaimReward(reward.id)}
-                          disabled={!canClaim || (reward as any).isVIPOnly}
-                          className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                            reward.isCompleted
-                              ? 'bg-green-500/20 text-green-400 cursor-not-allowed border border-green-500/30'
-                              : (reward as any).isVIPOnly
-                              ? 'bg-purple-500/20 text-purple-400 cursor-not-allowed border border-purple-500/30'
-                              : canClaim
-                              ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-neon hover:shadow-lg'
-                              : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          {reward.isCompleted ? '已完成 ✓' : (reward as any).isVIPOnly ? '需VIP' : canClaim ? '领取' : '进行中'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {/* Shop Tab */}
-        {activeMainTab === 'shop' && (
-          <div className="grid md:grid-cols-2 gap-5">
-            {exchangeItems.map((item, index) => (
+            <div className="h-2 bg-cyber-dark2 rounded-full overflow-hidden">
               <div
-                key={item.id}
-                className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-3xl p-4 md:p-5 hover:border-cyber-pink/30 transition-all hover:shadow-lg hover:shadow-cyber-purple/20"
-              >
-                <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
-                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl bg-gradient-to-br from-cyber-blue/20 via-cyber-purple/20 to-cyber-pink/20 border border-cyber-purple/30 flex items-center justify-center flex-shrink-0">
-                    <PrizeIcon index={index} />
+                className="h-full bg-gradient-to-r from-cyber-pink via-cyber-yellow to-cyan-400 transition-all"
+                style={{
+                  width: `${Math.min(100, Math.round(((totalEarnedPoints % (level * 1000)) / (level * 1000 || 1000)) * 100))}%`,
+                }}
+              />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* 主标签切换 */}
+        <div className="flex gap-2 bg-cyber-dark2/50 rounded-2xl p-1">
+          {([
+            ['tasks', '任务中心', Trophy],
+            ['shop', '积分商城', ShoppingBag],
+            ['history', '兑换记录', Sparkles],
+          ] as const).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                activeTab === key
+                  ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <AnimatePresence mode="wait">
+          {activeTab === 'tasks' && (
+            <motion.div
+              key="tasks"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-4"
+            >
+              {/* 任务类型横向 Tab */}
+              <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+                {(Object.keys(LABELS) as TaskType[]).map((t) => {
+                  const Icon = ICON_MAP[t];
+                  const list = allLists[t];
+                  const unclaimedCount = list.filter(x => canClaimNow(x)).length;
+                  const active = activeTaskType === t;
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setActiveTaskType(t)}
+                      className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                        active
+                          ? `bg-gradient-to-r ${GRADIENTS[t]} text-white shadow-lg`
+                          : 'bg-cyber-dark2/80 text-gray-400 hover:text-white border border-cyber-purple/10'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {LABELS[t]}
+                      {unclaimedCount > 0 && (
+                        <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold bg-white text-pink-600 rounded-full">
+                          {unclaimedCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 任务列表 */}
+              <div className="space-y-3">
+                {currentTasks.length === 0 ? (
+                  <div className="text-center py-10 bg-cyber-dark2/40 rounded-2xl border border-cyber-purple/10">
+                    <Sparkles className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">当前没有可领取的任务</p>
+                  </div>
+                ) : (
+                  currentTasks.map((t, idx) => {
+                    const state = cardState(t);
+                    const Icon = ICON_MAP[t.type];
+                    const pct = progressPct(t);
+                    const isAvailable = state === 'available';
+                    const isCompleted = state === 'completed';
+                    const isLocked = state === 'locked';
+                    const dimmed = state !== 'available' && state !== 'completed';
+
+                    return (
+                      <motion.div
+                        key={t.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.04 }}
+                        className={`relative overflow-hidden rounded-2xl border transition-all ${
+                          isCompleted
+                            ? 'bg-cyber-dark2/30 border-green-500/30'
+                            : isAvailable
+                              ? 'bg-gradient-to-br from-cyber-dark2/90 to-cyber-purple/10 border-cyber-pink/50 shadow-lg shadow-cyber-pink/10'
+                              : isLocked
+                                ? 'bg-cyber-dark2/40 border-purple-500/20 opacity-70'
+                                : 'bg-cyber-dark2/60 border-cyber-purple/20'
+                        } ${isAvailable ? 'animate-pulse-slow' : ''}`}
+                      >
+                        {/* 左侧彩色边条 */}
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${GRADIENTS[t.type]}`} />
+
+                        <div className="flex items-start gap-3 p-4 pl-5">
+                          <div className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${
+                            isCompleted
+                              ? 'bg-green-500/10 text-green-400'
+                              : isAvailable
+                                ? `bg-gradient-to-br ${GRADIENTS[t.type]} text-white shadow-lg`
+                                : isLocked
+                                  ? 'bg-purple-500/10 text-purple-400'
+                                  : 'bg-cyber-dark2/80 text-gray-500'
+                          }`}>
+                            {isCompleted ? <CheckCircle className="w-5 h-5" /> : isLocked ? <Lock className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h3 className={`font-semibold text-base truncate ${isCompleted ? 'text-gray-400 line-through' : 'text-white'}`}>
+                                    {t.name}
+                                  </h3>
+                                  {(t as any).isVIPOnly && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-medium">
+                                      VIP
+                                    </span>
+                                  )}
+                                </div>
+                                <p className={`text-xs mt-0.5 leading-relaxed ${isCompleted ? 'text-gray-600' : 'text-gray-400'}`}>
+                                  {t.description}
+                                </p>
+                                {(t as any).autoUnlockHint && !isCompleted && (
+                                  <button
+                                    onClick={() => setShowHint(showHint === t.id ? null : t.id)}
+                                    className="text-[10px] text-cyan-400 mt-1 hover:underline"
+                                  >
+                                    查看解锁条件 →
+                                  </button>
+                                )}
+                                {showHint === t.id && (t as any).autoUnlockHint && (
+                                  <div className="mt-2 p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-[11px] text-cyan-300 leading-relaxed">
+                                    💡 {(t as any).autoUnlockHint}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="font-display font-bold text-yellow-300 text-lg">
+                                  +{t.id === 'daily-login' ? '随机' : t.points}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 进度条 */}
+                            {t.target !== undefined && !isCompleted && (
+                              <div className="mt-3">
+                                <div className="flex items-center justify-between mb-1 text-[11px]">
+                                  <span className={dimmed ? 'text-gray-500' : 'text-gray-400'}>进度</span>
+                                  <span className={dimmed ? 'text-gray-500' : 'text-cyber-blue font-medium'}>
+                                    {t.progress ?? 0} / {t.target}
+                                  </span>
+                                </div>
+                                <div className="h-1.5 bg-cyber-dark rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full transition-all ${
+                                      isAvailable
+                                        ? `bg-gradient-to-r ${GRADIENTS[t.type]}`
+                                        : 'bg-gray-600/70'
+                                    }`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 按钮区域 */}
+                            <div className="mt-3">
+                              {isCompleted ? (
+                                <div className="inline-flex items-center gap-1.5 text-xs text-green-400 bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/30">
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  已领取
+                                </div>
+                              ) : isLocked ? (
+                                <div className="inline-flex items-center gap-1.5 text-xs text-purple-300 bg-purple-500/10 px-3 py-1.5 rounded-lg border border-purple-500/30">
+                                  <Lock className="w-3.5 h-3.5" />
+                                  需开通VIP
+                                </div>
+                              ) : isAvailable ? (
+                                <button
+                                  onClick={() => handleClaim(t)}
+                                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg bg-gradient-to-r ${GRADIENTS[t.type]} text-white shadow-lg hover:scale-105 active:scale-95 transition-transform`}
+                                >
+                                  <Gift className="w-3.5 h-3.5" />
+                                  立即领取
+                                </button>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-cyber-dark/50 px-3 py-1.5 rounded-lg border border-gray-700/50">
+                                  <Flame className="w-3.5 h-3.5" />
+                                  进行中
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'shop' && (
+            <motion.div
+              key="shop"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="grid gap-3"
+            >
+              {exchangeItems.map((item, idx) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.03 }}
+                  className="bg-cyber-dark2/60 border border-cyber-purple/20 rounded-2xl p-4 flex items-center gap-4"
+                >
+                  <div className="w-12 h-12 flex-shrink-0 rounded-xl bg-gradient-to-br from-cyber-pink/30 to-cyber-yellow/30 flex items-center justify-center">
+                    <Gift className="w-6 h-6 text-yellow-300" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-white text-lg">{item.name}</h3>
-                    <p className="text-sm text-gray-400 line-clamp-2 mt-1">{item.description}</p>
-                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                      <ResponsiveIcon icon={Wrench} mobileSize={14} desktopSize={16} />
-                      库存: {item.stock}
-                    </p>
+                    <h3 className="text-sm font-semibold text-white truncate">{item.name}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{item.description}</p>
+                    <p className="text-[10px] text-gray-500 mt-1">库存：{item.stock}</p>
                   </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ResponsiveIcon icon={Coins} className="text-cyber-yellow" mobileSize={18} desktopSize={20} />
-                    <span className="font-display text-2xl font-bold neon-text-yellow">{item.price}</span>
-                  </div>
-                  <button
-                    onClick={() => handleExchangeItem(item.id)}
-                    disabled={points < item.price || item.stock <= 0}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                      points < item.price || item.stock <= 0
-                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-neon hover:shadow-lg'
-                    }`}
-                  >
-                    立即兑换
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* History Tab */}
-        {activeMainTab === 'history' && (
-          <div className="space-y-4">
-            {transactions.length === 0 ? (
-              <div className="text-center py-16 bg-cyber-dark2/50 rounded-3xl border border-cyber-purple/20">
-                <ResponsiveIcon icon={Sparkles} className="text-gray-600 mx-auto mb-4" mobileSize={48} desktopSize={64} />
-                <p className="text-gray-500 text-lg">暂无积分记录</p>
-                <p className="text-gray-600 text-sm mt-2">完成任务获取积分吧！</p>
-              </div>
-            ) : (
-              transactions.map((transaction) => (
-                <div
-                  key={transaction.id}
-                  className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-4 md:p-5 hover:border-cyber-pink/30 transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                        transaction.type === 'earn'
-                          ? 'bg-green-500/20 border border-green-500/30'
-                          : 'bg-red-500/20 border border-red-500/30'
-                      }`}>
-                        {transaction.type === 'earn' ? (
-                          <ResponsiveIcon icon={ArrowUpRight} className="text-green-400" mobileSize={16} desktopSize={18} />
-                        ) : (
-                          <ResponsiveIcon icon={ArrowDownRight} className="text-red-400" mobileSize={16} desktopSize={18} />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white">{transaction.description}</p>
-                        <p className="text-xs text-gray-500 mt-1">{formatDate(transaction.createdAt)}</p>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="text-right">
+                      <div className="flex items-center gap-0.5 justify-end">
+                        <Coins className="w-3.5 h-3.5 text-yellow-400" />
+                        <span className="font-display font-bold text-yellow-300 text-base">{item.price}</span>
                       </div>
                     </div>
-                    <span className={`font-display text-2xl font-bold ${
-                      transaction.type === 'earn' ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {transaction.type === 'earn' ? '+' : '-'}{transaction.amount}
-                    </span>
+                    <button
+                      onClick={() => handleExchange(item.id, item.price)}
+                      disabled={points < item.price || item.stock <= 0}
+                      className={`ml-1 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                        points >= item.price && item.stock > 0
+                          ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-lg hover:scale-105 active:scale-95'
+                          : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      兑换
+                    </button>
                   </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+
+          {activeTab === 'history' && (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-2"
+            >
+              {transactions.length === 0 ? (
+                <div className="text-center py-16 bg-cyber-dark2/40 rounded-2xl border border-cyber-purple/10">
+                  <Sparkles className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">暂无积分记录</p>
+                  <p className="text-xs text-gray-600 mt-1">完成任务来获得积分吧！</p>
                 </div>
-              ))
-            )}
-          </div>
-        )}
+              ) : (
+                transactions.map((tx, idx) => (
+                  <div
+                    key={tx.id}
+                    className={`flex items-center gap-3 p-3 rounded-xl border ${
+                      tx.type === 'earn'
+                        ? 'bg-green-500/5 border-green-500/20'
+                        : 'bg-red-500/5 border-red-500/20'
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                      tx.type === 'earn' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
+                    }`}>
+                      {tx.type === 'earn' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{tx.description}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">{formatDate(tx.createdAt)}</p>
+                    </div>
+                    <div className={`font-display font-bold text-base ${tx.type === 'earn' ? 'text-green-400' : 'text-red-400'}`}>
+                      {tx.type === 'earn' ? '+' : '-'}{tx.amount}
+                    </div>
+                  </div>
+                ))
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {showLuckyWheel && <LuckyWheel onClose={() => setShowLuckyWheel(false)} />}
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-2xl backdrop-blur-xl border flex items-center gap-2 ${
+              toast.type === 'success'
+                ? 'bg-green-500/90 border-green-400/50 text-white'
+                : 'bg-red-500/90 border-red-400/50 text-white'
+            }`}
+          >
+            {toast.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
+            <span className="text-sm font-medium">{toast.text}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Lucky Wheel Modal */}
+      {showWheel && <LuckyWheel onClose={() => setShowWheel(false)} />}
+
+      {/* App Version */}
+      <AppVersion />
     </div>
   );
 }
