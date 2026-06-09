@@ -4,18 +4,14 @@ import {
   User,
   ArrowLeft,
   Settings,
-  Gift,
   Trophy,
   Calendar,
   Coins,
   LogOut,
-  Palette,
   Bell,
   HelpCircle,
   Shield,
-  CreditCard,
   Activity,
-  Cpu,
   Heart,
   Download,
   Upload,
@@ -24,16 +20,16 @@ import {
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
 
-const MenuItem = ({ 
-  icon: Icon, 
-  label, 
-  onClick, 
+const MenuItem = ({
+  icon: Icon,
+  label,
+  onClick,
   color = 'from-cyber-pink to-cyber-purple',
-  subLabel 
-}: { 
-  icon: any; 
-  label: string; 
-  onClick?: () => void; 
+  subLabel
+}: {
+  icon: any;
+  label: string;
+  onClick?: () => void;
   color?: string;
   subLabel?: string;
 }) => (
@@ -64,11 +60,14 @@ export function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const [showSettings, setShowSettings] = useState(false);
-
   const flashMessage = (text: string) => {
     setMessage(text);
     setTimeout(() => setMessage(null), 3000);
+  };
+
+  // 功能尚未开放时显示提示
+  const handleComingSoon = (name: string) => {
+    flashMessage(`"${name}"功能即将上线，敬请期待`);
   };
 
   const handleExportUser = () => {
@@ -147,7 +146,7 @@ export function Profile() {
           <AppVersion />
         </div>
       </header>
-      
+
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Profile Card */}
         <div className="bg-gradient-to-br from-cyber-purple/20 to-cyber-pink/20 border border-cyber-purple/30 rounded-3xl p-6 mb-6">
@@ -174,7 +173,7 @@ export function Profile() {
               </span>
             </div>
             <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-cyber-pink to-cyber-purple to-cyber-yellow transition-all duration-1000"
                 style={{ width: `${progressPercent}%` }}
               />
@@ -198,26 +197,28 @@ export function Profile() {
           </div>
         </div>
 
+        {/* 消息提示 */}
         {message && (
           <div className="mb-4 bg-green-500/20 border border-green-500/30 rounded-2xl p-3">
             <p className="text-green-400 text-sm text-center">{message}</p>
           </div>
         )}
 
+        {/* 跨设备同步 */}
         <div className="bg-cyber-dark2/60 border border-cyber-purple/20 rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-cyber-blue" />
             <p className="text-sm font-medium text-gray-200">跨设备同步账号</p>
           </div>
           <p className="text-xs text-gray-500 leading-relaxed mb-3">
-            每台设备独立保存账号和积分。导出 JSON → 在另一设备登录同账号 → 导入 JSON，即可同步积分、等级和任务进度。
+            账号数据保存在后端服务器，登录后自动从云端同步。也可手动导出/导入 JSON 文件作为备份。
           </p>
           <div className="flex gap-2">
             <button onClick={handleExportUser} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-cyber-blue/15 hover:bg-cyber-blue/25 border border-cyber-blue/40 text-cyber-blue text-xs font-medium rounded-xl transition-colors">
-              <Download className="w-3.5 h-3.5" /> 导出用户数据
+              <Download className="w-3.5 h-3.5" /> 导出数据
             </button>
             <button onClick={handleImportUserClick} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-cyber-pink/15 hover:bg-cyber-pink/25 border border-cyber-pink/40 text-cyber-pink text-xs font-medium rounded-xl transition-colors">
-              <Upload className="w-3.5 h-3.5" /> 导入用户数据
+              <Upload className="w-3.5 h-3.5" /> 导入数据
             </button>
             <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportUserFile} className="hidden" />
           </div>
@@ -225,26 +226,28 @@ export function Profile() {
 
         {/* Menu Items */}
         <div className="space-y-3">
-          <MenuItem 
-            icon={Coins} 
-            label="积分中心" 
+          <MenuItem
+            icon={Coins}
+            label="积分中心"
             subLabel="查看任务和商城"
             color="from-cyber-yellow to-cyber-pink"
             onClick={() => navigate('/points')}
           />
-          
-          <MenuItem 
-            icon={Trophy} 
-            label="我的成就" 
+
+          <MenuItem
+            icon={Trophy}
+            label="我的成就"
             subLabel="查看获得的徽章"
             color="from-pink-400 to-purple-500"
+            onClick={() => handleComingSoon('我的成就')}
           />
-          
-          <MenuItem 
-            icon={Activity} 
-            label="创作记录" 
+
+          <MenuItem
+            icon={Activity}
+            label="创作记录"
             subLabel="查看漫剧历史"
             color="from-cyan-400 to-blue-500"
+            onClick={() => navigate('/')}
           />
 
           <div className="h-px bg-cyber-purple/20 my-4" />
@@ -254,43 +257,32 @@ export function Profile() {
             label="设置"
             subLabel="应用配置"
             color="from-gray-500 to-gray-600"
+            onClick={() => handleComingSoon('设置')}
           />
 
-          <MenuItem 
-            icon={Bell} 
-            label="通知" 
+          <MenuItem
+            icon={Bell}
+            label="通知"
             subLabel="消息提醒"
             color="from-blue-400 to-cyan-500"
+            onClick={() => handleComingSoon('通知')}
           />
-          
-          <MenuItem 
-            icon={Shield} 
-            label="隐私安全" 
+
+          <MenuItem
+            icon={Shield}
+            label="隐私安全"
             subLabel="账号保护"
             color="from-green-400 to-emerald-500"
+            onClick={() => handleComingSoon('隐私安全')}
           />
-          
-          <MenuItem 
-            icon={HelpCircle} 
-            label="帮助与反馈" 
+
+          <MenuItem
+            icon={HelpCircle}
+            label="帮助与反馈"
             subLabel="常见问题"
             color="from-orange-400 to-red-500"
+            onClick={() => handleComingSoon('帮助与反馈')}
           />
-
-          <div className="h-px bg-cyber-purple/20 my-4" />
-
-          <button
-            onClick={handleClearAllData}
-            className="w-full flex items-center gap-4 bg-orange-500/10 border border-orange-500/30 hover:border-orange-500/50 hover:bg-orange-500/20 rounded-2xl p-4 transition-all"
-          >
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-400 to-red-600 flex items-center justify-center flex-shrink-0">
-              <Activity className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-medium text-orange-400">清空所有数据</p>
-              <p className="text-xs text-gray-400">删除所有本地存储的数据</p>
-            </div>
-          </button>
 
           <div className="h-px bg-cyber-purple/20 my-4" />
 

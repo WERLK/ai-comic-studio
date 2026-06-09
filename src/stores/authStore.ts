@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, AuthState, LoginCredentials, RegisterCredentials, PointTransaction, PointReward, PointExchangeItem, TaskType } from '@/types';
+import { User, AuthState, LoginCredentials, RegisterCredentials, PointTransaction, PointReward, PointExchangeItem } from '@/types';
 
 interface AuthStore extends AuthState {
   user: User | null;
@@ -22,9 +22,10 @@ interface AuthStore extends AuthState {
   memberRewards: PointReward[];
   levelRewards: PointReward[];
   exchangeItems: PointExchangeItem[];
+  serverError?: string;
   clearAllData: () => void;
-  login: (credentials: LoginCredentials) => Promise<boolean>;
-  register: (credentials: RegisterCredentials) => Promise<boolean>;
+  login: (credentials: LoginCredentials) => Promise<{ ok: boolean; code?: string; message?: string }>;
+  register: (credentials: RegisterCredentials) => Promise<{ ok: boolean; code?: string; message?: string }>;
   logout: () => void;
   addPoints: (amount: number, description: string) => void;
   spendPoints: (amount: number, description: string) => boolean;
@@ -36,7 +37,7 @@ interface AuthStore extends AuthState {
   recordPageVisit: (page: string) => void;
   recordStyleUse: (style: string) => void;
   recordProjectCreation: (frameCount: number, hasCharacters: boolean, hasDialogue: boolean, hasVoice: boolean, style: string) => void;
-  // 数据导出导入
+  // 数据导出导入 (用于跨设备同步，绕过 localStorage 限制)
   exportUserData: () => string;
   importUserData: (json: string) => boolean;
 }
@@ -53,6 +54,68 @@ const calcLevel = (totalEarned: number): number => {
   return 1;
 };
 
+// ===== 后端 API 工具 =====
+// 后端统一存储用户账号密码和使用数据，确保多端登录数据同步
+// API 路径由 vite proxy 转发到 http://localhost:3001
+
+// 生产环境（GitHub Pages）或后端未启动时降级到 localStorage
+let API_BASE = '/api';
+let apiAvailable = true;
+let apiCheckDone = false;
+
+const checkApi = async (): Promise<boolean> => {
+  if (apiCheckDone) return apiAvailable;
+  apiCheckDone = true;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+    clearTimeout(timer);
+    apiAvailable = res.ok;
+  } catch {
+    apiAvailable = false;
+  }
+  return apiAvailable;
+};
+
+// ===== localStorage 后备（后端不可用时使用）=====
+const USERS_KEY = 'ai_comic_users_v2';
+
+type StoredUser = User & {
+  password: string;
+  points: number;
+  totalEarnedPoints: number;
+  level: number;
+  projectsCount: number;
+  isVIP: boolean;
+  completedTasks: string[];
+  visitedPages: string[];
+  usedStyles: string[];
+  lastLoginDate?: string;
+  consecutiveLoginDays: number;
+  transactions?: PointTransaction[];
+};
+
+const readUsersLocal = (): StoredUser[] => {
+  try {
+    const raw = localStorage.getItem(USERS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeUsersLocal = (users: StoredUser[]) => {
+  try {
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  } catch {
+    // ignore
+  }
+};
+
+// ===== 任务定义（前端计算，数据源为后端返回的用户状态）=====
 const makeDailyTasks = (): PointReward[] => [
   { id: 'daily-login', name: '每日签到', description: '每天签到领取随机积分', points: 10, type: 'daily', target: 1, progress: 0 },
   { id: 'daily-create', name: '创作日常', description: '今天创建1个漫剧', points: 25, type: 'daily', target: 1, progress: 0 },
@@ -77,22 +140,22 @@ const makeAchievementTasks = (extra: { projects: number; consecutiveDays: number
 ];
 
 const makeSocialTasks = (): PointReward[] => [
-  { id: 'social-friend', name: '邀请好友', description: '成功邀请1位好友注册（邀请后自动领取）', points: 50, type: 'social', target: 1, progress: 0, autoUnlockHint: '需要真实邀请好友完成' },
-  { id: 'social-friend-5', name: '社交达人', description: '成功邀请5位好友注册', points: 200, type: 'social', target: 5, progress: 0, autoUnlockHint: '需要真实邀请好友完成' },
-  { id: 'social-feedback', name: '反馈建议', description: '提交一条有效的反馈建议', points: 20, type: 'social', target: 1, progress: 0, autoUnlockHint: '提交反馈后由管理员审核后领取' },
-  { id: 'social-bug', name: 'Bug猎人', description: '报告一个有效的Bug', points: 50, type: 'social', target: 1, progress: 0, autoUnlockHint: '报告Bug后由管理员审核后领取' },
-  { id: 'social-share', name: '分享社区', description: '分享应用到社交媒体', points: 30, type: 'social', target: 1, progress: 0, autoUnlockHint: '完成分享操作后自动领取' },
-  { id: 'social-weibo', name: '微博分享', description: '分享到微博平台', points: 25, type: 'social', target: 1, progress: 0, autoUnlockHint: '分享到微博后自动领取' },
-  { id: 'social-wechat', name: '微信分享', description: '分享到微信朋友圈', points: 25, type: 'social', target: 1, progress: 0, autoUnlockHint: '分享到微信后自动领取' },
-  { id: 'social-qq', name: 'QQ分享', description: '分享到QQ空间', points: 25, type: 'social', target: 1, progress: 0, autoUnlockHint: '分享到QQ后自动领取' },
-  { id: 'social-douyin', name: '抖音分享', description: '分享到抖音平台', points: 30, type: 'social', target: 1, progress: 0, autoUnlockHint: '分享到抖音后自动领取' },
+  { id: 'social-friend', name: '邀请好友', description: '成功邀请1位好友注册', points: 50, type: 'social', target: 1, progress: 0 },
+  { id: 'social-friend-5', name: '社交达人', description: '成功邀请5位好友注册', points: 200, type: 'social', target: 5, progress: 0 },
+  { id: 'social-feedback', name: '反馈建议', description: '提交一条有效的反馈建议', points: 20, type: 'social', target: 1, progress: 0 },
+  { id: 'social-bug', name: 'Bug猎人', description: '报告一个有效的Bug', points: 50, type: 'social', target: 1, progress: 0 },
+  { id: 'social-share', name: '分享社区', description: '分享应用到社交媒体', points: 30, type: 'social', target: 1, progress: 0 },
+  { id: 'social-weibo', name: '微博分享', description: '分享到微博平台', points: 25, type: 'social', target: 1, progress: 0 },
+  { id: 'social-wechat', name: '微信分享', description: '分享到微信朋友圈', points: 25, type: 'social', target: 1, progress: 0 },
+  { id: 'social-qq', name: 'QQ分享', description: '分享到QQ空间', points: 25, type: 'social', target: 1, progress: 0 },
+  { id: 'social-douyin', name: '抖音分享', description: '分享到抖音平台', points: 30, type: 'social', target: 1, progress: 0 },
 ];
 
 const makeCreationTasks = (extra: { projects: number; maxFrames: number; usedStyleCount: number; hasVoice: boolean; hasDialogue: boolean; hasNarration: boolean; exported: number }): PointReward[] => [
   { id: 'creation-5frames', name: '多镜故事', description: '创作包含5个以上分镜的作品', points: 30, type: 'creation', target: 5, progress: extra.maxFrames },
   { id: 'creation-10frames', name: '长篇巨制', description: '创作包含10个以上分镜的作品', points: 60, type: 'creation', target: 10, progress: extra.maxFrames },
-  { id: 'creation-char', name: '角色设计师', description: '创建自定义角色（从文本中自动提取角色也算）', points: 15, type: 'creation', target: 1, progress: extra.projects > 0 ? 1 : 0 },
-  { id: 'creation-scene', name: '场景创作家', description: '使用场景背景（系统自动场景也算）', points: 15, type: 'creation', target: 1, progress: extra.projects > 0 ? 1 : 0 },
+  { id: 'creation-char', name: '角色设计师', description: '创建自定义角色', points: 15, type: 'creation', target: 1, progress: extra.projects > 0 ? 1 : 0 },
+  { id: 'creation-scene', name: '场景创作家', description: '使用场景背景', points: 15, type: 'creation', target: 1, progress: extra.projects > 0 ? 1 : 0 },
   { id: 'creation-export', name: '作品导出', description: '完成1个漫剧的导出', points: 25, type: 'creation', target: 1, progress: Math.min(extra.exported, 1) },
   { id: 'creation-export-10', name: '导出具匠', description: '累计导出10个作品', points: 100, type: 'creation', target: 10, progress: Math.min(extra.exported, 10) },
   { id: 'creation-style-anime', name: '日系风格', description: '使用日系动漫风格创作', points: 10, type: 'creation', target: 1, progress: extra.usedStyleCount >= 1 ? 1 : 0 },
@@ -116,7 +179,7 @@ const makeExploreTasks = (extra: { usedStyleCount: number; visitedPages: string[
 };
 
 const makeMemberTasks = (isVIP: boolean): PointReward[] => [
-  { id: 'member-vip', name: '成为VIP', description: '开通VIP会员（此任务用于解锁VIP功能）', points: 100, type: 'member', target: 1, progress: 0, isVIPOnly: true, autoUnlockHint: '开通VIP后自动领取' },
+  { id: 'member-vip', name: '成为VIP', description: '开通VIP会员', points: 100, type: 'member', target: 1, progress: 0, isVIPOnly: true },
   { id: 'member-daily', name: 'VIP日报', description: 'VIP每日专属积分', points: 20, type: 'member', target: 1, progress: isVIP ? 1 : 0, isVIPOnly: true },
   { id: 'member-weekly', name: 'VIP周刊', description: 'VIP每周专属任务', points: 100, type: 'member', target: 1, progress: isVIP ? 1 : 0, isVIPOnly: true },
   { id: 'member-exclusive', name: '专属风格', description: '使用VIP专属风格', points: 30, type: 'member', target: 1, progress: isVIP ? 1 : 0, isVIPOnly: true },
@@ -138,15 +201,15 @@ const makeSpecialTasks = (): PointReward[] => {
   const day = today.getDate();
   const isWeekend = today.getDay() === 0 || today.getDay() === 6;
   const tasks: PointReward[] = [
-    { id: 'special-welcome', name: '新手礼包', description: '新用户欢迎礼包（首次登录时自动领取）', points: 100, type: 'special', target: 1, progress: 0, autoUnlockHint: '新用户首次登录自动领取' },
+    { id: 'special-welcome', name: '新手礼包', description: '新用户欢迎礼包', points: 100, type: 'special', target: 1, progress: 0 },
   ];
-  if (isWeekend) tasks.push({ id: 'special-bonus', name: '周末双倍', description: '周末签到双倍积分', points: 40, type: 'special', target: 1, progress: 0, autoUnlockHint: '周末访问积分中心自动领取' });
-  if (month === 1 && day <= 3) tasks.push({ id: 'special-newyear', name: '新年活动', description: '新年特别任务', points: 500, type: 'special', target: 1, progress: 0, autoUnlockHint: '新年期间访问即可领取' });
-  if (month === 2) tasks.push({ id: 'special-spring', name: '春节活动', description: '春节期间特殊任务', points: 500, type: 'special', target: 1, progress: 0, autoUnlockHint: '春节期间访问即可领取' });
-  if (month === 5 && day >= 1 && day <= 7) tasks.push({ id: 'special-labor', name: '劳动节活动', description: '劳动节特别任务', points: 300, type: 'special', target: 1, progress: 0, autoUnlockHint: '劳动节期间访问即可领取' });
-  if (month === 6) tasks.push({ id: 'special-dragon', name: '端午节活动', description: '端午节特别任务', points: 200, type: 'special', target: 1, progress: 0, autoUnlockHint: '端午节期间访问即可领取' });
-  if (month === 10) tasks.push({ id: 'special-national', name: '国庆活动', description: '国庆节特别任务', points: 500, type: 'special', target: 1, progress: 0, autoUnlockHint: '国庆节期间访问即可领取' });
-  if (month === 12 && day >= 20) tasks.push({ id: 'special-christmas', name: '圣诞活动', description: '圣诞节特别任务', points: 300, type: 'special', target: 1, progress: 0, autoUnlockHint: '圣诞节期间访问即可领取' });
+  if (isWeekend) tasks.push({ id: 'special-bonus', name: '周末双倍', description: '周末签到双倍积分', points: 40, type: 'special', target: 1, progress: 0 });
+  if (month === 1 && day <= 3) tasks.push({ id: 'special-newyear', name: '新年活动', description: '新年特别任务', points: 500, type: 'special', target: 1, progress: 0 });
+  if (month === 2) tasks.push({ id: 'special-spring', name: '春节活动', description: '春节期间特殊任务', points: 500, type: 'special', target: 1, progress: 0 });
+  if (month === 5 && day >= 1 && day <= 7) tasks.push({ id: 'special-labor', name: '劳动节活动', description: '劳动节特别任务', points: 300, type: 'special', target: 1, progress: 0 });
+  if (month === 6) tasks.push({ id: 'special-dragon', name: '端午节活动', description: '端午节特别任务', points: 200, type: 'special', target: 1, progress: 0 });
+  if (month === 10) tasks.push({ id: 'special-national', name: '国庆活动', description: '国庆节特别任务', points: 500, type: 'special', target: 1, progress: 0 });
+  if (month === 12 && day >= 20) tasks.push({ id: 'special-christmas', name: '圣诞活动', description: '圣诞节特别任务', points: 300, type: 'special', target: 1, progress: 0 });
   return tasks;
 };
 
@@ -174,43 +237,7 @@ const applyCompletion = (tasks: PointReward[], completed: string[]): PointReward
   });
 };
 
-// ===== 用户持久化辅助 =====
-const USERS_KEY = 'ai_comic_users_v2';
-
-type StoredUser = User & {
-  password: string;
-  points: number;
-  totalEarnedPoints: number;
-  level: number;
-  projectsCount: number;
-  isVIP: boolean;
-  completedTasks: string[];
-  visitedPages: string[];
-  usedStyles: string[];
-  lastLoginDate?: string;
-  consecutiveLoginDays: number;
-};
-
-const readUsers = (): StoredUser[] => {
-  try {
-    const raw = localStorage.getItem(USERS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const writeUsers = (users: StoredUser[]) => {
-  try {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  } catch {
-    // ignore
-  }
-};
-
-// ===== 初始化任务状态（基于用户数据） =====
+// 根据后端返回的用户对象重建前端任务状态
 const initTasksFromUser = (user: User | null) => {
   if (!user) {
     return {
@@ -284,36 +311,78 @@ export const useAuthStore = create<AuthStore>()(
       levelRewards: makeLevelTasks(1, 0),
       exchangeItems: makeExchangeItems(),
 
+      // ===== 登录：调用后端 API /api/auth/login =====
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true });
+        await checkApi();
+
         try {
-          await new Promise(resolve => setTimeout(resolve, 300));
+          if (apiAvailable) {
+            // ===== 后端可用：调用真实的账号数据库 =====
+            const res = await fetch(`${API_BASE}/auth/login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username: credentials.username, password: credentials.password }),
+            });
+            const data = await res.json().catch(() => ({}));
 
-          const users = readUsers();
+            if (!res.ok) {
+              set({ isLoading: false, serverError: data.error || '登录失败' });
+              // 根据 HTTP 状态码区分错误类型
+              if (res.status === 404) return { ok: false, code: 'USER_NOT_FOUND', message: data.error || '该账号尚未注册' };
+              if (res.status === 401) return { ok: false, code: 'WRONG_PASSWORD', message: data.error || '密码错误' };
+              return { ok: false, code: 'LOGIN_FAILED', message: data.error || '登录失败' };
+            }
+
+            // 登录成功 - 后端返回的数据是真实账号数据源
+            const backendUser = data.user;
+            if (!backendUser) {
+              set({ isLoading: false });
+              return { ok: false, code: 'LOGIN_FAILED', message: '服务器返回数据异常' };
+            }
+
+            const tasks = initTasksFromUser(backendUser);
+            const savedTransactions: PointTransaction[] = Array.isArray(backendUser.transactions) ? backendUser.transactions : [];
+
+            set({
+              user: backendUser,
+              isAuthenticated: true,
+              isLoading: false,
+              serverError: undefined,
+              points: backendUser.points ?? 50,
+              totalEarnedPoints: backendUser.totalEarnedPoints ?? 50,
+              level: backendUser.level ?? 1,
+              projectsCount: backendUser.projectsCount ?? 0,
+              isVIP: !!backendUser.isVIP,
+              completedTasks: backendUser.completedTasks || [],
+              visitedPages: backendUser.visitedPages || [],
+              usedStyles: backendUser.usedStyles || [],
+              transactions: savedTransactions,
+              ...tasks,
+            });
+            return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
+          }
+
+          // ===== 后端不可用：降级到 localStorage =====
+          const users = readUsersLocal();
           const usernameNormalized = credentials.username.trim().toLowerCase();
-
-          const match = users.find(u => {
-            const sameUser = u.username?.trim().toLowerCase() === usernameNormalized;
-            const samePass = u.password === credentials.password;
-            return sameUser && samePass;
-          });
+          const match = users.find(u => u.username?.trim().toLowerCase() === usernameNormalized);
 
           if (!match) {
             set({ isLoading: false });
-            return false;
+            return { ok: false, code: 'USER_NOT_FOUND', message: '该账号尚未注册' };
+          }
+          if (match.password !== credentials.password) {
+            set({ isLoading: false });
+            return { ok: false, code: 'WRONG_PASSWORD', message: '密码错误' };
           }
 
-          // 更新登录信息
           const today = getTodayKey();
           let consecutive = match.consecutiveLoginDays || 1;
-          if (match.lastLoginDate) {
-            if (match.lastLoginDate !== today) {
-              const yesterday = new Date();
-              yesterday.setDate(yesterday.getDate() - 1);
-              consecutive = match.lastLoginDate === yesterday.toISOString().split('T')[0] ? consecutive + 1 : 1;
-            }
-          } else {
-            consecutive = 1;
+          if (match.lastLoginDate && match.lastLoginDate !== today) {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            consecutive = match.lastLoginDate === yesterday.toISOString().split('T')[0] ? consecutive + 1 : 1;
           }
 
           const updated: StoredUser = {
@@ -329,17 +398,11 @@ export const useAuthStore = create<AuthStore>()(
             visitedPages: match.visitedPages || [],
             usedStyles: match.usedStyles || [],
           };
-
-          // 写回 users 列表
-          writeUsers(users.map(u => (u.id === match.id ? updated : u)));
+          writeUsersLocal(users.map(u => (u.id === match.id ? updated : u)));
 
           const { password, ...safeUser } = updated;
-
-          // 从用户数据重建任务
           const tasks = initTasksFromUser(safeUser);
-
-          // 加载交易记录（每个用户自己保存 transactions 字段）
-          const savedTransactions: PointTransaction[] = Array.isArray((match as any).transactions) ? (match as any).transactions : [];
+          const savedTransactions: PointTransaction[] = Array.isArray(updated.transactions) ? updated.transactions : [];
 
           set({
             user: safeUser,
@@ -356,48 +419,86 @@ export const useAuthStore = create<AuthStore>()(
             transactions: savedTransactions,
             ...tasks,
           });
-
-          return true;
-        } catch {
-          set({ isLoading: false });
-          return false;
+          return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
+        } catch (err: any) {
+          set({ isLoading: false, serverError: err?.message || '网络错误' });
+          return { ok: false, code: 'NETWORK_ERROR', message: '网络连接异常，请稍后重试' };
         }
       },
 
+      // ===== 注册：调用后端 API /api/auth/register =====
       register: async (credentials: RegisterCredentials) => {
         set({ isLoading: true });
-        try {
-          await new Promise(resolve => setTimeout(resolve, 300));
+        await checkApi();
 
-          const users = readUsers();
+        try {
+          if (apiAvailable) {
+            const res = await fetch(`${API_BASE}/auth/register`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                username: credentials.username,
+                email: credentials.email || '',
+                password: credentials.password,
+              }),
+            });
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+              set({ isLoading: false, serverError: data.error || '注册失败' });
+              if (res.status === 409) return { ok: false, code: 'USER_EXISTS', message: data.error || '该用户名已注册' };
+              return { ok: false, code: 'REGISTER_FAILED', message: data.error || '注册失败' };
+            }
+
+            const backendUser = data.user;
+            if (!backendUser) {
+              set({ isLoading: false });
+              return { ok: false, code: 'REGISTER_FAILED', message: '服务器返回数据异常' };
+            }
+
+            const tasks = initTasksFromUser(backendUser);
+            const savedTransactions: PointTransaction[] = Array.isArray(backendUser.transactions) ? backendUser.transactions : [];
+
+            set({
+              user: backendUser,
+              isAuthenticated: true,
+              isLoading: false,
+              serverError: undefined,
+              points: backendUser.points ?? 50,
+              totalEarnedPoints: backendUser.totalEarnedPoints ?? 50,
+              level: backendUser.level ?? 1,
+              projectsCount: backendUser.projectsCount ?? 0,
+              isVIP: !!backendUser.isVIP,
+              completedTasks: backendUser.completedTasks || [],
+              visitedPages: backendUser.visitedPages || [],
+              usedStyles: backendUser.usedStyles || [],
+              transactions: savedTransactions,
+              ...tasks,
+            });
+            return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
+          }
+
+          // 后端不可用：降级 localStorage
+          const users = readUsersLocal();
           const usernameNormalized = credentials.username.trim().toLowerCase();
           const emailNormalized = (credentials.email || '').trim().toLowerCase();
-
-          // 检查用户名或邮箱是否已存在
-          const existing = users.find(u => {
-            const sameUser = u.username?.trim().toLowerCase() === usernameNormalized;
-            const sameEmail = emailNormalized && u.email?.trim().toLowerCase() === emailNormalized;
-            return sameUser || sameEmail;
-          });
+          const existing = users.find(u => u.username?.trim().toLowerCase() === usernameNormalized);
 
           if (existing) {
-            // 已存在 → 走登录流程（如果密码也对的话直接登录，否则返回错误）
             if (existing.password === credentials.password) {
-              // 密码正确，执行登录
+              // 密码相同 - 视为登录（同手机号/用户名多端登录场景）
               const loginResult = await get().login({ username: credentials.username, password: credentials.password });
               set({ isLoading: false });
               return loginResult;
             }
-            // 密码不对 → 提示已存在
             set({ isLoading: false });
-            return false;
+            return { ok: false, code: 'USER_EXISTS', message: '该用户名已注册，请直接登录' };
           }
 
-          // 新用户
           const today = getTodayKey();
           const initialPoints = 50;
           const newUser: StoredUser = {
-            id: Date.now().toString(),
+            id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
             username: credentials.username.trim(),
             email: emailNormalized,
             points: initialPoints,
@@ -418,10 +519,10 @@ export const useAuthStore = create<AuthStore>()(
               amount: initialPoints,
               description: '新用户欢迎积分',
               createdAt: new Date().toISOString(),
-            }] as any,
+            }],
           };
 
-          writeUsers([...users, newUser]);
+          writeUsersLocal([...users, newUser]);
 
           const { password, ...safeUser } = newUser;
           const tasks = initTasksFromUser(safeUser);
@@ -438,14 +539,13 @@ export const useAuthStore = create<AuthStore>()(
             completedTasks: [],
             visitedPages: [],
             usedStyles: [],
-            transactions: (newUser as any).transactions || [],
+            transactions: (newUser.transactions || []),
             ...tasks,
           });
-
-          return true;
-        } catch {
-          set({ isLoading: false });
-          return false;
+          return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
+        } catch (err: any) {
+          set({ isLoading: false, serverError: err?.message || '网络错误' });
+          return { ok: false, code: 'NETWORK_ERROR', message: '网络连接异常，请稍后重试' };
         }
       },
 
@@ -479,7 +579,7 @@ export const useAuthStore = create<AuthStore>()(
         });
       },
 
-      // ===== 积分变更时，同步写回 localStorage 中的用户 =====
+      // ===== 积分变更时同步到后端 =====
       addPoints: (amount: number, description: string) => {
         set(state => {
           const newPoints = state.points + amount;
@@ -494,9 +594,22 @@ export const useAuthStore = create<AuthStore>()(
           };
           const newTransactions = [tx, ...state.transactions].slice(0, 50);
 
-          // 写回 localStorage
+          // 同步回后端账号数据库
+          if (state.user && state.user.id && apiAvailable) {
+            fetch(`${API_BASE}/users/${state.user.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                points: newPoints,
+                totalEarnedPoints: newTotal,
+                level: newLevel,
+                transactions: newTransactions,
+              }),
+            }).catch(() => {});
+          }
+          // 同步到 localStorage 后备
           if (state.user) {
-            const users = readUsers();
+            const users = readUsersLocal();
             const updatedUsers = users.map(u => u.id === state.user!.id ? ({
               ...u,
               points: newPoints,
@@ -504,7 +617,7 @@ export const useAuthStore = create<AuthStore>()(
               level: newLevel,
               transactions: newTransactions,
             }) : u);
-            writeUsers(updatedUsers);
+            writeUsersLocal(updatedUsers);
           }
 
           return {
@@ -515,7 +628,6 @@ export const useAuthStore = create<AuthStore>()(
             user: state.user ? { ...state.user, points: newPoints, totalEarnedPoints: newTotal, level: newLevel } : null,
           };
         });
-        // 积分变化后刷新等级任务
         setTimeout(() => get().refreshTasks(), 20);
       },
 
@@ -532,14 +644,16 @@ export const useAuthStore = create<AuthStore>()(
           };
           const newTransactions = [tx, ...state.transactions].slice(0, 50);
 
+          if (state.user && state.user.id && apiAvailable) {
+            fetch(`${API_BASE}/users/${state.user.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ points: newPoints, transactions: newTransactions }),
+            }).catch(() => {});
+          }
           if (state.user) {
-            const users = readUsers();
-            const updatedUsers = users.map(u => u.id === state.user!.id ? ({
-              ...u,
-              points: newPoints,
-              transactions: newTransactions,
-            }) : u);
-            writeUsers(updatedUsers);
+            const users = readUsersLocal();
+            writeUsersLocal(users.map(u => u.id === state.user!.id ? ({ ...u, points: newPoints, transactions: newTransactions }) : u));
           }
 
           return {
@@ -569,20 +683,24 @@ export const useAuthStore = create<AuthStore>()(
         if (found.target !== undefined && (found.progress ?? 0) < found.target) return false;
 
         let rewardPoints = found.points;
-        // 签到随机积分
         if (rewardId === 'daily-login') rewardPoints = Math.floor(Math.random() * 20) + 1;
 
         get().addPoints(rewardPoints, found.name);
 
-        // 标记任务完成
         const newCompleted = [...state.completedTasks, rewardId];
         const markFn = (list: PointReward[]): PointReward[] => list.map(t => t.id === rewardId ? { ...t, isCompleted: true, canClaim: false } : t);
 
         set(s => {
+          if (s.user && s.user.id && apiAvailable) {
+            fetch(`${API_BASE}/users/${s.user.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ completedTasks: newCompleted }),
+            }).catch(() => {});
+          }
           if (s.user) {
-            const users = readUsers();
-            const updatedUsers = users.map(u => u.id === s.user!.id ? ({ ...u, completedTasks: newCompleted }) : u);
-            writeUsers(updatedUsers);
+            const users = readUsersLocal();
+            writeUsersLocal(users.map(u => u.id === s.user!.id ? ({ ...u, completedTasks: newCompleted }) : u));
           }
           return {
             completedTasks: newCompleted,
@@ -627,18 +745,14 @@ export const useAuthStore = create<AuthStore>()(
             return { ...t, progress: newProgress, canClaim: reached && !alreadyDone };
           });
 
-          // 写回用户持久化数据
           if (state.user) {
-            // 这里不做任务级的增量持久化（太细），refreshTasks 会处理
-            // 但我们仍然把 projects/style 写入用户数据
-            const users = readUsers();
-            const updatedUsers = users.map(u => u.id === state.user!.id ? ({
+            const users = readUsersLocal();
+            writeUsersLocal(users.map(u => u.id === state.user!.id ? ({
               ...u,
               visitedPages: state.visitedPages,
               usedStyles: state.usedStyles,
               projectsCount: state.projectsCount,
-            }) : u);
-            writeUsers(updatedUsers);
+            }) : u));
           }
 
           return {
@@ -665,9 +779,16 @@ export const useAuthStore = create<AuthStore>()(
           if (state.visitedPages.includes(page)) return {};
           const newVisited = [...state.visitedPages, page];
 
+          if (state.user && state.user.id && apiAvailable) {
+            fetch(`${API_BASE}/users/${state.user.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ visitedPages: newVisited }),
+            }).catch(() => {});
+          }
           if (state.user) {
-            const users = readUsers();
-            writeUsers(users.map(u => u.id === state.user!.id ? ({ ...u, visitedPages: newVisited }) : u));
+            const users = readUsersLocal();
+            writeUsersLocal(users.map(u => u.id === state.user!.id ? ({ ...u, visitedPages: newVisited }) : u));
           }
 
           const explore = state.exploreRewards.map(t => {
@@ -695,12 +816,18 @@ export const useAuthStore = create<AuthStore>()(
           const newStyles = [...state.usedStyles, style];
           const styleCount = new Set(newStyles).size;
 
+          if (state.user && state.user.id && apiAvailable) {
+            fetch(`${API_BASE}/users/${state.user.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ usedStyles: newStyles }),
+            }).catch(() => {});
+          }
           if (state.user) {
-            const users = readUsers();
-            writeUsers(users.map(u => u.id === state.user!.id ? ({ ...u, usedStyles: newStyles }) : u));
+            const users = readUsersLocal();
+            writeUsersLocal(users.map(u => u.id === state.user!.id ? ({ ...u, usedStyles: newStyles }) : u));
           }
 
-          // 更新相关任务进度
           const daily = state.dailyRewards.map(t => {
             if (t.id === 'daily-style' && t.target !== undefined && !state.completedTasks.includes(t.id)) {
               const p = Math.min((t.progress || 0) + 1, t.target);
@@ -740,9 +867,16 @@ export const useAuthStore = create<AuthStore>()(
         set(state => {
           const newCount = state.projectsCount + 1;
 
+          if (state.user && state.user.id && apiAvailable) {
+            fetch(`${API_BASE}/users/${state.user.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ projectsCount: newCount }),
+            }).catch(() => {});
+          }
           if (state.user) {
-            const users = readUsers();
-            writeUsers(users.map(u => u.id === state.user!.id ? ({ ...u, projectsCount: newCount }) : u));
+            const users = readUsersLocal();
+            writeUsersLocal(users.map(u => u.id === state.user!.id ? ({ ...u, projectsCount: newCount }) : u));
           }
 
           const styleCount = new Set([...state.usedStyles, style].filter(Boolean)).size;
@@ -783,13 +917,10 @@ export const useAuthStore = create<AuthStore>()(
       exportUserData: () => {
         const state = get();
         if (!state.user) return '';
-        const users = readUsers();
-        const me = users.find(u => u.id === state.user!.id);
-        if (!me) return '';
         return JSON.stringify({
           version: '1.8.1',
           exportedAt: new Date().toISOString(),
-          user: me,
+          user: state.user,
           extra: {
             points: state.points,
             totalEarnedPoints: state.totalEarnedPoints,
@@ -809,35 +940,42 @@ export const useAuthStore = create<AuthStore>()(
           const data = JSON.parse(json);
           if (!data || !data.user) return false;
 
-          const users = readUsers();
-          // 查找同名账号并覆盖，否则追加
-          const sameUsername = users.find(u => u.username?.trim().toLowerCase() === (data.user.username || '').toLowerCase());
-          const updatedUser: StoredUser = {
-            ...data.user,
-            points: data.extra?.points ?? data.user.points ?? 50,
-            totalEarnedPoints: data.extra?.totalEarnedPoints ?? data.user.totalEarnedPoints ?? 50,
-            level: data.extra?.level ?? calcLevel(data.user.totalEarnedPoints ?? 50),
-            projectsCount: data.extra?.projectsCount ?? data.user.projectsCount ?? 0,
-            isVIP: !!data.extra?.isVIP || !!data.user.isVIP,
-            completedTasks: data.extra?.completedTasks ?? data.user.completedTasks ?? [],
-            visitedPages: data.extra?.visitedPages ?? data.user.visitedPages ?? [],
-            usedStyles: data.extra?.usedStyles ?? data.user.usedStyles ?? [],
+          const importedUser = data.user;
+          const extra = data.extra || {};
+          const updatedUser: User = {
+            ...importedUser,
+            points: extra.points ?? importedUser.points ?? 50,
+            totalEarnedPoints: extra.totalEarnedPoints ?? importedUser.totalEarnedPoints ?? 50,
+            level: extra.level ?? calcLevel(extra.totalEarnedPoints ?? importedUser.totalEarnedPoints ?? 50),
+            projectsCount: extra.projectsCount ?? importedUser.projectsCount ?? 0,
+            isVIP: !!extra.isVIP || !!importedUser.isVIP,
+            completedTasks: extra.completedTasks ?? importedUser.completedTasks ?? [],
+            visitedPages: extra.visitedPages ?? importedUser.visitedPages ?? [],
+            usedStyles: extra.usedStyles ?? importedUser.usedStyles ?? [],
           };
 
-          let newUsers: StoredUser[];
-          if (sameUsername) {
-            newUsers = users.map(u => u.id === sameUsername.id ? { ...u, ...updatedUser } : u);
-          } else {
-            newUsers = [...users, updatedUser];
+          // 如果后端可用，同步导入数据到后端
+          if (updatedUser.id && apiAvailable) {
+            fetch(`${API_BASE}/users/${updatedUser.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                points: updatedUser.points,
+                totalEarnedPoints: updatedUser.totalEarnedPoints,
+                level: updatedUser.level,
+                projectsCount: updatedUser.projectsCount,
+                isVIP: updatedUser.isVIP,
+                completedTasks: updatedUser.completedTasks,
+                visitedPages: updatedUser.visitedPages,
+                usedStyles: updatedUser.usedStyles,
+                transactions: extra.transactions,
+              }),
+            }).catch(() => {});
           }
-          writeUsers(newUsers);
 
-          // 立即在当前会话生效
-          const { password, ...safeUser } = updatedUser;
-          const tasks = initTasksFromUser(safeUser);
-
+          const tasks = initTasksFromUser(updatedUser);
           set({
-            user: safeUser,
+            user: updatedUser,
             isAuthenticated: true,
             points: updatedUser.points,
             totalEarnedPoints: updatedUser.totalEarnedPoints,
@@ -847,10 +985,9 @@ export const useAuthStore = create<AuthStore>()(
             completedTasks: updatedUser.completedTasks,
             visitedPages: updatedUser.visitedPages,
             usedStyles: updatedUser.usedStyles,
-            transactions: data.extra?.transactions ?? [],
+            transactions: extra.transactions ?? [],
             ...tasks,
           });
-
           return true;
         } catch {
           return false;

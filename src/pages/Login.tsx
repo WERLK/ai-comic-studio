@@ -6,7 +6,7 @@ import { AppVersion } from '@/components/AppVersion';
 
 export function Login() {
   const navigate = useNavigate();
-  const { login, isLoading, exportUserData, importUserData } = useAuthStore();
+  const { isLoading, exportUserData, importUserData } = useAuthStore();
   const [showRegister, setShowRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -25,14 +25,29 @@ export function Login() {
       return;
     }
 
-    const success = showRegister
+    const result = showRegister
       ? await useAuthStore.getState().register({ username, email, password })
-      : await login({ username, password });
+      : await useAuthStore.getState().login({ username, password });
 
-    if (success) {
+    if (result.ok) {
       navigate('/');
+      return;
+    }
+
+    // 根据后端返回的错误码显示不同提示
+    const code = result.code;
+    if (code === 'USER_NOT_FOUND') {
+      setError('该账号尚未注册，请先注册或检查用户名是否正确');
+    } else if (code === 'WRONG_PASSWORD') {
+      setError('密码错误，请重新输入');
+    } else if (code === 'USER_EXISTS') {
+      setError('该用户名已注册，请直接登录或更换用户名');
+    } else if (code === 'MISSING_FIELDS') {
+      setError('用户名和密码不能为空');
+    } else if (code === 'NETWORK_ERROR') {
+      setError('网络连接异常，请检查网络后重试');
     } else {
-      setError(showRegister ? '该用户名已注册，密码不正确，请直接登录' : '用户名或密码错误');
+      setError(result.message || (showRegister ? '注册失败，请稍后重试' : '登录失败，请稍后重试'));
     }
   };
 
@@ -199,14 +214,13 @@ export function Login() {
             </div>
           </div>
 
-          {/* 跨设备同步提示 */}
           <div className="mt-6 bg-cyber-dark2/40 border border-cyber-purple/20 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-3">
               <Smartphone className="w-4 h-4 text-cyber-blue" />
               <p className="text-sm font-medium text-gray-300">跨设备数据同步</p>
             </div>
             <p className="text-xs text-gray-500 leading-relaxed mb-4">
-              每台设备会独立保存账号数据。在常用设备登录后点“导出数据”，拿到 JSON 文件，在新设备登录同一账号后点“导入数据”，即可同步积分、等级、任务进度。
+              账号数据保存在后端服务器，登录后自动从云端同步；也可使用下方手动导出/导入 JSON 文件作为备份。
             </p>
             <div className="flex gap-2">
               <button
