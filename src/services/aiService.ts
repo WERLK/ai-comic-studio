@@ -1,55 +1,79 @@
 /**
- * AI 服务层 - 对接真实 AI 大模型 API
+ * AI 服务层 - 对接真实 AI 大模型 API（国内版）
  * 
- * 支持的聚合API平台：
- * 1. CometAPI - 统一API聚合平台，支持500+AI模型
- * 2. OpenRouter - 最大最流行的AI网关，支持400+模型
- * 3. PoloAPI - 企业级AI大模型API聚合平台
- * 4. DMXAPI - LangChain中文网提供的智能API聚合服务
+ * 支持的国内API聚合平台（无需翻墙，国内直连）：
+ * 
+ * 1. 硅基流动 (SiliconFlow) - https://cloud.siliconflow.cn/
+ *    - 100+模型 · 9B以下模型永久免费 · 新用户送2000万token
+ *    - Base URL: https://api.siliconflow.cn/v1
+ * 
+ * 2. 简易API - https://jeniya.cn/
+ *    - 国内直连 · 无需翻墙 · 送200元额度
+ *    - Base URL: https://api.jeniya.cn/v1
+ * 
+ * 3. 阿里云百炼 (DashScope) - https://dashscope.aliyun.com/
+ *    - 通义千问全系 · OpenAI兼容
+ *    - Base URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+ * 
+ * 4. 智谱AI (GLM) - https://open.bigmodel.cn/
+ *    - GLM-4-Flash永久免费 · 2000万token新用户额度
+ *    - Base URL: https://open.bigmodel.cn/api/paas/v4
+ * 
+ * 5. 火山引擎 (Volcengine) - https://www.volcengine.com/
+ *    - 豆包全系 · 每日200万token
+ *    - Base URL: https://ark.cn-beijing.volces.com/api/v3
+ * 
+ * 6. 百度千帆 (Qianfan) - https://console.bce.baidu.com/qianfan/
+ *    - ERNIE-3.5-8K/ERNIE-Speed-8K永久免费
+ *    - Base URL: https://qianfan.baidubce.com/v2
+ * 
+ * 7. 灵芽AI - https://api.lingyaai.cn/
+ *    - GPT-5/Claude/Gemini等百余模型
  * 
  * 支持的模型类型：
- * - 文本分析：GPT-4 / Claude / DeepSeek / 文心一言
- * - 图像生成：DALL-E / Stable Diffusion / MidJourney
+ * - 文本分析：Qwen / GLM / DeepSeek / ERNIE / Doubao
+ * - 图像生成：FLUX / Stable Diffusion / 通义万相
  * - 视频生成：即梦 / 可灵 / Vidu / 海螺
  * - 语音合成：TTS 服务
  */
 
-// ========== API聚合平台配置 ==========
+// ========== API平台配置 ==========
 
 export interface AggregatorConfig {
-  // 聚合平台选择
-  aggregator: 'comet' | 'openrouter' | 'polo' | 'dmx' | 'none';
+  // 聚合平台选择（优先级从高到低）
+  aggregator: 'siliconflow' | 'jeniya' | 'dashscope' | 'zhipu' | 'volcengine' | 'qianfan' | 'lingya' | 'none';
   
-  // CometAPI (https://www.cometapi.com)
-  cometApiKey?: string;
-  cometBaseUrl?: string;
+  // 硅基流动 (SiliconFlow)
+  siliconflowApiKey?: string;
+  siliconflowBaseUrl?: string;
   
-  // OpenRouter (https://openrouter.ai)
-  openrouterApiKey?: string;
-  openrouterBaseUrl?: string;
-  
-  // PoloAPI (https://poloapi.com)
-  poloApiKey?: string;
-  poloBaseUrl?: string;
-  
-  // DMXAPI (https://www.dmxapi.cn)
-  dmxApiKey?: string;
-  dmxBaseUrl?: string;
-  
-  // 简易API (https://jeniya.top)
+  // 简易API
   jeniyaApiKey?: string;
   jeniyaBaseUrl?: string;
+  
+  // 阿里云百炼 (DashScope)
+  dashscopeApiKey?: string;
+  dashscopeBaseUrl?: string;
+  
+  // 智谱AI (GLM)
+  zhipuApiKey?: string;
+  zhipuBaseUrl?: string;
+  
+  // 火山引擎 (Doubao)
+  volcengineApiKey?: string;
+  volcengineBaseUrl?: string;
+  
+  // 百度千帆 (Qianfan)
+  qianfanApiKey?: string;
+  qianfanSecretKey?: string;
+  qianfanBaseUrl?: string;
+  
+  // 灵芽AI
+  lingyaApiKey?: string;
+  lingyaBaseUrl?: string;
 }
 
 export interface AIServiceConfig extends AggregatorConfig {
-  // 官方API配置（备用）
-  openaiApiKey?: string;
-  openaiBaseUrl?: string;
-  baiduApiKey?: string;
-  baiduSecretKey?: string;
-  doubaoApiKey?: string;
-  doubaoSecretKey?: string;
-  
   // 视频生成API
   seedanceApiKey?: string;
   klingApiKey?: string;
@@ -58,6 +82,7 @@ export interface AIServiceConfig extends AggregatorConfig {
   
   // 图像生成API
   stabilityApiKey?: string;
+  dallApiKey?: string;
 }
 
 // ========== 数据类型定义 ==========
@@ -123,51 +148,91 @@ export function getAIConfig(): AIServiceConfig {
 }
 
 // 获取当前激活的聚合平台
-function getActiveAggregator(): { key: keyof AggregatorConfig; apiKey: string; baseUrl: string; name: string } | null {
+interface ActiveAggregator {
+  key: keyof AggregatorConfig;
+  apiKey: string;
+  baseUrl: string;
+  name: string;
+  models: string[];
+}
+
+function getActiveAggregator(): ActiveAggregator | null {
   const cfg = getAIConfig();
   
-  if (cfg.cometApiKey) {
+  // 硅基流动（推荐）
+  if (cfg.siliconflowApiKey) {
     return {
-      key: 'cometApiKey',
-      apiKey: cfg.cometApiKey,
-      baseUrl: cfg.cometBaseUrl || 'https://api.cometapi.com/v1',
-      name: 'CometAPI'
+      key: 'siliconflowApiKey',
+      apiKey: cfg.siliconflowApiKey,
+      baseUrl: cfg.siliconflowBaseUrl || 'https://api.siliconflow.cn/v1',
+      name: '硅基流动',
+      models: ['Qwen2.5', 'GLM-4', 'DeepSeek-R1', 'Llama-3', 'FLUX', 'Stable Diffusion']
     };
   }
   
-  if (cfg.poloApiKey) {
-    return {
-      key: 'poloApiKey',
-      apiKey: cfg.poloApiKey,
-      baseUrl: cfg.poloBaseUrl || 'https://api.poloapi.com/v1',
-      name: 'PoloAPI'
-    };
-  }
-  
-  if (cfg.dmxApiKey) {
-    return {
-      key: 'dmxApiKey',
-      apiKey: cfg.dmxApiKey,
-      baseUrl: cfg.dmxBaseUrl || 'https://api.dmxapi.cn/v1',
-      name: 'DMXAPI'
-    };
-  }
-  
+  // 简易API
   if (cfg.jeniyaApiKey) {
     return {
       key: 'jeniyaApiKey',
       apiKey: cfg.jeniyaApiKey,
       baseUrl: cfg.jeniyaBaseUrl || 'https://api.jeniya.cn/v1',
-      name: '简易API'
+      name: '简易API',
+      models: ['GPT-4o', 'Claude-3.5', 'DeepSeek', '文心一言', 'Gemini']
     };
   }
   
-  if (cfg.openrouterApiKey) {
+  // 阿里云百炼
+  if (cfg.dashscopeApiKey) {
     return {
-      key: 'openrouterApiKey',
-      apiKey: cfg.openrouterApiKey,
-      baseUrl: cfg.openrouterBaseUrl || 'https://openrouter.ai/api/v1',
-      name: 'OpenRouter'
+      key: 'dashscopeApiKey',
+      apiKey: cfg.dashscopeApiKey,
+      baseUrl: cfg.dashscopeBaseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      name: '阿里云百炼',
+      models: ['通义千问', 'DeepSeek', 'Kimi', 'GLM', 'Llama']
+    };
+  }
+  
+  // 智谱AI
+  if (cfg.zhipuApiKey) {
+    return {
+      key: 'zhipuApiKey',
+      apiKey: cfg.zhipuApiKey,
+      baseUrl: cfg.zhipuBaseUrl || 'https://open.bigmodel.cn/api/paas/v4',
+      name: '智谱AI',
+      models: ['GLM-4-Flash', 'GLM-4.7-Flash', 'GLM-4']
+    };
+  }
+  
+  // 火山引擎
+  if (cfg.volcengineApiKey) {
+    return {
+      key: 'volcengineApiKey',
+      apiKey: cfg.volcengineApiKey,
+      baseUrl: cfg.volcengineBaseUrl || 'https://ark.cn-beijing.volces.com/api/v3',
+      name: '火山引擎',
+      models: ['Doubao-lite', 'Seed-OSS']
+    };
+  }
+  
+  // 百度千帆
+  if (cfg.qianfanApiKey && cfg.qianfanSecretKey) {
+    return {
+      key: 'qianfanApiKey',
+      apiKey: cfg.qianfanApiKey,
+      baseUrl: cfg.qianfanBaseUrl || 'https://qianfan.baidubce.com/v2',
+      name: '百度千帆',
+      models: ['ERNIE-4.0', 'ERNIE-3.5', 'ERNIE-Speed']
+    };
+  }
+  
+  // 灵芽AI
+  if (cfg.lingyaApiKey) {
+    return {
+      key: 'lingyaApiKey',
+      apiKey: cfg.lingyaApiKey,
+      baseUrl: cfg.lingyaBaseUrl || 'https://api.lingyaai.cn/v1',
+      name: '灵芽AI',
+      models: ['GPT-5', 'Claude-3.7', 'Gemini-2.5', 'DeepSeek-R1']
     };
   }
   
@@ -179,10 +244,40 @@ function getActiveAggregator(): { key: keyof AggregatorConfig; apiKey: string; b
 /**
  * 使用聚合API进行文本分析
  */
-async function analyzeWithAggregator(script: string, model: string = 'gpt-4o-mini'): Promise<AnalysisResult> {
+async function analyzeWithAggregator(script: string, model: string = 'auto'): Promise<AnalysisResult> {
   const aggregator = getActiveAggregator();
   if (!aggregator) {
     return fallbackAnalyzeScript(script);
+  }
+
+  // 根据平台选择合适的模型
+  let modelName = model;
+  if (model === 'auto') {
+    switch (aggregator.key) {
+      case 'siliconflowApiKey':
+        modelName = 'deepseek-ai/DeepSeek-V2.5';
+        break;
+      case 'jeniyaApiKey':
+        modelName = 'gpt-4o';
+        break;
+      case 'dashscopeApiKey':
+        modelName = 'qwen2.5-72b-instruct';
+        break;
+      case 'zhipuApiKey':
+        modelName = 'glm-4-flash';
+        break;
+      case 'volcengineApiKey':
+        modelName = 'doubao-lite-4k';
+        break;
+      case 'qianfanApiKey':
+        modelName = 'ernie-3.5-8k';
+        break;
+      case 'lingyaApiKey':
+        modelName = 'gpt-4o';
+        break;
+      default:
+        modelName = 'gpt-4o';
+    }
   }
 
   const prompt = `
@@ -208,7 +303,7 @@ ${script}
         'Authorization': `Bearer ${aggregator.apiKey}`,
       },
       body: JSON.stringify({
-        model,
+        model: modelName,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
       }),
@@ -243,125 +338,64 @@ async function generateImageWithAggregator(prompt: string, style: string = 'anim
     return fallbackGenerateImage(prompt, style);
   }
 
-  const stylePrompts: Record<string, string> = {
-    anime: 'anime style, beautiful, vibrant colors, detailed',
-    manga: 'manga style, black and white, detailed linework',
-    cyberpunk: 'cyberpunk style, neon lights, futuristic city',
-    realistic: 'photorealistic, highly detailed, cinematic',
-    watercolor: 'watercolor painting style, soft colors',
-    chinese: 'chinese painting style, traditional ink',
-  };
+  // 硅基流动支持FLUX图像生成
+  if (aggregator.key === 'siliconflowApiKey') {
+    try {
+      const stylePrompts: Record<string, string> = {
+        anime: 'anime style, beautiful anime character, vibrant colors, detailed',
+        manga: 'manga style, black and white manga, detailed lineart',
+        cyberpunk: 'cyberpunk style, neon lights, futuristic city, detailed',
+        realistic: 'photorealistic, highly detailed, cinematic lighting',
+        watercolor: 'watercolor painting style, soft colors, artistic',
+        chinese: 'chinese traditional art style, ink painting style',
+      };
 
-  try {
-    const response = await fetch(`${aggregator.baseUrl}/images/generations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${aggregator.apiKey}`,
-      },
-      body: JSON.stringify({
-        prompt: `${prompt}, ${stylePrompts[style]}`,
-        n: 1,
-        size: '1024x1024',
-      }),
-    });
+      const response = await fetch(`${aggregator.baseUrl}/images/generations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${aggregator.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'black-forest-labs/FLUX.1-dev',
+          prompt: `${prompt}, ${stylePrompts[style]}`,
+          image_size: '1024x1024',
+          num_inference_steps: 20,
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.warn(`${aggregator.name} 图像生成 API 调用失败:`, error);
+      if (!response.ok) {
+        const error = await response.text();
+        console.warn('SiliconFlow 图像生成失败:', error);
+        return fallbackGenerateImage(prompt, style);
+      }
+
+      const data = await response.json();
+      return {
+        success: true,
+        imageUrl: data.data?.[0]?.url || data.data?.[0]?.b64_json,
+      };
+    } catch (error) {
+      console.warn('SiliconFlow 图像生成异常:', error);
       return fallbackGenerateImage(prompt, style);
     }
-
-    const data = await response.json();
-    return {
-      success: true,
-      imageUrl: data.data?.[0]?.url || data.data?.[0]?.b64_json,
-    };
-  } catch (error) {
-    console.warn(`${aggregator.name} 图像生成 API 调用异常:`, error);
-    return fallbackGenerateImage(prompt, style);
   }
+
+  return fallbackGenerateImage(prompt, style);
 }
 
-// ========== 官方API调用 ==========
+// ========== 官方API调用（备用） ==========
 
 /**
- * 使用 GPT-4 分析剧本
+ * 使用智谱 GLM 分析剧本
  */
-export async function analyzeScriptWithGPT(script: string): Promise<AnalysisResult> {
-  const { openaiApiKey, openaiBaseUrl } = getAIConfig();
-  if (!openaiApiKey) {
+export async function analyzeScriptWithGLM(script: string): Promise<AnalysisResult> {
+  const { zhipuApiKey } = getAIConfig();
+  if (!zhipuApiKey) {
     return fallbackAnalyzeScript(script);
   }
 
-  const url = openaiBaseUrl || 'https://api.openai.com/v1/chat/completions';
   const prompt = `
-你是一个专业的漫剧编剧和分镜师。请分析以下剧本并输出结构化结果：
-
-剧本：
-${script}
-
-请输出 JSON 格式，包含：
-1. title: 提取或生成一个合适的漫剧标题（不超过20字）
-2. characters: 角色列表，每个角色包含 name（角色名）、description（角色描述）、role（角色定位：主角/配角/旁白）
-3. frames: 分镜列表，每个分镜包含 id（frame-序号）、description（画面描述）、dialogue（对话内容，如果有）、shotType（景别：全景/中景/近景/特写/侧面/俯视/仰视）、duration（时长，单位秒，建议2-4秒）
-4. style: 推荐画风（anime/manga/cyberpunk/realistic/watercolor/chinese）
-
-请确保输出是纯JSON，不要有其他文字。
-`.trim();
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.warn('GPT API 调用失败:', error);
-      return fallbackAnalyzeScript(script);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '{}';
-    try {
-      return JSON.parse(content);
-    } catch {
-      return fallbackAnalyzeScript(script);
-    }
-  } catch (error) {
-    console.warn('GPT API 调用异常:', error);
-    return fallbackAnalyzeScript(script);
-  }
-}
-
-/**
- * 使用文心一言分析剧本
- */
-export async function analyzeScriptWithWenxin(script: string): Promise<AnalysisResult> {
-  const { baiduApiKey, baiduSecretKey } = getAIConfig();
-  if (!baiduApiKey || !baiduSecretKey) {
-    return fallbackAnalyzeScript(script);
-  }
-
-  try {
-    const tokenResponse = await fetch('https://aip.baidubce.com/oauth/2.0/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `grant_type=client_credentials&client_id=${baiduApiKey}&client_secret=${baiduSecretKey}`,
-    });
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-
-    const prompt = `
 你是一个专业的漫剧编剧和分镜师。请分析以下剧本并输出结构化结果：
 
 剧本：
@@ -376,14 +410,172 @@ ${script}
 只输出JSON，不要其他文字。
 `.trim();
 
-    const response = await fetch('https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions', {
+  try {
+    const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${zhipuApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'glm-4-flash',
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!response.ok) {
+      return fallbackAnalyzeScript(script);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '{}';
+    try {
+      return JSON.parse(content);
+    } catch {
+      return fallbackAnalyzeScript(script);
+    }
+  } catch (error) {
+    console.warn('智谱GLM API调用异常:', error);
+    return fallbackAnalyzeScript(script);
+  }
+}
+
+/**
+ * 使用阿里云百炼分析剧本
+ */
+export async function analyzeScriptWithDashScope(script: string): Promise<AnalysisResult> {
+  const { dashscopeApiKey } = getAIConfig();
+  if (!dashscopeApiKey) {
+    return fallbackAnalyzeScript(script);
+  }
+
+  const prompt = `
+你是一个专业的漫剧编剧和分镜师。请分析以下剧本并输出结构化结果：
+
+剧本：
+${script}
+
+请输出 JSON 格式，包含：
+1. title: 提取或生成一个合适的漫剧标题（不超过20字）
+2. characters: 角色列表，每个角色包含 name、description、role
+3. frames: 分镜列表，每个分镜包含 id、description、dialogue、shotType、duration
+4. style: 推荐画风（anime/manga/cyberpunk/realistic/watercolor/chinese）
+
+只输出JSON，不要其他文字。
+`.trim();
+
+  try {
+    const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${dashscopeApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'qwen2.5-72b-instruct',
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!response.ok) {
+      return fallbackAnalyzeScript(script);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '{}';
+    try {
+      return JSON.parse(content);
+    } catch {
+      return fallbackAnalyzeScript(script);
+    }
+  } catch (error) {
+    console.warn('阿里云百炼API调用异常:', error);
+    return fallbackAnalyzeScript(script);
+  }
+}
+
+/**
+ * 使用通义万相生成图像
+ */
+export async function generateImageWithWanXiang(prompt: string, style: string = 'anime'): Promise<ImageGenerationResult> {
+  const { dashscopeApiKey } = getAIConfig();
+  if (!dashscopeApiKey) {
+    return fallbackGenerateImage(prompt, style);
+  }
+
+  const stylePrompts: Record<string, string> = {
+    anime: '动漫风格，精致细腻，色彩鲜艳',
+    manga: '漫画风格，线条分明，黑白或彩色',
+    cyberpunk: '赛博朋克风格，霓虹灯光，未来科技',
+    realistic: '写实风格，高清细节，电影感',
+    watercolor: '水彩插画风格，柔和色调，艺术感',
+    chinese: '中国古风，传统水墨画，古典韵味',
+  };
+
+  try {
+    const response = await fetch('https://dashscope.aliyuncs.com/api/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${dashscopeApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'wanx2.1-t2i-pro',
+        prompt: `${prompt}，${stylePrompts[style]}`,
+        size: '1024*1024',
+        n: 1,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.warn('通义万相API调用失败:', error);
+      return fallbackGenerateImage(prompt, style);
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      imageUrl: data.data?.[0]?.url,
+    };
+  } catch (error) {
+    console.warn('通义万相API调用异常:', error);
+    return fallbackGenerateImage(prompt, style);
+  }
+}
+
+/**
+ * 使用文心一言分析剧本
+ */
+export async function analyzeScriptWithWenxin(script: string): Promise<AnalysisResult> {
+  const { qianfanApiKey, qianfanSecretKey } = getAIConfig();
+  if (!qianfanApiKey || !qianfanSecretKey) {
+    return fallbackAnalyzeScript(script);
+  }
+
+  try {
+    // 获取Access Token
+    const tokenResponse = await fetch('https://aip.baidubce.com/oauth/2.0/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=client_credentials&client_id=${qianfanApiKey}&client_secret=${qianfanSecretKey}`,
+    });
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    const prompt = `
+你是一个专业的漫剧编剧和分镜师。请分析以下剧本并输出结构化JSON：
+剧本：${script}
+输出：{title, characters: [{name, description, role}], frames: [{id, description, dialogue, shotType, duration}], style}
+`.trim();
+
+    const response = await fetch('https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/ernie-3.5-8k', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        model: 'ernie-3.5',
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -400,106 +592,8 @@ ${script}
       return fallbackAnalyzeScript(script);
     }
   } catch (error) {
-    console.warn('文心一言 API 调用异常:', error);
+    console.warn('文心一言API调用异常:', error);
     return fallbackAnalyzeScript(script);
-  }
-}
-
-/**
- * 使用 DALL-E 生成图像
- */
-export async function generateImageWithDALL_E(prompt: string, style: string = 'anime'): Promise<ImageGenerationResult> {
-  const { openaiApiKey, openaiBaseUrl } = getAIConfig();
-  if (!openaiApiKey) {
-    return fallbackGenerateImage(prompt, style);
-  }
-
-  const stylePrompts: Record<string, string> = {
-    anime: 'anime style, beautiful, vibrant colors, detailed',
-    manga: 'manga style, black and white, detailed linework',
-    cyberpunk: 'cyberpunk style, neon lights, futuristic city',
-    realistic: 'photorealistic, highly detailed, cinematic',
-    watercolor: 'watercolor painting style, soft colors',
-    chinese: 'chinese painting style, traditional ink',
-  };
-
-  try {
-    const response = await fetch((openaiBaseUrl || 'https://api.openai.com/v1') + '/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        prompt: `${prompt}, ${stylePrompts[style]}`,
-        n: 1,
-        size: '1024x1024',
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.warn('DALL-E API 调用失败:', error);
-      return fallbackGenerateImage(prompt, style);
-    }
-
-    const data = await response.json();
-    return {
-      success: true,
-      imageUrl: data.data?.[0]?.url,
-    };
-  } catch (error) {
-    console.warn('DALL-E API 调用异常:', error);
-    return fallbackGenerateImage(prompt, style);
-  }
-}
-
-/**
- * 使用 Stable Diffusion 生成图像
- */
-export async function generateImageWithStableDiffusion(prompt: string, style: string = 'anime'): Promise<ImageGenerationResult> {
-  const { stabilityApiKey } = getAIConfig();
-  if (!stabilityApiKey) {
-    return fallbackGenerateImage(prompt, style);
-  }
-
-  const stylePrompts: Record<string, string> = {
-    anime: 'anime style, anime aesthetic, beautiful, detailed',
-    manga: 'manga style, black and white, line art',
-    cyberpunk: 'cyberpunk, neon, futuristic, sci-fi',
-    realistic: 'photorealistic, hyper detailed, cinematic lighting',
-    watercolor: 'watercolor, soft, painterly',
-    chinese: 'chinese ink painting, traditional',
-  };
-
-  try {
-    const response = await fetch('https://api.stability.ai/v2beta/stable-image/generate/core', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${stabilityApiKey}`,
-      },
-      body: JSON.stringify({
-        prompt: `${prompt}, ${stylePrompts[style]}, high quality, masterpiece`,
-        negative_prompt: 'blurry, low quality, distorted, text, watermark',
-        width: 1024,
-        height: 1024,
-        style_preset: 'anime',
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.warn('Stable Diffusion API 调用失败:', error);
-      return fallbackGenerateImage(prompt, style);
-    }
-
-    const blob = await response.blob();
-    const imageUrl = URL.createObjectURL(blob);
-    return { success: true, imageUrl };
-  } catch (error) {
-    console.warn('Stable Diffusion API 调用异常:', error);
-    return fallbackGenerateImage(prompt, style);
   }
 }
 
@@ -574,14 +668,6 @@ function fallbackAnalyzeScript(script: string): AnalysisResult {
  * 本地生成图像（fallback）
  */
 function fallbackGenerateImage(prompt: string, style: string): ImageGenerationResult {
-  const styleColors: Record<string, string> = {
-    anime: '255,107,157',
-    manga: '99,102,241',
-    cyberpunk: '0,245,255',
-    realistic: '212,165,116',
-    watercolor: '126,184,201',
-    chinese: '192,57,43',
-  };
   return {
     success: true,
     imageUrl: `https://picsum.photos/seed/${encodeURIComponent(prompt)}/1024/1024`,
@@ -769,7 +855,7 @@ export async function synthesizeSpeech(text: string, config: VoiceConfig = { voi
     utterance.pitch = config.pitch || 1;
     utterance.volume = config.volume || 1;
     
-    window.speechSynthesis.speak(utterance);
+    window.speechSynthesis?.speak(utterance);
     resolve(null);
   });
 }
@@ -784,12 +870,12 @@ export function stopSpeech() {
 // ========== 主入口函数 ==========
 
 export interface AIAnalysisOptions {
-  model?: 'gpt' | 'wenxin' | 'aggregator' | 'auto';
+  model?: 'siliconflow' | 'zhipu' | 'dashscope' | 'qianfan' | 'aggregator' | 'auto';
   aggregatorModel?: string;
 }
 
 export interface AIImageOptions {
-  model?: 'dalle' | 'sd' | 'aggregator' | 'auto';
+  model?: 'wanxiang' | 'siliconflow' | 'aggregator' | 'auto';
   style?: string;
 }
 
@@ -807,18 +893,21 @@ export async function analyzeScript(script: string, options: AIAnalysisOptions =
   // 优先使用聚合平台
   const aggregator = getActiveAggregator();
   if (aggregator) {
-    const aggModel = options.aggregatorModel || 'gpt-4o-mini';
-    return analyzeWithAggregator(script, aggModel);
+    return analyzeWithAggregator(script, options.aggregatorModel);
   }
   
-  // 使用官方API
-  if (model === 'gpt') return analyzeScriptWithGPT(script);
-  if (model === 'wenxin') return analyzeScriptWithWenxin(script);
+  // 使用特定平台
+  if (model === 'siliconflow') return analyzeWithAggregator(script, 'deepseek-ai/DeepSeek-V2.5');
+  if (model === 'zhipu') return analyzeScriptWithGLM(script);
+  if (model === 'dashscope') return analyzeScriptWithDashScope(script);
+  if (model === 'qianfan') return analyzeScriptWithWenxin(script);
   
-  // 自动选择
-  const config = getAIConfig();
-  if (config.openaiApiKey) return analyzeScriptWithGPT(script);
-  if (config.baiduApiKey && config.baiduSecretKey) return analyzeScriptWithWenxin(script);
+  // 尝试按优先级自动选择
+  const cfg = getAIConfig();
+  if (cfg.siliconflowApiKey) return analyzeWithAggregator(script);
+  if (cfg.zhipuApiKey) return analyzeScriptWithGLM(script);
+  if (cfg.dashscopeApiKey) return analyzeScriptWithDashScope(script);
+  if (cfg.qianfanApiKey && cfg.qianfanSecretKey) return analyzeScriptWithWenxin(script);
   
   return fallbackAnalyzeScript(script);
 }
@@ -832,18 +921,15 @@ export async function generateImage(prompt: string, options: AIImageOptions = {}
   
   // 优先使用聚合平台
   const aggregator = getActiveAggregator();
-  if (aggregator) {
+  if (aggregator && aggregator.key === 'siliconflowApiKey') {
     return generateImageWithAggregator(prompt, style);
   }
   
-  // 使用官方API
-  if (model === 'dalle') return generateImageWithDALL_E(prompt, style);
-  if (model === 'sd') return generateImageWithStableDiffusion(prompt, style);
-  
-  // 自动选择
-  const config = getAIConfig();
-  if (config.openaiApiKey) return generateImageWithDALL_E(prompt, style);
-  if (config.stabilityApiKey) return generateImageWithStableDiffusion(prompt, style);
+  // 使用通义万相
+  if (model === 'wanxiang' || getAIConfig().dashscopeApiKey) {
+    const result = await generateImageWithWanXiang(prompt, style);
+    if (result.success) return result;
+  }
   
   return fallbackGenerateImage(prompt, style);
 }
@@ -868,62 +954,104 @@ export async function generateVideo(prompts: string[], options: AIVideoOptions =
   return fallbackGenerateVideo(prompts, style);
 }
 
-// ========== API平台信息 ==========
+// ========== 国内API平台信息 ==========
 
-export interface AggregatorInfo {
+export interface DomesticPlatformInfo {
   id: string;
   name: string;
   website: string;
+  baseUrl: string;
   description: string;
   features: string[];
   models: string[];
+  freeQuota: string;
   pricing: string;
+  recommended: boolean;
 }
 
-export const AGGREGATOR_PLATFORMS: AggregatorInfo[] = [
+export const DOMESTIC_PLATFORMS: DomesticPlatformInfo[] = [
   {
-    id: 'comet',
-    name: 'CometAPI',
-    website: 'https://www.cometapi.com',
-    description: '统一API聚合平台，支持500+AI模型',
-    features: ['500+模型覆盖', 'OpenAI兼容', '成本降低20-40%', '99.9%可用性'],
-    models: ['GPT系列', 'Claude系列', 'Gemini', 'DeepSeek', 'Llama', '图像生成', '视频生成'],
-    pricing: '按量计费，比官方低20-40%'
-  },
-  {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    website: 'https://openrouter.ai',
-    description: '最大最流行的AI网关，支持400+模型',
-    features: ['400+模型覆盖', '智能路由', '自动故障转移', '多提供商'],
-    models: ['GPT系列', 'Claude', 'Gemini', 'Llama', 'Mistral', '开源模型'],
-    pricing: '按量计费，灵活定价'
-  },
-  {
-    id: 'polo',
-    name: 'PoloAPI',
-    website: 'https://poloapi.com',
-    description: '企业级AI大模型API聚合平台',
-    features: ['企业级SLA', '人民币充值', '无限并发', '智能调度'],
-    models: ['GPT', 'Claude', 'Gemini', '文心一言', '通义千问', 'DeepSeek'],
-    pricing: '企业级定价，支持对公转账'
-  },
-  {
-    id: 'dmx',
-    name: 'DMXAPI',
-    website: 'https://www.dmxapi.cn',
-    description: 'LangChain中文网提供的智能API聚合服务',
-    features: ['300+模型', '人民币计价', '无限RPM/TPM', '企业发票'],
-    models: ['DeepSeek', 'GPT', 'Claude', '文心一言', '通义千问', '文生图', '文生视频'],
-    pricing: '顶级模型低至7折，人民币计价'
+    id: 'siliconflow',
+    name: '硅基流动 (SiliconFlow)',
+    website: 'https://cloud.siliconflow.cn/',
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    description: '国内领先的AI模型聚合平台，100+模型可选',
+    features: ['国内直连', '无需翻墙', 'OpenAI兼容', '9B以下模型永久免费', '微信/支付宝充值'],
+    models: ['Qwen2.5-7B~72B', 'GLM-4', 'DeepSeek-R1', 'Llama-3.1', 'FLUX图像生成', '通义万相'],
+    freeQuota: '新用户送2000万token，9B以下模型永久免费不限量',
+    pricing: '按量计费，人民币结算',
+    recommended: true
   },
   {
     id: 'jeniya',
     name: '简易API',
-    website: 'https://jeniya.top',
-    description: '国内领先的API中转站，稳定直连',
-    features: ['国内直连', '无需翻墙', '7x24客服', '200元试用额度'],
-    models: ['GPT', 'Claude', 'DeepSeek', '文心一言', 'Gemini'],
-    pricing: '首次注册送200元额度'
+    website: 'https://jeniya.cn/',
+    baseUrl: 'https://api.jeniya.cn/v1',
+    description: '专业AI大模型API中转服务，国内直连',
+    features: ['国内直连', '无需翻墙', '7x24稳定服务', '低延迟', '高并发'],
+    models: ['GPT-4o', 'Claude-3.5', 'DeepSeek', '文心一言', 'Gemini'],
+    freeQuota: '新用户送200元测试额度',
+    pricing: '比官方低20-40%',
+    recommended: true
+  },
+  {
+    id: 'dashscope',
+    name: '阿里云百炼 (DashScope)',
+    website: 'https://dashscope.aliyun.com/',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    description: '阿里云官方大模型服务平台，通义千问全系',
+    features: ['阿里云官方', '企业级稳定', 'OpenAI兼容', '通义万相图像', '模型最全'],
+    models: ['通义千问Qwen2.5', 'DeepSeek', 'Kimi', 'GLM', 'Llama', 'Baichuan', '通义万相'],
+    freeQuota: '每个模型100万token/3个月（可叠加）',
+    pricing: '企业级定价，人民币结算',
+    recommended: true
+  },
+  {
+    id: 'zhipu',
+    name: '智谱AI (GLM)',
+    website: 'https://open.bigmodel.cn/',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    description: '清华大学KEG实验室出品，GLM-4永久免费',
+    features: ['永久免费额度大', '长文本最强', '中文编程都稳', '2000万token新用户'],
+    models: ['GLM-4-Flash(128K)', 'GLM-4.7-Flash(200K)', 'GLM-4'],
+    freeQuota: 'GLM-4-Flash、GLM-4.7-Flash永久免费，新用户2000万token',
+    pricing: '免费额度充足，超出按量计费',
+    recommended: true
+  },
+  {
+    id: 'volcengine',
+    name: '火山引擎 (Doubao)',
+    website: 'https://www.volcengine.com/',
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    description: '字节跳动旗下AI服务平台，豆包大模型',
+    features: ['豆包生态', '国内低延迟', '免费额度高', '每日重置'],
+    models: ['Doubao-lite', 'Seed-OSS-36B'],
+    freeQuota: '每模型50万token一次性，每日200万token协作奖励',
+    pricing: '按量计费',
+    recommended: false
+  },
+  {
+    id: 'qianfan',
+    name: '百度千帆 (Qianfan)',
+    website: 'https://console.bce.baidu.com/qianfan/',
+    baseUrl: 'https://qianfan.baidubce.com/v2',
+    description: '百度智能云大模型平台，文心一言永久免费',
+    features: ['永久免费小模型', '合规性强', '知识库问答稳', 'ERNIE系列'],
+    models: ['ERNIE-4.0', 'ERNIE-3.5-8K', 'ERNIE-Speed-8K'],
+    freeQuota: 'ERNIE-3.5-8K、ERNIE-Speed-8K永久免费不限量，ERNIE-4.0新用户100万token/月',
+    pricing: '免费额度充足，企业级定价',
+    recommended: false
+  },
+  {
+    id: 'lingya',
+    name: '灵芽AI',
+    website: 'https://api.lingyaai.cn/',
+    baseUrl: 'https://api.lingyaai.cn/v1',
+    description: '国内专业AI API聚合平台，百余模型',
+    features: ['无需翻墙', '低延迟高并发', 'GPT-5支持', '安全可靠'],
+    models: ['GPT-5', 'Claude-3.7/4', 'Gemini-2.0/2.5', 'DeepSeek-R1'],
+    freeQuota: '新用户有测试额度',
+    pricing: '按量计费',
+    recommended: false
   }
 ];
