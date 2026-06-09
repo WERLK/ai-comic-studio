@@ -13,7 +13,6 @@ interface AuthStore extends AuthState {
   completedTasks: string[];
   visitedPages: string[];
   usedStyles: string[];
-  dailyLoginDate: string | null;
   dailyRewards: PointReward[];
   achievementRewards: PointReward[];
   socialRewards: PointReward[];
@@ -37,13 +36,12 @@ interface AuthStore extends AuthState {
   recordPageVisit: (page: string) => void;
   recordStyleUse: (style: string) => void;
   recordProjectCreation: (frameCount: number, hasCharacters: boolean, hasDialogue: boolean, hasVoice: boolean, style: string) => void;
+  // 数据导出导入
+  exportUserData: () => string;
+  importUserData: (json: string) => boolean;
 }
 
-const DATA_VERSION = 'v3';
-
-const getTodayKey = () => {
-  return new Date().toISOString().split('T')[0];
-};
+const getTodayKey = () => new Date().toISOString().split('T')[0];
 
 const calcLevel = (totalEarned: number): number => {
   if (totalEarned >= 50000) return 100;
@@ -139,22 +137,16 @@ const makeSpecialTasks = (): PointReward[] => {
   const month = today.getMonth() + 1;
   const day = today.getDate();
   const isWeekend = today.getDay() === 0 || today.getDay() === 6;
-
   const tasks: PointReward[] = [
     { id: 'special-welcome', name: '新手礼包', description: '新用户欢迎礼包（首次登录时自动领取）', points: 100, type: 'special', target: 1, progress: 0, autoUnlockHint: '新用户首次登录自动领取' },
   ];
-
-  if (isWeekend) {
-    tasks.push({ id: 'special-bonus', name: '周末双倍', description: '周末签到双倍积分', points: 40, type: 'special', target: 1, progress: 0, autoUnlockHint: '周末访问积分中心自动领取' });
-  }
-
+  if (isWeekend) tasks.push({ id: 'special-bonus', name: '周末双倍', description: '周末签到双倍积分', points: 40, type: 'special', target: 1, progress: 0, autoUnlockHint: '周末访问积分中心自动领取' });
   if (month === 1 && day <= 3) tasks.push({ id: 'special-newyear', name: '新年活动', description: '新年特别任务', points: 500, type: 'special', target: 1, progress: 0, autoUnlockHint: '新年期间访问即可领取' });
   if (month === 2) tasks.push({ id: 'special-spring', name: '春节活动', description: '春节期间特殊任务', points: 500, type: 'special', target: 1, progress: 0, autoUnlockHint: '春节期间访问即可领取' });
   if (month === 5 && day >= 1 && day <= 7) tasks.push({ id: 'special-labor', name: '劳动节活动', description: '劳动节特别任务', points: 300, type: 'special', target: 1, progress: 0, autoUnlockHint: '劳动节期间访问即可领取' });
   if (month === 6) tasks.push({ id: 'special-dragon', name: '端午节活动', description: '端午节特别任务', points: 200, type: 'special', target: 1, progress: 0, autoUnlockHint: '端午节期间访问即可领取' });
   if (month === 10) tasks.push({ id: 'special-national', name: '国庆活动', description: '国庆节特别任务', points: 500, type: 'special', target: 1, progress: 0, autoUnlockHint: '国庆节期间访问即可领取' });
   if (month === 12 && day >= 20) tasks.push({ id: 'special-christmas', name: '圣诞活动', description: '圣诞节特别任务', points: 300, type: 'special', target: 1, progress: 0, autoUnlockHint: '圣诞节期间访问即可领取' });
-
   return tasks;
 };
 
@@ -173,21 +165,100 @@ const makeExchangeItems = (): PointExchangeItem[] => [
   { id: 'sticker-pack', name: '贴纸包', description: '获得一套可爱的贴纸', price: 100, image: '', stock: 500 },
 ];
 
-// 计算任务状态：基于 completedTasks 标记已领取，基于 progress/target 判断是否可领取
 const applyCompletion = (tasks: PointReward[], completed: string[]): PointReward[] => {
   return tasks.map(t => {
     const isCompleted = completed.includes(t.id);
     const hasProgress = t.target !== undefined;
     const canClaimNow = !isCompleted && (!hasProgress || ((t.progress ?? 0) >= (t.target ?? 1)));
-    return {
-      ...t,
-      isCompleted,
-      canClaim: canClaimNow,
-    };
+    return { ...t, isCompleted, canClaim: canClaimNow };
   });
 };
 
-// ====== Store ======
+// ===== 用户持久化辅助 =====
+const USERS_KEY = 'ai_comic_users_v2';
+
+type StoredUser = User & {
+  password: string;
+  points: number;
+  totalEarnedPoints: number;
+  level: number;
+  projectsCount: number;
+  isVIP: boolean;
+  completedTasks: string[];
+  visitedPages: string[];
+  usedStyles: string[];
+  lastLoginDate?: string;
+  consecutiveLoginDays: number;
+};
+
+const readUsers = (): StoredUser[] => {
+  try {
+    const raw = localStorage.getItem(USERS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeUsers = (users: StoredUser[]) => {
+  try {
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  } catch {
+    // ignore
+  }
+};
+
+// ===== 初始化任务状态（基于用户数据） =====
+const initTasksFromUser = (user: User | null) => {
+  if (!user) {
+    return {
+      dailyRewards: makeDailyTasks(),
+      achievementRewards: makeAchievementTasks({ projects: 0, consecutiveDays: 1, totalEarned: 0 }),
+      socialRewards: makeSocialTasks(),
+      creationRewards: makeCreationTasks({ projects: 0, maxFrames: 0, usedStyleCount: 0, hasVoice: false, hasDialogue: false, hasNarration: false, exported: 0 }),
+      exploreRewards: makeExploreTasks({ usedStyleCount: 0, visitedPages: [] }),
+      specialRewards: makeSpecialTasks(),
+      memberRewards: makeMemberTasks(false),
+      levelRewards: makeLevelTasks(1, 0),
+      exchangeItems: makeExchangeItems(),
+    };
+  }
+
+  const totalEarned = user.totalEarnedPoints ?? 50;
+  const level = calcLevel(totalEarned);
+  const projects = user.projectsCount ?? 0;
+  const isVIP = !!user.isVIP;
+  const consecutiveDays = user.consecutiveLoginDays || 1;
+  const usedStyleCount = new Set(user.usedStyles || []).size;
+  const visitedPages = user.visitedPages || [];
+  const completed = user.completedTasks || [];
+  const today = getTodayKey();
+
+  const daily = makeDailyTasks().map(t => {
+    const done = completed.includes(t.id);
+    if (t.id === 'daily-login') {
+      const alreadyLoggedIn = user.lastLoginDate === today;
+      return { ...t, isCompleted: done, canClaim: !done && alreadyLoggedIn, progress: alreadyLoggedIn ? 1 : 0, target: 1 };
+    }
+    return { ...t, isCompleted: done, canClaim: !done };
+  });
+
+  return {
+    dailyRewards: daily,
+    achievementRewards: applyCompletion(makeAchievementTasks({ projects, consecutiveDays, totalEarned }), completed),
+    socialRewards: applyCompletion(makeSocialTasks(), completed),
+    creationRewards: applyCompletion(makeCreationTasks({ projects, maxFrames: 0, usedStyleCount, hasVoice: false, hasDialogue: false, hasNarration: false, exported: 0 }), completed),
+    exploreRewards: applyCompletion(makeExploreTasks({ usedStyleCount, visitedPages }), completed),
+    specialRewards: applyCompletion(makeSpecialTasks(), completed),
+    memberRewards: applyCompletion(makeMemberTasks(isVIP), completed),
+    levelRewards: applyCompletion(makeLevelTasks(level, totalEarned), completed),
+    exchangeItems: makeExchangeItems(),
+  };
+};
+
+// ===== Store =====
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
@@ -203,7 +274,6 @@ export const useAuthStore = create<AuthStore>()(
       completedTasks: [],
       visitedPages: [],
       usedStyles: [],
-      dailyLoginDate: null,
       dailyRewards: makeDailyTasks(),
       achievementRewards: makeAchievementTasks({ projects: 0, consecutiveDays: 1, totalEarned: 0 }),
       socialRewards: makeSocialTasks(),
@@ -217,106 +287,77 @@ export const useAuthStore = create<AuthStore>()(
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true });
         try {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 300));
 
-          let storedUsers: (User & { password: string; points?: number; completedTasks?: string[]; totalEarnedPoints?: number; projectsCount?: number; isVIP?: boolean; visitedPages?: string[]; usedStyles?: string[]; consecutiveLoginDays?: number; lastLoginDate?: string })[] = [];
-          try {
-            const usersData = localStorage.getItem('ai_comic_users');
-            if (usersData && usersData.trim()) {
-              storedUsers = JSON.parse(usersData);
-              if (!Array.isArray(storedUsers)) storedUsers = [];
-            }
-          } catch {
-            storedUsers = [];
+          const users = readUsers();
+          const usernameNormalized = credentials.username.trim().toLowerCase();
+
+          const match = users.find(u => {
+            const sameUser = u.username?.trim().toLowerCase() === usernameNormalized;
+            const samePass = u.password === credentials.password;
+            return sameUser && samePass;
+          });
+
+          if (!match) {
+            set({ isLoading: false });
+            return false;
           }
 
-          const normalizedUsername = credentials.username.trim().toLowerCase();
-          const user = storedUsers.find(u =>
-            u.username?.trim().toLowerCase() === normalizedUsername &&
-            u.password === credentials.password
-          );
-
-          if (user) {
-            const today = getTodayKey();
-            let consecutiveLoginDays = user.consecutiveLoginDays || 0;
-
-            if (user.lastLoginDate) {
-              if (user.lastLoginDate !== today) {
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                const yesterdayKey = yesterday.toISOString().split('T')[0];
-                consecutiveLoginDays = user.lastLoginDate === yesterdayKey ? consecutiveLoginDays + 1 : 1;
-              }
-            } else {
-              consecutiveLoginDays = 1;
+          // 更新登录信息
+          const today = getTodayKey();
+          let consecutive = match.consecutiveLoginDays || 1;
+          if (match.lastLoginDate) {
+            if (match.lastLoginDate !== today) {
+              const yesterday = new Date();
+              yesterday.setDate(yesterday.getDate() - 1);
+              consecutive = match.lastLoginDate === yesterday.toISOString().split('T')[0] ? consecutive + 1 : 1;
             }
-
-            const totalEarned = user.totalEarnedPoints ?? 50;
-            const currentPoints = user.points ?? 50;
-            const currentLevel = calcLevel(totalEarned);
-            const projCount = user.projectsCount ?? 0;
-            const isVIP = !!user.isVIP;
-
-            const updatedUser = {
-              ...user,
-              lastLoginDate: today,
-              consecutiveLoginDays,
-              points: currentPoints,
-              totalEarnedPoints: totalEarned,
-              level: currentLevel,
-              projectsCount: projCount,
-              isVIP,
-              completedTasks: user.completedTasks || [],
-              visitedPages: user.visitedPages || [],
-              usedStyles: user.usedStyles || [],
-            };
-
-            const updatedUsers = storedUsers.map(u => u.id === user.id ? updatedUser : u);
-            localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
-
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { password: _password, ...userWithoutPassword } = updatedUser;
-
-            // 刷新每日任务（每天首次登录重置非签到任务）
-            const daily = makeDailyTasks().map(t => {
-              const done = (updatedUser.completedTasks || []).includes(t.id);
-              if (t.id === 'daily-login') {
-                // 签到任务：如果今天已经登录过，标记进度为1
-                return { ...t, isCompleted: done, canClaim: !done, progress: 1, target: 1 };
-              }
-              return { ...t, isCompleted: done, canClaim: !done };
-            });
-
-            // 构造新的任务列表
-            set(state => ({
-              user: userWithoutPassword,
-              isAuthenticated: true,
-              points: currentPoints,
-              totalEarnedPoints: totalEarned,
-              level: currentLevel,
-              projectsCount: projCount,
-              isVIP,
-              completedTasks: updatedUser.completedTasks || [],
-              visitedPages: updatedUser.visitedPages || [],
-              usedStyles: updatedUser.usedStyles || [],
-              isLoading: false,
-              dailyRewards: daily,
-              achievementRewards: applyCompletion(makeAchievementTasks({ projects: projCount, consecutiveDays: consecutiveLoginDays, totalEarned }), updatedUser.completedTasks || []),
-              socialRewards: applyCompletion(makeSocialTasks(), updatedUser.completedTasks || []),
-              creationRewards: applyCompletion(makeCreationTasks({ projects: projCount, maxFrames: 0, usedStyleCount: (updatedUser.usedStyles || []).length, hasVoice: false, hasDialogue: false, hasNarration: false, exported: 0 }), updatedUser.completedTasks || []),
-              exploreRewards: applyCompletion(makeExploreTasks({ usedStyleCount: (updatedUser.usedStyles || []).length, visitedPages: updatedUser.visitedPages || [] }), updatedUser.completedTasks || []),
-              specialRewards: applyCompletion(makeSpecialTasks(), updatedUser.completedTasks || []),
-              memberRewards: applyCompletion(makeMemberTasks(isVIP), updatedUser.completedTasks || []),
-              levelRewards: applyCompletion(makeLevelTasks(currentLevel, totalEarned), updatedUser.completedTasks || []),
-              dailyLoginDate: today,
-              transactions: state.transactions,
-            }));
-
-            return true;
+          } else {
+            consecutive = 1;
           }
 
-          set({ isLoading: false });
-          return false;
+          const updated: StoredUser = {
+            ...match,
+            lastLoginDate: today,
+            consecutiveLoginDays: consecutive,
+            points: match.points ?? 50,
+            totalEarnedPoints: match.totalEarnedPoints ?? 50,
+            level: calcLevel(match.totalEarnedPoints ?? 50),
+            projectsCount: match.projectsCount ?? 0,
+            isVIP: !!match.isVIP,
+            completedTasks: match.completedTasks || [],
+            visitedPages: match.visitedPages || [],
+            usedStyles: match.usedStyles || [],
+          };
+
+          // 写回 users 列表
+          writeUsers(users.map(u => (u.id === match.id ? updated : u)));
+
+          const { password, ...safeUser } = updated;
+
+          // 从用户数据重建任务
+          const tasks = initTasksFromUser(safeUser);
+
+          // 加载交易记录（每个用户自己保存 transactions 字段）
+          const savedTransactions: PointTransaction[] = Array.isArray((match as any).transactions) ? (match as any).transactions : [];
+
+          set({
+            user: safeUser,
+            isAuthenticated: true,
+            isLoading: false,
+            points: updated.points,
+            totalEarnedPoints: updated.totalEarnedPoints,
+            level: updated.level,
+            projectsCount: updated.projectsCount,
+            isVIP: updated.isVIP,
+            completedTasks: updated.completedTasks,
+            visitedPages: updated.visitedPages,
+            usedStyles: updated.usedStyles,
+            transactions: savedTransactions,
+            ...tasks,
+          });
+
+          return true;
         } catch {
           set({ isLoading: false });
           return false;
@@ -326,35 +367,39 @@ export const useAuthStore = create<AuthStore>()(
       register: async (credentials: RegisterCredentials) => {
         set({ isLoading: true });
         try {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 300));
 
-          let storedUsers: any[] = [];
-          try {
-            const usersData = localStorage.getItem('ai_comic_users');
-            if (usersData && usersData.trim()) {
-              storedUsers = JSON.parse(usersData);
-              if (!Array.isArray(storedUsers)) storedUsers = [];
-            }
-          } catch {
-            storedUsers = [];
-          }
+          const users = readUsers();
+          const usernameNormalized = credentials.username.trim().toLowerCase();
+          const emailNormalized = (credentials.email || '').trim().toLowerCase();
 
-          const normalizedUsername = credentials.username.trim().toLowerCase();
-          const normalizedEmail = (credentials.email || '').trim().toLowerCase();
-
-          const filteredUsers = storedUsers.filter(u => {
-            const usernameMatch = u.username?.trim().toLowerCase() === normalizedUsername;
-            const emailMatch = normalizedEmail && u.email?.trim().toLowerCase() === normalizedEmail;
-            return !usernameMatch && !emailMatch;
+          // 检查用户名或邮箱是否已存在
+          const existing = users.find(u => {
+            const sameUser = u.username?.trim().toLowerCase() === usernameNormalized;
+            const sameEmail = emailNormalized && u.email?.trim().toLowerCase() === emailNormalized;
+            return sameUser || sameEmail;
           });
 
+          if (existing) {
+            // 已存在 → 走登录流程（如果密码也对的话直接登录，否则返回错误）
+            if (existing.password === credentials.password) {
+              // 密码正确，执行登录
+              const loginResult = await get().login({ username: credentials.username, password: credentials.password });
+              set({ isLoading: false });
+              return loginResult;
+            }
+            // 密码不对 → 提示已存在
+            set({ isLoading: false });
+            return false;
+          }
+
+          // 新用户
           const today = getTodayKey();
           const initialPoints = 50;
-
-          const newUser = {
+          const newUser: StoredUser = {
             id: Date.now().toString(),
             username: credentials.username.trim(),
-            email: normalizedEmail,
+            email: emailNormalized,
             points: initialPoints,
             totalEarnedPoints: initialPoints,
             level: 1,
@@ -367,49 +412,34 @@ export const useAuthStore = create<AuthStore>()(
             visitedPages: [],
             usedStyles: [],
             password: credentials.password,
-          };
-
-          const updatedUsers = [...filteredUsers, newUser];
-          localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
-          localStorage.removeItem('ai_comic_auth');
-
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { password: _password, ...userWithoutPassword } = newUser;
-
-          const daily = makeDailyTasks().map(t => {
-            if (t.id === 'daily-login') return { ...t, progress: 1, isCompleted: false, canClaim: true };
-            return { ...t, isCompleted: false, canClaim: t.target === undefined };
-          });
-
-          set({
-            user: userWithoutPassword,
-            isAuthenticated: true,
-            points: initialPoints,
-            totalEarnedPoints: initialPoints,
-            level: 1,
-            projectsCount: 0,
-            isVIP: false,
-            isLoading: false,
-            completedTasks: [],
-            visitedPages: [],
-            usedStyles: [],
-            dailyRewards: daily,
-            achievementRewards: applyCompletion(makeAchievementTasks({ projects: 0, consecutiveDays: 1, totalEarned: initialPoints }), []),
-            socialRewards: applyCompletion(makeSocialTasks(), []),
-            creationRewards: applyCompletion(makeCreationTasks({ projects: 0, maxFrames: 0, usedStyleCount: 0, hasVoice: false, hasDialogue: false, hasNarration: false, exported: 0 }), []),
-            exploreRewards: applyCompletion(makeExploreTasks({ usedStyleCount: 0, visitedPages: [] }), []),
-            specialRewards: applyCompletion(makeSpecialTasks(), []),
-            memberRewards: applyCompletion(makeMemberTasks(false), []),
-            levelRewards: applyCompletion(makeLevelTasks(1, initialPoints), []),
-            exchangeItems: makeExchangeItems(),
             transactions: [{
               id: Date.now().toString(),
               type: 'earn',
               amount: initialPoints,
               description: '新用户欢迎积分',
               createdAt: new Date().toISOString(),
-            }],
-            dailyLoginDate: today,
+            }] as any,
+          };
+
+          writeUsers([...users, newUser]);
+
+          const { password, ...safeUser } = newUser;
+          const tasks = initTasksFromUser(safeUser);
+
+          set({
+            user: safeUser,
+            isAuthenticated: true,
+            isLoading: false,
+            points: initialPoints,
+            totalEarnedPoints: initialPoints,
+            level: 1,
+            projectsCount: 0,
+            isVIP: false,
+            completedTasks: [],
+            visitedPages: [],
+            usedStyles: [],
+            transactions: (newUser as any).transactions || [],
+            ...tasks,
           });
 
           return true;
@@ -420,16 +450,18 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: () => {
-        set({ user: null, isAuthenticated: false });
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
       },
 
       clearAllData: () => {
-        localStorage.removeItem('ai_comic_auth');
-        localStorage.removeItem('ai_comic_users');
-        localStorage.removeItem('manga-studio-projects');
-        localStorage.removeItem('luckyWheelState');
-        localStorage.removeItem('lastAdSpins');
-
+        localStorage.removeItem(USERS_KEY);
+        localStorage.removeItem('manga-studio-projects-v2');
+        localStorage.removeItem('lucky_wheel_state_v2');
+        const fresh = initTasksFromUser(null);
         set({
           user: null,
           isAuthenticated: false,
@@ -443,81 +475,77 @@ export const useAuthStore = create<AuthStore>()(
           completedTasks: [],
           visitedPages: [],
           usedStyles: [],
-          dailyLoginDate: null,
-          dailyRewards: makeDailyTasks(),
-          achievementRewards: makeAchievementTasks({ projects: 0, consecutiveDays: 1, totalEarned: 0 }),
-          socialRewards: makeSocialTasks(),
-          creationRewards: makeCreationTasks({ projects: 0, maxFrames: 0, usedStyleCount: 0, hasVoice: false, hasDialogue: false, hasNarration: false, exported: 0 }),
-          exploreRewards: makeExploreTasks({ usedStyleCount: 0, visitedPages: [] }),
-          specialRewards: makeSpecialTasks(),
-          memberRewards: makeMemberTasks(false),
-          levelRewards: makeLevelTasks(1, 0),
-          exchangeItems: makeExchangeItems(),
+          ...fresh,
         });
       },
 
+      // ===== 积分变更时，同步写回 localStorage 中的用户 =====
       addPoints: (amount: number, description: string) => {
         set(state => {
           const newPoints = state.points + amount;
-          const newTotalEarned = state.totalEarnedPoints + amount;
-          const newLevel = calcLevel(newTotalEarned);
-
-          const newTransaction: PointTransaction = {
+          const newTotal = state.totalEarnedPoints + amount;
+          const newLevel = calcLevel(newTotal);
+          const tx: PointTransaction = {
             id: Date.now().toString(),
             type: 'earn',
             amount,
             description,
             createdAt: new Date().toISOString(),
           };
+          const newTransactions = [tx, ...state.transactions].slice(0, 50);
 
+          // 写回 localStorage
           if (state.user) {
-            try {
-              const storedUsers: any[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-              const updatedUsers = storedUsers.map(u =>
-                u.id === state.user!.id ? { ...u, points: newPoints, totalEarnedPoints: newTotalEarned, level: newLevel } : u
-              );
-              localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
-            } catch {}
+            const users = readUsers();
+            const updatedUsers = users.map(u => u.id === state.user!.id ? ({
+              ...u,
+              points: newPoints,
+              totalEarnedPoints: newTotal,
+              level: newLevel,
+              transactions: newTransactions,
+            }) : u);
+            writeUsers(updatedUsers);
           }
 
           return {
             points: newPoints,
-            totalEarnedPoints: newTotalEarned,
+            totalEarnedPoints: newTotal,
             level: newLevel,
-            transactions: [newTransaction, ...state.transactions].slice(0, 50),
+            transactions: newTransactions,
+            user: state.user ? { ...state.user, points: newPoints, totalEarnedPoints: newTotal, level: newLevel } : null,
           };
         });
-
-        // 加完积分后刷新等级任务和成就任务进度（基于新的 total）
-        setTimeout(() => get().refreshTasks(), 30);
+        // 积分变化后刷新等级任务
+        setTimeout(() => get().refreshTasks(), 20);
       },
 
       spendPoints: (amount: number, description: string) => {
         if (get().points < amount) return false;
-
         set(state => {
           const newPoints = state.points - amount;
-          const newTransaction: PointTransaction = {
+          const tx: PointTransaction = {
             id: Date.now().toString(),
             type: 'spend',
             amount,
             description,
             createdAt: new Date().toISOString(),
           };
+          const newTransactions = [tx, ...state.transactions].slice(0, 50);
 
           if (state.user) {
-            try {
-              const storedUsers: any[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-              const updatedUsers = storedUsers.map(u =>
-                u.id === state.user!.id ? { ...u, points: newPoints } : u
-              );
-              localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
-            } catch {}
+            const users = readUsers();
+            const updatedUsers = users.map(u => u.id === state.user!.id ? ({
+              ...u,
+              points: newPoints,
+              transactions: newTransactions,
+            }) : u);
+            writeUsers(updatedUsers);
           }
 
           return {
             points: newPoints,
-            transactions: [newTransaction, ...state.transactions].slice(0, 50),
+            transactions: newTransactions,
+            user: state.user ? { ...state.user, points: newPoints } : null,
           };
         });
         return true;
@@ -527,75 +555,48 @@ export const useAuthStore = create<AuthStore>()(
         const state = get();
         if (state.completedTasks.includes(rewardId)) return false;
 
-        // 在所有任务中查找
-        const allLists: { key: keyof AuthStore; tasks: PointReward[] }[] = [
-          { key: 'dailyRewards', tasks: state.dailyRewards },
-          { key: 'achievementRewards', tasks: state.achievementRewards },
-          { key: 'socialRewards', tasks: state.socialRewards },
-          { key: 'creationRewards', tasks: state.creationRewards },
-          { key: 'exploreRewards', tasks: state.exploreRewards },
-          { key: 'specialRewards', tasks: state.specialRewards },
-          { key: 'memberRewards', tasks: state.memberRewards },
-          { key: 'levelRewards', tasks: state.levelRewards },
+        const all: PointReward[][] = [
+          state.dailyRewards, state.achievementRewards, state.socialRewards, state.creationRewards,
+          state.exploreRewards, state.specialRewards, state.memberRewards, state.levelRewards,
         ];
-
         let found: PointReward | undefined;
-        let listKey: keyof AuthStore | null = null;
-        for (const { key, tasks } of allLists) {
-          found = tasks.find(t => t.id === rewardId);
-          if (found) { listKey = key; break; }
+        for (const list of all) {
+          found = list.find(t => t.id === rewardId);
+          if (found) break;
         }
-
-        if (!found || !listKey) return false;
-
-        // VIP 专属任务检查
+        if (!found) return false;
         if ((found as any).isVIPOnly && !state.isVIP) return false;
+        if (found.target !== undefined && (found.progress ?? 0) < found.target) return false;
 
-        // 检查进度
-        if (found.target !== undefined) {
-          const p = found.progress ?? 0;
-          if (p < found.target) return false;
-        }
-
-        // 领取积分
         let rewardPoints = found.points;
+        // 签到随机积分
         if (rewardId === 'daily-login') rewardPoints = Math.floor(Math.random() * 20) + 1;
+
         get().addPoints(rewardPoints, found.name);
 
-        // 更新状态
+        // 标记任务完成
+        const newCompleted = [...state.completedTasks, rewardId];
+        const markFn = (list: PointReward[]): PointReward[] => list.map(t => t.id === rewardId ? { ...t, isCompleted: true, canClaim: false } : t);
+
         set(s => {
-          const newCompleted = [...s.completedTasks, rewardId];
-
-          const updates: Partial<AuthStore> = {
-            completedTasks: newCompleted,
-          };
-
-          const markList = (tasks: PointReward[]): PointReward[] => tasks.map(t =>
-            t.id === rewardId ? { ...t, isCompleted: true, canClaim: false } : t
-          );
-
-          if (listKey === 'dailyRewards') updates.dailyRewards = markList(s.dailyRewards);
-          if (listKey === 'achievementRewards') updates.achievementRewards = markList(s.achievementRewards);
-          if (listKey === 'socialRewards') updates.socialRewards = markList(s.socialRewards);
-          if (listKey === 'creationRewards') updates.creationRewards = markList(s.creationRewards);
-          if (listKey === 'exploreRewards') updates.exploreRewards = markList(s.exploreRewards);
-          if (listKey === 'specialRewards') updates.specialRewards = markList(s.specialRewards);
-          if (listKey === 'memberRewards') updates.memberRewards = markList(s.memberRewards);
-          if (listKey === 'levelRewards') updates.levelRewards = markList(s.levelRewards);
-
           if (s.user) {
-            try {
-              const storedUsers: any[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-              const updatedUsers = storedUsers.map(u =>
-                u.id === s.user!.id ? { ...u, completedTasks: newCompleted } : u
-              );
-              localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
-            } catch {}
+            const users = readUsers();
+            const updatedUsers = users.map(u => u.id === s.user!.id ? ({ ...u, completedTasks: newCompleted }) : u);
+            writeUsers(updatedUsers);
           }
-
-          return updates;
+          return {
+            completedTasks: newCompleted,
+            dailyRewards: markFn(s.dailyRewards),
+            achievementRewards: markFn(s.achievementRewards),
+            socialRewards: markFn(s.socialRewards),
+            creationRewards: markFn(s.creationRewards),
+            exploreRewards: markFn(s.exploreRewards),
+            specialRewards: markFn(s.specialRewards),
+            memberRewards: markFn(s.memberRewards),
+            levelRewards: markFn(s.levelRewards),
+            user: s.user ? { ...s.user, completedTasks: newCompleted } : null,
+          };
         });
-
         return true;
       },
 
@@ -603,14 +604,13 @@ export const useAuthStore = create<AuthStore>()(
         const state = get();
         const item = state.exchangeItems.find(i => i.id === itemId);
         if (!item || state.points < item.price || item.stock <= 0) return false;
-
-        const success = get().spendPoints(item.price, `兑换: ${item.name}`);
-        if (success) {
+        const ok = get().spendPoints(item.price, `兑换: ${item.name}`);
+        if (ok) {
           set(s => ({
             exchangeItems: s.exchangeItems.map(i => i.id === itemId ? { ...i, stock: i.stock - 1 } : i),
           }));
         }
-        return success;
+        return ok;
       },
 
       markTaskComplete: (taskId: string) => {
@@ -619,17 +619,27 @@ export const useAuthStore = create<AuthStore>()(
 
       updateTaskProgress: (taskId: string, progress: number) => {
         set(state => {
-          const updateFn = (tasks: PointReward[]) => tasks.map(t => {
-            if (t.id !== taskId) return t;
-            if (t.target === undefined) return t;
+          const updateFn = (tasks: PointReward[]): PointReward[] => tasks.map(t => {
+            if (t.id !== taskId || t.target === undefined) return t;
             const newProgress = Math.min((t.progress || 0) + progress, t.target);
-            const justReached = newProgress >= t.target;
-            return {
-              ...t,
-              progress: newProgress,
-              canClaim: justReached && !t.isCompleted ? true : t.canClaim,
-            };
+            const reached = newProgress >= t.target;
+            const alreadyDone = state.completedTasks.includes(t.id);
+            return { ...t, progress: newProgress, canClaim: reached && !alreadyDone };
           });
+
+          // 写回用户持久化数据
+          if (state.user) {
+            // 这里不做任务级的增量持久化（太细），refreshTasks 会处理
+            // 但我们仍然把 projects/style 写入用户数据
+            const users = readUsers();
+            const updatedUsers = users.map(u => u.id === state.user!.id ? ({
+              ...u,
+              visitedPages: state.visitedPages,
+              usedStyles: state.usedStyles,
+              projectsCount: state.projectsCount,
+            }) : u);
+            writeUsers(updatedUsers);
+          }
 
           return {
             dailyRewards: updateFn(state.dailyRewards),
@@ -646,130 +656,82 @@ export const useAuthStore = create<AuthStore>()(
 
       refreshTasks: () => {
         const state = get();
-        const completed = state.completedTasks;
-        const projects = state.projectsCount;
-        const totalEarned = state.totalEarnedPoints;
-        const consecutiveDays = state.user?.consecutiveLoginDays || 1;
-        const usedStyleCount = new Set(state.usedStyles).size;
-        const visitedPages = state.visitedPages;
-        const isVIP = state.isVIP;
-        const level = calcLevel(totalEarned);
-
-        const today = getTodayKey();
-        const daily = makeDailyTasks().map(t => {
-          const isDone = completed.includes(t.id);
-          if (t.id === 'daily-login') {
-            return { ...t, progress: 1, isCompleted: isDone, canClaim: !isDone };
-          }
-          // 其它每日任务：保留之前的进度（如果今日已登录）
-          const existing = state.dailyRewards.find(d => d.id === t.id);
-          const curProgress = existing?.progress || 0;
-          return {
-            ...t,
-            progress: curProgress,
-            isCompleted: isDone,
-            canClaim: !isDone && (t.target === undefined ? true : curProgress >= t.target),
-          };
-        });
-
-        set({
-          level,
-          dailyRewards: daily,
-          achievementRewards: applyCompletion(makeAchievementTasks({ projects, consecutiveDays, totalEarned }), completed),
-          socialRewards: applyCompletion(makeSocialTasks(), completed),
-          creationRewards: applyCompletion(makeCreationTasks({ projects, maxFrames: 0, usedStyleCount, hasVoice: false, hasDialogue: false, hasNarration: false, exported: 0 }), completed),
-          exploreRewards: applyCompletion(makeExploreTasks({ usedStyleCount, visitedPages }), completed),
-          specialRewards: applyCompletion(makeSpecialTasks(), completed),
-          memberRewards: applyCompletion(makeMemberTasks(isVIP), completed),
-          levelRewards: applyCompletion(makeLevelTasks(level, totalEarned), completed),
-        });
+        const fresh = initTasksFromUser(state.user);
+        set(fresh);
       },
 
       recordPageVisit: (page: string) => {
         set(state => {
-          const already = state.visitedPages.includes(page);
-          const newVisited = already ? state.visitedPages : [...state.visitedPages, page];
+          if (state.visitedPages.includes(page)) return {};
+          const newVisited = [...state.visitedPages, page];
 
           if (state.user) {
-            try {
-              const storedUsers: any[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-              const updatedUsers = storedUsers.map(u =>
-                u.id === state.user!.id ? { ...u, visitedPages: newVisited } : u
-              );
-              localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
-            } catch {}
+            const users = readUsers();
+            writeUsers(users.map(u => u.id === state.user!.id ? ({ ...u, visitedPages: newVisited }) : u));
           }
 
-          // 同时刷新探索任务进度
-          return {
-            visitedPages: newVisited,
-            exploreRewards: state.exploreRewards.map(t => {
-              if (t.target === undefined) return t;
-              // 根据页面更新特定任务进度
-              let newProgress = t.progress || 0;
-              if (t.id === 'explore-tutorial' && page === 'tutorial') newProgress = 1;
-              if (t.id === 'explore-settings' && page === 'settings') newProgress = 1;
-              if (t.id === 'explore-points' && page === 'points') newProgress = 1;
-              if (t.id === 'explore-history' && page === 'profile') newProgress = 1;
-              if (t.id === 'explore-all') newProgress = Math.min(newVisited.length, 5);
-              newProgress = Math.min(newProgress, t.target);
+          const explore = state.exploreRewards.map(t => {
+            if (t.target === undefined) return t;
+            let progress = t.progress || 0;
+            if (t.id === 'explore-tutorial' && page === 'tutorial') progress = 1;
+            if (t.id === 'explore-settings' && page === 'settings') progress = 1;
+            if (t.id === 'explore-points' && page === 'points') progress = 1;
+            if (t.id === 'explore-history' && page === 'profile') progress = 1;
+            if (t.id === 'explore-all') progress = Math.min(newVisited.length, 5);
+            progress = Math.min(progress, t.target);
+            const reached = progress >= t.target;
+            const done = state.completedTasks.includes(t.id);
+            return { ...t, progress, canClaim: reached && !done };
+          });
 
-              const reached = newProgress >= t.target;
-              const isDone = state.completedTasks.includes(t.id);
-              return { ...t, progress: newProgress, canClaim: reached && !isDone };
-            }),
-          };
+          return { visitedPages: newVisited, exploreRewards: explore, user: state.user ? { ...state.user, visitedPages: newVisited } : null };
         });
       },
 
       recordStyleUse: (style: string) => {
         set(state => {
-          const already = state.usedStyles.includes(style);
-          const newUsed = already ? state.usedStyles : [...state.usedStyles, style];
+          if (!style) return {};
+          if (state.usedStyles.includes(style)) return {};
+          const newStyles = [...state.usedStyles, style];
+          const styleCount = new Set(newStyles).size;
 
           if (state.user) {
-            try {
-              const storedUsers: any[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-              const updatedUsers = storedUsers.map(u =>
-                u.id === state.user!.id ? { ...u, usedStyles: newUsed } : u
-              );
-              localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
-            } catch {}
+            const users = readUsers();
+            writeUsers(users.map(u => u.id === state.user!.id ? ({ ...u, usedStyles: newStyles }) : u));
           }
 
-          const styleCount = new Set(newUsed).size;
+          // 更新相关任务进度
+          const daily = state.dailyRewards.map(t => {
+            if (t.id === 'daily-style' && t.target !== undefined && !state.completedTasks.includes(t.id)) {
+              const p = Math.min((t.progress || 0) + 1, t.target);
+              return { ...t, progress: p, canClaim: p >= t.target };
+            }
+            return t;
+          });
+          const explore = state.exploreRewards.map(t => {
+            if (t.id === 'explore-style' && t.target !== undefined && !state.completedTasks.includes(t.id)) {
+              const p = Math.min(styleCount, t.target);
+              return { ...t, progress: p, canClaim: p >= t.target };
+            }
+            return t;
+          });
+          const creation = state.creationRewards.map(t => {
+            if (t.id === 'creation-all-style' && t.target !== undefined && !state.completedTasks.includes(t.id)) {
+              const p = Math.min(styleCount, t.target);
+              return { ...t, progress: p, canClaim: p >= t.target };
+            }
+            if (t.id === 'creation-style-anime' && !state.completedTasks.includes(t.id)) {
+              return { ...t, progress: 1, canClaim: true };
+            }
+            return t;
+          });
 
-          // 刷新相关任务
           return {
-            usedStyles: newUsed,
-            dailyRewards: state.dailyRewards.map(t => {
-              if (t.id === 'daily-style' && t.target !== undefined) {
-                const newProgress = Math.min((t.progress || 0) + 1, t.target);
-                const isDone = state.completedTasks.includes(t.id);
-                return { ...t, progress: newProgress, canClaim: newProgress >= t.target && !isDone };
-              }
-              return t;
-            }),
-            exploreRewards: state.exploreRewards.map(t => {
-              if (t.id === 'explore-style' && t.target !== undefined) {
-                const newProgress = Math.min(styleCount, t.target);
-                const isDone = state.completedTasks.includes(t.id);
-                return { ...t, progress: newProgress, canClaim: newProgress >= t.target && !isDone };
-              }
-              return t;
-            }),
-            creationRewards: state.creationRewards.map(t => {
-              if (t.id === 'creation-all-style' && t.target !== undefined) {
-                const newProgress = Math.min(styleCount, t.target);
-                const isDone = state.completedTasks.includes(t.id);
-                return { ...t, progress: newProgress, canClaim: newProgress >= t.target && !isDone };
-              }
-              if (t.id === 'creation-style-anime' && (style === 'anime' || style === 'manga' || style === 'cyberpunk' || style === 'realistic')) {
-                const isDone = state.completedTasks.includes(t.id);
-                return { ...t, progress: 1, canClaim: !isDone };
-              }
-              return t;
-            }),
+            usedStyles: newStyles,
+            dailyRewards: daily,
+            exploreRewards: explore,
+            creationRewards: creation,
+            user: state.user ? { ...state.user, usedStyles: newStyles } : null,
           };
         });
       },
@@ -777,65 +739,126 @@ export const useAuthStore = create<AuthStore>()(
       recordProjectCreation: (frameCount: number, hasCharacters: boolean, hasDialogue: boolean, hasVoice: boolean, style: string) => {
         set(state => {
           const newCount = state.projectsCount + 1;
+
           if (state.user) {
-            try {
-              const storedUsers: any[] = JSON.parse(localStorage.getItem('ai_comic_users') || '[]');
-              const updatedUsers = storedUsers.map(u =>
-                u.id === state.user!.id ? { ...u, projectsCount: newCount } : u
-              );
-              localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
-            } catch {}
+            const users = readUsers();
+            writeUsers(users.map(u => u.id === state.user!.id ? ({ ...u, projectsCount: newCount }) : u));
           }
 
+          const styleCount = new Set([...state.usedStyles, style].filter(Boolean)).size;
           const completed = state.completedTasks;
 
-          const newDaily = state.dailyRewards.map(t => {
-            if (t.id === 'daily-create') {
-              const isDone = completed.includes(t.id);
-              return { ...t, progress: 1, canClaim: !isDone };
-            }
-            if (t.id === 'daily-voice' && hasVoice) {
-              const isDone = completed.includes(t.id);
-              return { ...t, progress: 1, canClaim: !isDone };
-            }
+          const daily = state.dailyRewards.map(t => {
+            if (t.id === 'daily-create') return { ...t, progress: 1, canClaim: !completed.includes(t.id) };
+            if (t.id === 'daily-voice' && hasVoice) return { ...t, progress: 1, canClaim: !completed.includes(t.id) };
             return t;
           });
 
-          const newCreation = makeCreationTasks({
+          const creation = makeCreationTasks({
             projects: newCount,
             maxFrames: Math.max(frameCount, 0),
-            usedStyleCount: new Set([...state.usedStyles, style]).size,
-            hasVoice: hasVoice,
-            hasDialogue: hasDialogue,
+            usedStyleCount: styleCount,
+            hasVoice,
+            hasDialogue,
             hasNarration: hasDialogue,
             exported: 0,
-          }).map(t => {
-            const isDone = completed.includes(t.id);
-            const reached = t.target === undefined ? true : (t.progress ?? 0) >= t.target;
-            return { ...t, isCompleted: isDone, canClaim: reached && !isDone };
-          });
+          }).map(t => completed.includes(t.id) ? { ...t, isCompleted: true, canClaim: false } : t);
 
-          const newAchievement = makeAchievementTasks({
+          const achievement = makeAchievementTasks({
             projects: newCount,
             consecutiveDays: state.user?.consecutiveLoginDays || 1,
             totalEarned: state.totalEarnedPoints,
-          }).map(t => {
-            const isDone = completed.includes(t.id);
-            const reached = t.target === undefined ? true : (t.progress ?? 0) >= t.target;
-            return { ...t, isCompleted: isDone, canClaim: reached && !isDone };
-          });
+          }).map(t => completed.includes(t.id) ? { ...t, isCompleted: true, canClaim: false } : t);
 
           return {
             projectsCount: newCount,
-            dailyRewards: newDaily,
-            creationRewards: newCreation,
-            achievementRewards: newAchievement,
+            dailyRewards: daily,
+            creationRewards: creation,
+            achievementRewards: achievement,
+            user: state.user ? { ...state.user, projectsCount: newCount } : null,
           };
         });
       },
+
+      exportUserData: () => {
+        const state = get();
+        if (!state.user) return '';
+        const users = readUsers();
+        const me = users.find(u => u.id === state.user!.id);
+        if (!me) return '';
+        return JSON.stringify({
+          version: '1.8.1',
+          exportedAt: new Date().toISOString(),
+          user: me,
+          extra: {
+            points: state.points,
+            totalEarnedPoints: state.totalEarnedPoints,
+            level: state.level,
+            projectsCount: state.projectsCount,
+            isVIP: state.isVIP,
+            transactions: state.transactions,
+            completedTasks: state.completedTasks,
+            visitedPages: state.visitedPages,
+            usedStyles: state.usedStyles,
+          },
+        });
+      },
+
+      importUserData: (json: string) => {
+        try {
+          const data = JSON.parse(json);
+          if (!data || !data.user) return false;
+
+          const users = readUsers();
+          // 查找同名账号并覆盖，否则追加
+          const sameUsername = users.find(u => u.username?.trim().toLowerCase() === (data.user.username || '').toLowerCase());
+          const updatedUser: StoredUser = {
+            ...data.user,
+            points: data.extra?.points ?? data.user.points ?? 50,
+            totalEarnedPoints: data.extra?.totalEarnedPoints ?? data.user.totalEarnedPoints ?? 50,
+            level: data.extra?.level ?? calcLevel(data.user.totalEarnedPoints ?? 50),
+            projectsCount: data.extra?.projectsCount ?? data.user.projectsCount ?? 0,
+            isVIP: !!data.extra?.isVIP || !!data.user.isVIP,
+            completedTasks: data.extra?.completedTasks ?? data.user.completedTasks ?? [],
+            visitedPages: data.extra?.visitedPages ?? data.user.visitedPages ?? [],
+            usedStyles: data.extra?.usedStyles ?? data.user.usedStyles ?? [],
+          };
+
+          let newUsers: StoredUser[];
+          if (sameUsername) {
+            newUsers = users.map(u => u.id === sameUsername.id ? { ...u, ...updatedUser } : u);
+          } else {
+            newUsers = [...users, updatedUser];
+          }
+          writeUsers(newUsers);
+
+          // 立即在当前会话生效
+          const { password, ...safeUser } = updatedUser;
+          const tasks = initTasksFromUser(safeUser);
+
+          set({
+            user: safeUser,
+            isAuthenticated: true,
+            points: updatedUser.points,
+            totalEarnedPoints: updatedUser.totalEarnedPoints,
+            level: updatedUser.level,
+            projectsCount: updatedUser.projectsCount,
+            isVIP: updatedUser.isVIP,
+            completedTasks: updatedUser.completedTasks,
+            visitedPages: updatedUser.visitedPages,
+            usedStyles: updatedUser.usedStyles,
+            transactions: data.extra?.transactions ?? [],
+            ...tasks,
+          });
+
+          return true;
+        } catch {
+          return false;
+        }
+      },
     }),
     {
-      name: 'ai_comic_auth',
+      name: 'ai_comic_auth_v2',
       version: 2,
       partialize: (state) => ({
         user: state.user,
@@ -849,15 +872,6 @@ export const useAuthStore = create<AuthStore>()(
         completedTasks: state.completedTasks,
         visitedPages: state.visitedPages,
         usedStyles: state.usedStyles,
-        dailyLoginDate: state.dailyLoginDate,
-        dailyRewards: state.dailyRewards,
-        achievementRewards: state.achievementRewards,
-        socialRewards: state.socialRewards,
-        creationRewards: state.creationRewards,
-        exploreRewards: state.exploreRewards,
-        specialRewards: state.specialRewards,
-        memberRewards: state.memberRewards,
-        levelRewards: state.levelRewards,
       }),
     }
   )

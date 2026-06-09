@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, 
@@ -21,7 +21,8 @@ import {
   Download,
   Upload,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
@@ -71,11 +72,18 @@ const MenuItem = ({
 
 export function Profile() {
   const navigate = useNavigate();
-  const { user, points, logout, clearAllData, transactions } = useAuthStore();
+  const { user, points, level, totalEarnedPoints, projectsCount, consecutiveLoginDays, logout, clearAllData, transactions, exportUserData, importUserData } = useAuthStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [message, setMessage] = useState<string | null>(null);
   
   const [showSettings, setShowSettings] = useState(false);
   const [showDatabaseManager, setShowDatabaseManager] = useState(false);
   const [dbStatus, setDbStatus] = useState(getDatabaseStatus());
+
+  const flashMessage = (text: string) => {
+    setMessage(text);
+    setTimeout(() => setMessage(null), 3000);
+  };
 
   const handleClearAllData = () => {
     if (window.confirm('确定要清空所有数据吗？这将删除您的所有用户数据、积分记录和项目数据！')) {
@@ -84,6 +92,33 @@ export function Profile() {
       navigate('/');
       window.location.reload();
     }
+  };
+
+  const handleExportUser = () => {
+    const json = exportUserData();
+    if (!json) return;
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ai_comic_user_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    flashMessage('用户数据已导出，请在新设备登录后导入以同步');
+  };
+
+  const handleImportUserClick = () => fileInputRef.current?.click();
+  const handleImportUserFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string;
+      const ok = importUserData(content);
+      flashMessage(ok ? '用户数据导入成功，账号信息已同步！' : '导入失败：文件格式不正确');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // 数据库管理功能
@@ -153,10 +188,13 @@ export function Profile() {
   const nextLevelPoints = getNextLevelPoints(points);
   const progressPercent = nextLevelPoints === Infinity ? 100 : (points / nextLevelPoints) * 100;
 
+  const earnCount = Array.isArray(transactions) ? transactions.filter((t: any) => t.type === 'earn').length : 0;
+  const daysSinceCreated = user?.createdAt ? Math.max(1, Math.ceil((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : 1;
+
   const stats = [
-    { icon: Trophy, label: '已完成任务', value: transactions.filter(t => t.type === 'earn').length, color: 'from-cyber-yellow to-cyber-pink' },
-    { icon: Calendar, label: '注册天数', value: user?.createdAt ? Math.ceil((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 1, color: 'from-cyber-blue to-cyber-purple' },
-    { icon: Heart, label: '累计积分', value: points + (user?.totalPointsEarned || 0), color: 'from-pink-400 to-red-500' },
+    { icon: Trophy, label: '已完成任务', value: earnCount, color: 'from-cyber-yellow to-cyber-pink' },
+    { icon: Calendar, label: '注册天数', value: daysSinceCreated, color: 'from-cyber-blue to-cyber-purple' },
+    { icon: Heart, label: '累计积分', value: totalEarnedPoints ?? points ?? 0, color: 'from-pink-400 to-red-500' },
   ];
 
   return (
@@ -221,6 +259,31 @@ export function Profile() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {message && (
+          <div className="mb-4 bg-green-500/20 border border-green-500/30 rounded-2xl p-3">
+            <p className="text-green-400 text-sm text-center">{message}</p>
+          </div>
+        )}
+
+        <div className="bg-cyber-dark2/60 border border-cyber-purple/20 rounded-2xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-cyber-blue" />
+            <p className="text-sm font-medium text-gray-200">跨设备同步账号</p>
+          </div>
+          <p className="text-xs text-gray-500 leading-relaxed mb-3">
+            每台设备独立保存账号和积分。导出 JSON → 在另一设备登录同账号 → 导入 JSON，即可同步积分、等级和任务进度。
+          </p>
+          <div className="flex gap-2">
+            <button onClick={handleExportUser} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-cyber-blue/15 hover:bg-cyber-blue/25 border border-cyber-blue/40 text-cyber-blue text-xs font-medium rounded-xl transition-colors">
+              <Download className="w-3.5 h-3.5" /> 导出用户数据
+            </button>
+            <button onClick={handleImportUserClick} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-cyber-pink/15 hover:bg-cyber-pink/25 border border-cyber-pink/40 text-cyber-pink text-xs font-medium rounded-xl transition-colors">
+              <Upload className="w-3.5 h-3.5" /> 导入用户数据
+            </button>
+            <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportUserFile} className="hidden" />
           </div>
         </div>
 
