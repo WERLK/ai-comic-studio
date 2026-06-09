@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, Save, RefreshCw, Check, Lock, Unlock,
-  Sparkles, MessageSquare, Image, Video, Settings2, Info, Globe, Zap, Star, Crown
+  Sparkles, MessageSquare, Image, Video, Settings2, Info, Globe, Zap, Star, Crown, ExternalLink
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/common';
@@ -110,12 +110,18 @@ export function ApiConfig() {
                     platform.recommended ? 'border-cyber-pink/30' : 'border-cyber-purple/20'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <h4 className={`font-medium ${platform.recommended ? 'text-cyber-pink' : 'text-white'}`}>
-                          {platform.recommended && <Crown className="w-4 h-4 text-cyber-yellow inline mr-1" />}
-                          {platform.name}
-                        </h4>
-                      </div>
+                      <a
+                        href={platform.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`font-medium hover:underline flex items-center gap-1 ${
+                          platform.recommended ? 'text-cyber-pink hover:text-pink-300' : 'text-white hover:text-gray-200'
+                        }`}
+                      >
+                        {platform.recommended && <Crown className="w-4 h-4 text-cyber-yellow inline mr-1" />}
+                        {platform.name}
+                        <ExternalLink className="w-3 h-3 inline ml-1 opacity-50" />
+                      </a>
                       <a
                         href={platform.website}
                         target="_blank"
@@ -610,6 +616,17 @@ function PlatformCard({
                 />
               </div>
             )}
+            <div className="pt-2">
+              <a
+                href={website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2 px-4 bg-cyber-blue/20 hover:bg-cyber-blue/30 border border-cyber-blue/30 rounded-lg text-cyber-blue text-xs font-medium transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                立即前往官网获取API Key
+              </a>
+            </div>
             <div className="flex items-center justify-between text-[10px]">
               <span className="text-gray-500">官网：</span>
               <a href={website} target="_blank" rel="noopener noreferrer" className="text-cyber-blue hover:underline">
