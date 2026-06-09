@@ -65,10 +65,6 @@ export function Profile() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  // 功能尚未开放时显示提示
-  const handleComingSoon = (name: string) => {
-    flashMessage(`"${name}"功能即将上线，敬请期待`);
-  };
 
   const handleExportUser = () => {
     const json = exportUserData();
@@ -239,7 +235,7 @@ export function Profile() {
             label="我的成就"
             subLabel="查看获得的徽章"
             color="from-pink-400 to-purple-500"
-            onClick={() => handleComingSoon('我的成就')}
+            onClick={() => navigate('/achievements')}
           />
 
           <MenuItem
@@ -273,7 +269,7 @@ export function Profile() {
             label="隐私安全"
             subLabel="账号保护"
             color="from-green-400 to-emerald-500"
-            onClick={() => handleComingSoon('隐私安全')}
+            onClick={() => navigate('/privacy-security')}
           />
 
           <MenuItem
@@ -281,7 +277,7 @@ export function Profile() {
             label="帮助与反馈"
             subLabel="常见问题"
             color="from-orange-400 to-red-500"
-            onClick={() => handleComingSoon('帮助与反馈')}
+            onClick={() => navigate('/help-feedback')}
           />
 
           <div className="h-px bg-cyber-purple/20 my-4" />

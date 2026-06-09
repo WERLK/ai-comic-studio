@@ -1,5 +1,5 @@
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Studio, Generator, Preview, Login, PointsCenter, Profile } from '@/pages';
+import { Studio, Generator, Preview, Login, PointsCenter, Profile, Achievements, Settings, Notifications, PrivacySecurity, HelpFeedback } from '@/pages';
 import { useAuthStore } from '@/stores';
 import { Sparkles, Coins, LogOut, User, Menu, X } from 'lucide-react';
 import { useState } from 'react';
@@ -26,7 +26,7 @@ function AppContent() {
     <div className="min-h-screen bg-cyber-dark cyber-grid pb-24">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-cyber-dark2/90 backdrop-blur-xl border-b border-cyber-purple/20 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div 
+          <div
             className="flex items-center gap-3 cursor-pointer"
             onClick={() => navigate('/')}
           >
@@ -145,6 +145,11 @@ function AppContent() {
           <Route path="/login" element={<Login />} />
           <Route path="/points" element={<PointsCenter />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/achievements" element={<Achievements />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/privacy-security" element={<PrivacySecurity />} />
+          <Route path="/help-feedback" element={<HelpFeedback />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

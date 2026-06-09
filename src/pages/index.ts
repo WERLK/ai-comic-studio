@@ -4,3 +4,8 @@ export { Preview } from './Preview';
 export { Login } from './Login';
 export { PointsCenter } from './PointsCenter';
 export { Profile } from './Profile';
+export { Achievements } from './Achievements';
+export { Settings } from './Settings';
+export { Notifications } from './Notifications';
+export { PrivacySecurity } from './PrivacySecurity';
+export { HelpFeedback } from './HelpFeedback';
