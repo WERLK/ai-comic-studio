@@ -46,7 +46,7 @@ export function Login() {
     if (success) {
       navigate('/');
     } else {
-      setError(showRegister ? '用户名或邮箱已存在' : '用户名或密码错误');
+      setError(showRegister ? '注册失败，请重试' : '用户名或密码错误');
     }
   };
 

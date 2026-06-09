@@ -274,37 +274,31 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           await new Promise(resolve => setTimeout(resolve, 800));
-          
+
           // 从 localStorage 获取用户列表
           let storedUsers: (User & { password: string })[] = [];
           try {
             const usersData = localStorage.getItem('ai_comic_users');
             if (usersData && usersData.trim()) {
               storedUsers = JSON.parse(usersData);
-              // 确保是数组
               if (!Array.isArray(storedUsers)) {
                 storedUsers = [];
               }
             }
           } catch {
-            // 如果解析失败，使用空数组
             storedUsers = [];
           }
-          
+
           // 规范化用户名和邮箱
           const normalizedUsername = credentials.username.trim();
           const normalizedEmail = credentials.email.trim().toLowerCase();
-          
-          // 检查用户是否已存在（忽略大小写）
-          const userExists = storedUsers.some((u) => 
-            (u.username && u.username.trim().toLowerCase() === normalizedUsername.toLowerCase()) || 
-            (u.email && u.email.trim().toLowerCase() === normalizedEmail)
-          );
-          
-          if (userExists) {
-            set({ isLoading: false });
-            return false;
-          }
+
+          // 如果账号已存在 → 删除旧的，重新创建新账号（重置积分 50）
+          const filteredUsers = storedUsers.filter((u) => {
+            const usernameMatch = u.username && u.username.trim().toLowerCase() === normalizedUsername.toLowerCase();
+            const emailMatch = u.email && u.email.trim().toLowerCase() === normalizedEmail;
+            return !usernameMatch && !emailMatch;
+          });
 
           const newUser: User & { password: string } = {
             id: Date.now().toString(),
@@ -318,16 +312,29 @@ export const useAuthStore = create<AuthStore>()(
             password: credentials.password,
           };
 
-          const updatedUsers = [...storedUsers, newUser];
+          const updatedUsers = [...filteredUsers, newUser];
           localStorage.setItem('ai_comic_users', JSON.stringify(updatedUsers));
+
+          // 同时清除当前登录状态（如果之前登录过）
+          localStorage.removeItem('ai_comic_auth');
 
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { password: _password, ...userWithoutPassword } = newUser;
-          set({ 
-            user: userWithoutPassword, 
-            isAuthenticated: true, 
+          set({
+            user: userWithoutPassword,
+            isAuthenticated: true,
             points: 50,
-            isLoading: false 
+            isLoading: false,
+            dailyRewards: undefined as any,
+            achievementRewards: undefined as any,
+            socialRewards: undefined as any,
+            creationRewards: undefined as any,
+            exploreRewards: undefined as any,
+            specialRewards: undefined as any,
+            memberRewards: undefined as any,
+            levelRewards: undefined as any,
+            exchangeItems: undefined as any,
+            transactions: [],
           });
 
           return true;
