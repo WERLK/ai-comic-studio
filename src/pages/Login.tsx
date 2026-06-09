@@ -27,15 +27,8 @@ export function Login() {
     e.preventDefault();
     setError('');
 
-    if (showRegister) {
-      if (!email) {
-        setError('请填写邮箱');
-        return;
-      }
-    }
-
     if (!username || !password) {
-      setError('请填写所有必填项');
+      setError('请填写用户名和密码');
       return;
     }
 
@@ -101,17 +94,17 @@ export function Login() {
 
             {showRegister && (
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  邮箱
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  邮箱 <span className="text-gray-500 text-xs">(选填)</span>
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="请输入邮箱"
-                    className="w-full pl-10 pr-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors"
+                    placeholder="选填，用于找回密码"
+                    className="w-full pl-10 pr-4 py-3 bg-cyber-dark/50 border border-cyber-purple/20 rounded-xl text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-cyber-pink/50 transition-colors"
                   />
                 </div>
               </div>
