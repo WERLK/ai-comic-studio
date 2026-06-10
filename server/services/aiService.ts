@@ -88,6 +88,38 @@ export const setAPIKeys = (keys: APIKeys) => {
   fs.writeFileSync(KEYS_FILE, JSON.stringify(keys, null, 2), 'utf-8');
 };
 
+// ===== 百度千帆 Access Token 缓存 =====
+let qianfanTokenCache: { token: string; expireAt: number } | null = null;
+
+async function getQianfanAccessToken(apiKey: string, secretKey: string): Promise<string | null> {
+  // 检查缓存
+  if (qianfanTokenCache && qianfanTokenCache.expireAt > Date.now()) {
+    return qianfanTokenCache.token;
+  }
+
+  try {
+    const response = await fetch(
+      `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${apiKey}&client_secret=${secretKey}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.access_token) {
+        // 提前5分钟过期
+        qianfanTokenCache = {
+          token: data.access_token,
+          expireAt: Date.now() + (data.expires_in - 300) * 1000,
+        };
+        return data.access_token;
+      }
+    }
+  } catch (e) {
+    console.warn('获取百度千帆access_token失败:', e);
+  }
+  return null;
+}
+
 // ===== 真实 AI API 调用 =====
 
 /**
@@ -212,6 +244,43 @@ ${script}
       }
     } catch (e) {
       console.warn('DashScope API error:', e);
+    }
+  }
+
+  // 尝试百度千帆
+  if (keys.qianfan && keys.qianfanSecret) {
+    try {
+      const accessToken = await getQianfanAccessToken(keys.qianfan, keys.qianfanSecret);
+      if (accessToken) {
+        const response = await fetch(
+          `https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions_pro?access_token=${accessToken}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [{
+                role: 'user',
+                content: `你是一个专业的漫剧编剧和分镜师。请分析以下剧本并输出结构化结果：\n\n剧本：\n${script}\n\n请输出 JSON 格式，包含：\n1. title: 提取或生成一个合适的漫剧标题（不超过20字）\n2. characters: 角色列表，每个角色包含 name、description、role（主角/配角/旁白）\n3. frames: 分镜列表，每个分镜包含 id（frame-序号）、description、dialogue、shotType（全景/中景/近景/特写）、duration\n4. style: 推荐画风（anime/manga/cyberpunk/realistic/watercolor/chinese）\n\n只输出JSON，不要其他文字。`
+              }],
+            }),
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const content = data.result || '{}';
+          try {
+            return { success: true, ...JSON.parse(content), source: 'qianfan' };
+          } catch {
+            const jsonMatch = content.match(/```json\n?([\s\S]*?)\n?```/);
+            if (jsonMatch) {
+              return { success: true, ...JSON.parse(jsonMatch[1]), source: 'qianfan' };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Qianfan API error:', e);
     }
   }
 

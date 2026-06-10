@@ -2,9 +2,20 @@ import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.11.1';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.11.1',
+    date: '2026-06-10',
+    features: [
+      '对接百度千帆AI服务平台',
+      '后端支持百度千帆OAuth 2.0鉴权（access_token自动获取和缓存）',
+      '剧本分析支持ERNIE-4.0/ERNIE-3.5模型',
+      '前端API配置已支持百度千帆（API Key + Secret Key）',
+      '百度千帆调用优先级：硅基流动→智谱→阿里云→百度千帆'
+    ]
+  },
   {
     version: '1.11.0',
     date: '2026-06-10',
