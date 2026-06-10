@@ -594,14 +594,19 @@ export const useAuthStore = create<AuthStore>()(
       // ===== 积分变更时同步到后端 =====
       addPoints: (amount: number, description: string) => {
         set(state => {
-          const newPoints = state.points + amount;
-          const newTotal = state.totalEarnedPoints + amount;
+          // 应用VIP任务积分倍数
+          const vipConfig = VIP_LEVELS[state.vipLevel || 0];
+          const multiplier = vipConfig?.taskMultiplier || 1;
+          const finalAmount = Math.floor(amount * multiplier);
+
+          const newPoints = state.points + finalAmount;
+          const newTotal = state.totalEarnedPoints + finalAmount;
           const newLevel = calcLevel(newTotal);
           const tx: PointTransaction = {
             id: Date.now().toString(),
             type: 'earn',
-            amount,
-            description,
+            amount: finalAmount,
+            description: multiplier > 1 ? `${description} (VIP x${multiplier})` : description,
             createdAt: new Date().toISOString(),
           };
           const newTransactions = [tx, ...state.transactions].slice(0, 50);

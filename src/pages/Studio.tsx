@@ -17,6 +17,7 @@ import {
   Play, Settings2, BookOpen, ArrowRight, Plus, Edit3, Trash, Mic, Star
 } from 'lucide-react';
 import { useProjectStore, useAuthStore } from '@/stores';
+import { VIP_LEVELS } from '@/types';
 import { Button } from '@/components/common';
 import { AppVersion } from '@/components/AppVersion';
 import { analyzeScript, type AnalysisResult } from '@/services/aiService';
@@ -304,7 +305,8 @@ function FrameCard({
 export function Studio() {
   const navigate = useNavigate();
   const { projects, createProject, deleteProject, setCurrentProject } = useProjectStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, vipLevel } = useAuthStore();
+  const maxFrames = VIP_LEVELS[vipLevel || 0]?.maxFrames || 5;
 
   // 工作流步骤
   const steps = [
@@ -793,17 +795,27 @@ export function Studio() {
                     }}
                     className="px-3 py-1.5 bg-cyber-dark2 border border-cyber-purple/30 rounded-lg text-white text-sm"
                   >
-                    {[4, 6, 8, 10, 12].map(n => (
+                    {[4, 6, 8, 10, 12, 15, 20, 30, 50, 100].filter(n => n <= maxFrames).map(n => (
                       <option key={n} value={n}>{n} 格分镜</option>
                     ))}
                   </select>
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => setFrames([...frames, { description: '', dialogue: '', shotType: '中景' }])}
+                    disabled={frames.length >= maxFrames}
+                    onClick={() => {
+                      if (frames.length < maxFrames) {
+                        setFrames([...frames, { description: '', dialogue: '', shotType: '中景' }]);
+                      }
+                    }}
                   >
                     <Plus className="w-4 h-4 mr-1" /> 添加分镜
                   </Button>
+                  {frames.length >= maxFrames && (
+                    <span className="text-xs text-amber-400">
+                      已达上限 ({maxFrames}格)
+                    </span>
+                  )}
                 </div>
               </div>
 

@@ -69,6 +69,7 @@ export function PointsCenter() {
     totalEarnedPoints,
     projectsCount,
     isVIP,
+    vipLevel,
     transactions,
     dailyRewards,
     achievementRewards,
@@ -83,6 +84,7 @@ export function PointsCenter() {
     exchangeItem,
     recordPageVisit,
     refreshTasks,
+    getCurrentVIPLevel,
   } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'tasks' | 'shop' | 'history'>('tasks');
@@ -213,6 +215,11 @@ export function PointsCenter() {
               <p className="font-display text-4xl font-bold text-yellow-300 tracking-wide">{points}</p>
               <p className="text-xs text-gray-500 mt-2">
                 连续登录 <span className="text-cyan-300 font-medium">{user?.consecutiveLoginDays || 1}</span> 天
+                {vipLevel > 0 && (
+                  <span className="ml-2 text-amber-400">
+                    VIP积分倍数 x{getCurrentVIPLevel().taskMultiplier}
+                  </span>
+                )}
               </p>
             </div>
             <button

@@ -2,9 +2,21 @@ import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.10.1';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.10.1',
+    date: '2026-06-10',
+    features: [
+      '会员权限真正生效',
+      'Studio分镜数根据会员等级限制（5-100格）',
+      'Preview导出分辨率根据会员等级锁定（720p-4K）',
+      '积分任务自动应用VIP倍数（x1.2-x3）',
+      '积分中心显示当前VIP倍数',
+      '非会员看到升级提示和锁定标识'
+    ]
+  },
   {
     version: '1.10.0',
     date: '2026-06-10',

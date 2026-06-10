@@ -9,10 +9,11 @@ import {
   Loader2,
   Check
 } from 'lucide-react';
-import { useProjectStore } from '@/stores';
+import { useProjectStore, useAuthStore } from '@/stores';
 import { Button } from '@/components/common';
 import { AppVersion } from '@/components/AppVersion';
 import type { ExportFormat, ExportResolution } from '@/types';
+import { VIP_LEVELS } from '@/types';
 
 const formatOptions = [
   { value: 'png', label: 'PNG 静态图片', icon: Image },
@@ -28,13 +29,19 @@ const resolutionOptions = [
   { value: '4k', label: '4K' },
 ];
 
+const RESOLUTION_ORDER: ExportResolution[] = ['720p', '1080p', '2k', '4k'];
+
 export function Preview() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { getProject } = useProjectStore();
+  const { vipLevel } = useAuthStore();
+  const currentVIP = VIP_LEVELS[vipLevel || 0];
+  const maxResolution = currentVIP?.maxResolution || '720p';
+  const maxResolutionIndex = RESOLUTION_ORDER.indexOf(maxResolution as ExportResolution);
   
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('png');
-  const [selectedResolution, setSelectedResolution] = useState<ExportResolution>('1080p');
+  const [selectedResolution, setSelectedResolution] = useState<ExportResolution>('720p');
   const [isExporting, setIsExporting] = useState(false);
   const [exportComplete, setExportComplete] = useState(false);
 
@@ -123,21 +130,33 @@ export function Preview() {
 
           {/* Resolution Selection */}
           <div className="mb-8">
-            <label className="text-sm font-medium text-cyber-blue mb-4 block">分辨率</label>
+            <label className="text-sm font-medium text-cyber-blue mb-4 block">
+              分辨率
+              <span className="ml-2 text-xs text-amber-400">
+                (当前会员最高支持 {maxResolution})
+              </span>
+            </label>
             <div className="flex flex-wrap gap-3">
-              {resolutionOptions.map(({ value, label }) => (
-                <button
-                  key={value}
-                  onClick={() => setSelectedResolution(value as ExportResolution)}
-                  className={`px-6 py-3 rounded-xl border-2 transition-all ${
-                    selectedResolution === value
-                      ? 'border-cyber-pink bg-cyber-pink/10 text-white'
-                      : 'border-cyber-purple/20 hover:border-cyber-pink/50 text-gray-400'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+              {resolutionOptions.map(({ value, label }) => {
+                const isLocked = RESOLUTION_ORDER.indexOf(value as ExportResolution) > maxResolutionIndex;
+                return (
+                  <button
+                    key={value}
+                    disabled={isLocked}
+                    onClick={() => !isLocked && setSelectedResolution(value as ExportResolution)}
+                    className={`px-6 py-3 rounded-xl border-2 transition-all ${
+                      selectedResolution === value
+                        ? 'border-cyber-pink bg-cyber-pink/10 text-white'
+                        : isLocked
+                        ? 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
+                        : 'border-cyber-purple/20 hover:border-cyber-pink/50 text-gray-400'
+                    }`}
+                  >
+                    {label}
+                    {isLocked && <span className="ml-1 text-[10px]">🔒</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
