@@ -2,9 +2,23 @@ import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.10.1';
+const APP_VERSION = '1.11.0';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.11.0',
+    date: '2026-06-10',
+    features: [
+      'AI智能创作服务后端化',
+      'server/services/aiService.ts 真实AI API调用',
+      '支持硅基流动/智谱/阿里云百炼等真实大模型',
+      '剧本分析调用DeepSeek/GLM/Qwen真实模型',
+      '图像生成调用FLUX/通义万相真实文生图',
+      '语音合成调用CosyVoice真实TTS',
+      '创作任务队列管理（pending/processing/completed/failed）',
+      '前端优先调用后端API，失败自动回退本地'
+    ]
+  },
   {
     version: '1.10.1',
     date: '2026-06-10',

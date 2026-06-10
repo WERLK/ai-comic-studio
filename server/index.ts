@@ -4,6 +4,16 @@ import fs from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
+import {
+  analyzeScript,
+  generateImage,
+  synthesizeSpeech,
+  createTask,
+  getTask,
+  processTask,
+  getAPIKeys,
+  setAPIKeys,
+} from './services/aiService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -287,6 +297,92 @@ app.patch('/api/users/:id', (req: Request, res: Response) => {
   res.json({ user: stripPassword(merged) });
 });
 
+// ===== AI 创作 API =====
+
+// 保存用户 API Keys
+app.post('/api/ai/keys', (req: Request, res: Response) => {
+  const keys = req.body || {};
+  setAPIKeys(keys);
+  res.json({ success: true });
+});
+
+// 获取用户 API Keys（只返回是否配置，不返回真实key）
+app.get('/api/ai/keys-status', (_req: Request, res: Response) => {
+  const keys = getAPIKeys();
+  res.json({
+    siliconflow: !!keys.siliconflow,
+    zhipu: !!keys.zhipu,
+    dashscope: !!keys.dashscope,
+    volcengine: !!keys.volcengine,
+    qianfan: !!keys.qianfan,
+    lingya: !!keys.lingya,
+  });
+});
+
+// 分析剧本
+app.post('/api/ai/analyze', async (req: Request, res: Response) => {
+  const { script, userKeys } = req.body || {};
+  if (!script || typeof script !== 'string') {
+    res.status(400).json({ error: '剧本内容不能为空' });
+    return;
+  }
+
+  // 创建任务
+  const task = createTask('analyze', { script });
+
+  // 异步处理
+  processTask(task.id, userKeys).then((result) => {
+    console.log(`[AI] 剧本分析任务 ${task.id} 完成`);
+  }).catch(err => {
+    console.error(`[AI] 剧本分析任务 ${task.id} 失败:`, err);
+  });
+
+  res.json({ taskId: task.id, status: 'processing' });
+});
+
+// 查询任务状态
+app.get('/api/ai/task/:taskId', (req: Request, res: Response) => {
+  const task = getTask(req.params.taskId);
+  if (!task) {
+    res.status(404).json({ error: '任务不存在' });
+    return;
+  }
+  res.json(task);
+});
+
+// 生成图像
+app.post('/api/ai/image', async (req: Request, res: Response) => {
+  const { prompt, style, userKeys } = req.body || {};
+  if (!prompt) {
+    res.status(400).json({ error: '提示词不能为空' });
+    return;
+  }
+
+  const result = await generateImage(prompt, style || 'anime', userKeys);
+  if (result.success) {
+    res.json(result);
+  } else {
+    res.status(500).json(result);
+  }
+});
+
+// 生成语音
+app.post('/api/ai/speech', async (req: Request, res: Response) => {
+  const { text, voiceId, userKeys } = req.body || {};
+  if (!text) {
+    res.status(400).json({ error: '文本不能为空' });
+    return;
+  }
+
+  const result = await synthesizeSpeech(text, voiceId || 'default', userKeys);
+  if (result.success) {
+    res.json(result);
+  } else {
+    res.status(500).json(result);
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[server] running on http://localhost:${PORT}`);
+  console.log(`[AI] 创作服务已启动，支持：剧本分析/图像生成/语音合成`);
 });

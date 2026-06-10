@@ -131,6 +131,8 @@ let config: AIServiceConfig = {};
 export function setAIConfig(newConfig: Partial<AIServiceConfig>) {
   config = { ...config, ...newConfig };
   localStorage.setItem('ai_config', JSON.stringify(config));
+  // 同步到后端
+  syncKeysToBackend().catch(() => {});
 }
 
 export function getAIConfig(): AIServiceConfig {
@@ -145,6 +147,48 @@ export function getAIConfig(): AIServiceConfig {
     }
   }
   return config;
+}
+
+// 后端 API 地址
+const API_BASE = 'http://localhost:3001';
+
+// 将前端 API Keys 同步到后端
+async function syncKeysToBackend() {
+  const cfg = getAIConfig();
+  const keys = {
+    siliconflow: cfg.siliconflowApiKey,
+    jeniya: cfg.jeniyaApiKey,
+    dashscope: cfg.dashscopeApiKey,
+    zhipu: cfg.zhipuApiKey,
+    volcengine: cfg.volcengineApiKey,
+    qianfan: cfg.qianfanApiKey,
+    qianfanSecret: cfg.qianfanSecretKey,
+    lingya: cfg.lingyaApiKey,
+  };
+  try {
+    await fetch(`${API_BASE}/api/ai/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(keys),
+    });
+  } catch {
+    // 后端可能未启动
+  }
+}
+
+// 获取用户 API Keys 用于后端调用
+function getUserKeysForBackend() {
+  const cfg = getAIConfig();
+  return {
+    siliconflow: cfg.siliconflowApiKey,
+    jeniya: cfg.jeniyaApiKey,
+    dashscope: cfg.dashscopeApiKey,
+    zhipu: cfg.zhipuApiKey,
+    volcengine: cfg.volcengineApiKey,
+    qianfan: cfg.qianfanApiKey,
+    qianfanSecret: cfg.qianfanSecretKey,
+    lingya: cfg.lingyaApiKey,
+  };
 }
 
 // 获取当前激活的聚合平台
@@ -885,25 +929,52 @@ export interface AIVideoOptions {
 }
 
 /**
- * 分析剧本 - 智能选择最佳API
+ * 分析剧本 - 优先调用后端真实AI API
  */
 export async function analyzeScript(script: string, options: AIAnalysisOptions = {}): Promise<AnalysisResult> {
-  const model = options.model || 'auto';
+  const cfg = getAIConfig();
   
-  // 优先使用聚合平台
+  // 如果有API Key，优先调用后端真实AI服务
+  if (cfg.siliconflowApiKey || cfg.zhipuApiKey || cfg.dashscopeApiKey || cfg.qianfanApiKey) {
+    try {
+      const response = await fetch(`${API_BASE}/api/ai/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script,
+          userKeys: getUserKeysForBackend(),
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // 轮询任务结果
+        const result = await pollTaskResult(data.taskId);
+        if (result && result.success) {
+          return {
+            title: result.title || '未命名漫剧',
+            characters: result.characters || [],
+            frames: result.frames || [],
+            style: result.style || 'anime',
+            summary: result.summary || '',
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('后端AI服务调用失败，回退到本地:', e);
+    }
+  }
+
+  // 回退到本地处理
+  const model = options.model || 'auto';
   const aggregator = getActiveAggregator();
   if (aggregator) {
     return analyzeWithAggregator(script, options.aggregatorModel);
   }
-  
-  // 使用特定平台
   if (model === 'siliconflow') return analyzeWithAggregator(script, 'deepseek-ai/DeepSeek-V2.5');
   if (model === 'zhipu') return analyzeScriptWithGLM(script);
   if (model === 'dashscope') return analyzeScriptWithDashScope(script);
   if (model === 'qianfan') return analyzeScriptWithWenxin(script);
-  
-  // 尝试按优先级自动选择
-  const cfg = getAIConfig();
   if (cfg.siliconflowApiKey) return analyzeWithAggregator(script);
   if (cfg.zhipuApiKey) return analyzeScriptWithGLM(script);
   if (cfg.dashscopeApiKey) return analyzeScriptWithDashScope(script);
@@ -912,21 +983,70 @@ export async function analyzeScript(script: string, options: AIAnalysisOptions =
   return fallbackAnalyzeScript(script);
 }
 
+// 轮询任务结果
+async function pollTaskResult(taskId: string, maxAttempts = 30): Promise<any> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const response = await fetch(`${API_BASE}/api/ai/task/${taskId}`);
+      if (response.ok) {
+        const task = await response.json();
+        if (task.status === 'completed') {
+          return task.result;
+        }
+        if (task.status === 'failed') {
+          throw new Error(task.error || '任务失败');
+        }
+      }
+    } catch {
+      // 继续轮询
+    }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  throw new Error('任务超时');
+}
+
 /**
- * 生成图像 - 智能选择最佳API
+ * 生成图像 - 优先调用后端真实AI API
  */
 export async function generateImage(prompt: string, options: AIImageOptions = {}): Promise<ImageGenerationResult> {
-  const model = options.model || 'auto';
+  const cfg = getAIConfig();
   const style = options.style || 'anime';
   
-  // 优先使用聚合平台
+  // 如果有API Key，优先调用后端真实AI服务
+  if (cfg.siliconflowApiKey || cfg.dashscopeApiKey) {
+    try {
+      const response = await fetch(`${API_BASE}/api/ai/image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          style,
+          userKeys: getUserKeysForBackend(),
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.imageUrl) {
+          return {
+            success: true,
+            imageUrl: data.imageUrl,
+            source: data.source || 'backend',
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('后端图像生成失败，回退到本地:', e);
+    }
+  }
+
+  // 回退到本地处理
+  const model = options.model || 'auto';
   const aggregator = getActiveAggregator();
   if (aggregator && aggregator.key === 'siliconflowApiKey') {
     return generateImageWithAggregator(prompt, style);
   }
-  
-  // 使用通义万相
-  if (model === 'wanxiang' || getAIConfig().dashscopeApiKey) {
+  if (model === 'wanxiang' || cfg.dashscopeApiKey) {
     const result = await generateImageWithWanXiang(prompt, style);
     if (result.success) return result;
   }
