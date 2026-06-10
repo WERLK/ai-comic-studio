@@ -457,7 +457,7 @@ export function Studio() {
   return (
     <div className="min-h-screen bg-cyber-dark cyber-grid">
       {/* Header */}
-      <header className="sticky top-0 z-50 h-16 bg-cyber-dark2/95 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between shadow-lg">
+      <header className="sticky top-16 z-40 h-16 bg-cyber-dark2/95 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-neon">
             <Sparkles className="w-5 h-5 text-white" />

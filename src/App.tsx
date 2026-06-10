@@ -52,7 +52,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-cyber-dark cyber-grid pb-24">
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-cyber-dark2/90 backdrop-blur-xl border-b border-cyber-purple/20 px-4 py-3">
+      <nav className="fixed top-0 left-0 right-0 z-[100] bg-cyber-dark2/90 backdrop-blur-xl border-b border-cyber-purple/20 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div
             className="flex items-center gap-3 cursor-pointer"
@@ -120,7 +120,7 @@ function AppContent() {
         </div>
 
         {isMenuOpen && (
-          <div className="sm:hidden mt-3 pt-3 border-t border-cyber-purple/20">
+          <div className="sm:hidden mt-3 pt-3 border-t border-cyber-purple/20 relative z-[200]">
             {isAuthenticated ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-3 px-3 py-2">
