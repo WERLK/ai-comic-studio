@@ -2,9 +2,20 @@ import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.11.1';
+const APP_VERSION = '1.11.2';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.11.2',
+    date: '2026-06-10',
+    features: [
+      '帮助页面新增AI平台导航板块',
+      '7个已对接平台官网直达链接+获取API Key链接',
+      '推荐平台标注+新手推荐提示',
+      'FAQ新增「如何获取AI平台API Key」条目',
+      '优化部分FAQ内容（VIP、数据保存等）'
+    ]
+  },
   {
     version: '1.11.1',
     date: '2026-06-10',
