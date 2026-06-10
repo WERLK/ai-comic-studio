@@ -242,7 +242,7 @@ export function Login() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".json,application/json"
+                accept=".json,application/json,application/octet-stream,text/plain"
                 onChange={handleImportFile}
                 className="hidden"
               />

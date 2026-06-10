@@ -222,7 +222,7 @@ export function Profile() {
             <button onClick={handleImportUserClick} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-cyber-pink/15 hover:bg-cyber-pink/25 border border-cyber-pink/40 text-cyber-pink text-xs font-medium rounded-xl transition-colors">
               <Upload className="w-3.5 h-3.5" /> 导入数据
             </button>
-            <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportUserFile} className="hidden" />
+            <input ref={fileInputRef} type="file" accept=".json,application/json,application/octet-stream,text/plain" onChange={handleImportUserFile} className="hidden" />
           </div>
         </div>
 

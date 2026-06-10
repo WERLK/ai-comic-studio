@@ -301,7 +301,7 @@ export function Settings() {
             >
               导入
             </button>
-            <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={handleImportUserFile} className="hidden" />
+            <input ref={fileInputRef} type="file" accept=".json,application/json,application/octet-stream,text/plain" onChange={handleImportUserFile} className="hidden" />
           </SettingItem>
         </SettingsGroup>
 

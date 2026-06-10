@@ -594,7 +594,13 @@ export function Studio() {
                           <label className="block text-sm font-medium text-cyber-blue mb-2">
                             📁 上传剧本文件
                           </label>
-                          <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" accept=".txt,.md,.docx" />
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                            accept=".txt,.md,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,application/octet-stream"
+                          />
                           <div
                             onClick={() => fileInputRef.current?.click()}
                             className="border-2 border-dashed border-cyber-purple/30 rounded-xl p-10 text-center cursor-pointer hover:border-cyber-pink/50 transition-colors"
