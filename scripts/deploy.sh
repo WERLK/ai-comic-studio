@@ -10,13 +10,32 @@ echo "=========================================="
 VERSION=$(cat package.json | grep '"version"' | sed 's/.*": "\(.*\)",/\1/')
 echo "当前版本号: v$VERSION"
 
-# 从环境变量读取 GitHub Token（任意设备设置一次 GH_TOKEN 即可自动推送）
-#   用法:  export GH_TOKEN=ghp_your_token_here
-#          bash scripts/deploy.sh
-if [ -n "$GH_TOKEN" ]; then
-    TOKEN_MASKED=$(echo "$GH_TOKEN" | sed 's/./\*/g; s/^***/ghp_/' )
-    echo "已检测到 GH_TOKEN (${TOKEN_MASKED:0:8}****)"
+# Token 来源优先级：
+#   1) 环境变量 GH_TOKEN
+#   2) 项目根目录的 .github_token 文件（已在 .gitignore，不会提交）
+if [ -z "$GH_TOKEN" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+    if [ -f "$PROJECT_ROOT/.github_token" ]; then
+        GH_TOKEN=$(cat "$PROJECT_ROOT/.github_token" | tr -d '\r\n ')
+        echo "✅ 从 .github_token 读取 token"
+    fi
 fi
+
+if [ -z "$GH_TOKEN" ]; then
+    echo ""
+    echo "❌ 未找到 GitHub Token。"
+    echo "   两种方式任选一种（任选其一即可）："
+    echo "   1) 在项目根目录新建文件 .github_token，内容为你的 ghp_xxxx token"
+    echo "   2) export GH_TOKEN=ghp_your_token_here"
+    echo ""
+    exit 1
+fi
+
+# 掩码显示 token，避免完整泄露
+TOKEN_LEN=${#GH_TOKEN}
+TOKEN_MASKED="${GH_TOKEN:0:4}$(printf '%0.s*' $(seq 1 $((TOKEN_LEN-8))))${GH_TOKEN: -4}"
+echo "Token 已就绪 (${TOKEN_MASKED})"
 
 # 确保构建完成
 if [ ! -d "dist" ]; then
