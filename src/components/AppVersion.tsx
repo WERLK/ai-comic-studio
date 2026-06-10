@@ -1,10 +1,48 @@
 import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
-// 从 package.json 读取的版本号
-const APP_VERSION = '1.11.3';
+// 由 vite.config.ts 的 define 选项从 package.json 注入
+// 确保只要更新 package.json 版本号，页面就会自动同步
+declare const __APP_VERSION__: string;
+const APP_VERSION: string = (typeof __APP_VERSION__ !== 'undefined') ? __APP_VERSION__ : '1.0.0';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.11.7',
+    date: '2026-06-10',
+    features: [
+      '版本号改为从 package.json 通过 Vite define 自动注入，不再手写死字符串',
+      '确保每次更新 package.json 后页面自动同步显示最新版本',
+      '补齐 1.11.4 / 1.11.5 / 1.11.6 的版本历史记录'
+    ]
+  },
+  {
+    version: '1.11.6',
+    date: '2026-06-10',
+    features: [
+      '增强所有文件上传的 accept 属性（新增 text/*/application/* 等通配）',
+      'JSON 导入显式 UTF-8 编码并去除 BOM（兼容 Android 某些应用导出的文件）',
+      '文件上传处理改为"文件名 + MIME 双重判断"，避免 Android 空 type 导致无法解析'
+    ]
+  },
+  {
+    version: '1.11.5',
+    date: '2026-06-10',
+    features: [
+      '修复剧本文件上传在 Android 设备上无法显示的问题',
+      '文件选择 accept 属性扩展到常见文本格式与 MIME 通配符',
+      '用户数据 JSON 导入增强：UTF-8 编码显式声明，BOM 头自动去除'
+    ]
+  },
+  {
+    version: '1.11.4',
+    date: '2026-06-10',
+    features: [
+      '修复用户退出后重新登录密码错误的问题',
+      'database.ts 密码校验兼容明文/哈希双模式并自动迁移',
+      'authStore checkApi 严格校验 Content-Type，避免 GitHub Pages 静态 fallback 误判'
+    ]
+  },
   {
     version: '1.11.3',
     date: '2026-06-10',
