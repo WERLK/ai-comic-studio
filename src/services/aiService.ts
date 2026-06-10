@@ -1053,5 +1053,66 @@ export const DOMESTIC_PLATFORMS: DomesticPlatformInfo[] = [
     freeQuota: '新用户有测试额度',
     pricing: '按量计费',
     recommended: false
+  },
+  // ===== 免费AI聚合网关（B站视频推荐） =====
+  {
+    id: 'relayfreellm',
+    name: 'RelayFreeLLM',
+    website: 'https://github.com/msmarkgu/RelayFreeLLM',
+    baseUrl: 'http://localhost:8000/v1',
+    description: '开源免费AI网关，聚合Gemini/Groq/Mistral/Cerebras/Ollama等免费模型',
+    features: ['完全开源免费', 'OpenAI兼容', '自动容灾', '智能路由', '聚合免费额度'],
+    models: ['Gemini 2.5 Flash', 'Llama 3.3/4', 'GPT-OSS', 'Qwen3', 'Mistral Large 3'],
+    freeQuota: '聚合多家免费额度，算力自由',
+    pricing: '完全免费，开源项目',
+    recommended: true
+  },
+  {
+    id: 'freellmapi',
+    name: 'FreeLLMAPI',
+    website: 'https://github.com/tashfeenahmed/freellmapi',
+    baseUrl: 'http://localhost:3001/v1',
+    description: '聚合11家大模型平台免费额度，每月约13亿Token',
+    features: ['11家平台聚合', 'OpenAI兼容', '自动路由', '故障转移', '实时追踪', 'AES-256加密'],
+    models: ['Gemini 2.5 Flash', 'Llama 4', 'GPT-4.1', 'DeepSeek V3', 'GLM-4.7', 'Kimi K2'],
+    freeQuota: '每月约13亿Token免费额度',
+    pricing: '完全免费，开源项目',
+    recommended: true
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    website: 'https://openrouter.ai',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    description: '全球最大AI模型聚合平台，400+模型，部分模型免费',
+    features: ['400+模型', '免费模型可用', '自动fallback', 'OpenAI兼容', '模型对比'],
+    models: ['DeepSeek系列', 'Llama开源模型', 'Qwen系列', 'Gemma', 'Mistral'],
+    freeQuota: '部分模型完全免费（Free tier），每日有免费额度',
+    pricing: '免费模型0元，付费模型按量计费',
+    recommended: true
+  },
+  {
+    id: 'oneapi',
+    name: 'One-API',
+    website: 'https://github.com/songquanpeng/one-api',
+    baseUrl: '自定义部署',
+    description: '开源API聚合网关，支持30+厂商渠道，自托管',
+    features: ['开源可自托管', '30+厂商渠道', '统一OpenAI格式', '额度管理', '令牌系统'],
+    models: ['智谱GLM', '硅基流动Qwen', '火山引擎豆包', '百度ERNIE', 'DeepSeek'],
+    freeQuota: '取决于接入的上游渠道免费额度',
+    pricing: '开源免费，自托管',
+    recommended: false
+  },
+  {
+    id: 'newapi',
+    name: 'New-API',
+    website: 'https://github.com/Calcium-Ion/new-api',
+    baseUrl: '自定义部署',
+    description: 'One-API衍生版，UI更现代，功能更丰富',
+    features: ['One-API衍生', 'UI现代化', '功能更丰富', '支持更多渠道', '自动同步'],
+    models: ['智谱GLM', '硅基流动Qwen', '火山引擎豆包', '百度ERNIE', 'DeepSeek', 'Claude'],
+    freeQuota: '取决于接入的上游渠道免费额度',
+    pricing: '开源免费，自托管',
+    recommended: false
   }
 ];
