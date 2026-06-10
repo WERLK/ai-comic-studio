@@ -2,9 +2,20 @@ import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.8.2';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.8.2',
+    date: '2026-06-10',
+    features: [
+      '个人中心菜单导航全部可用（设置/通知/成就/隐私/帮助）',
+      'API配置平台名称可点击跳转官网',
+      '添加B站视频推荐的5个免费AI聚合网关',
+      'RelayFreeLLM / FreeLLMAPI / OpenRouter / One-API / New-API',
+      '修复Profile.tsx缺失handleComingSoon函数'
+    ]
+  },
   {
     version: '1.8.1',
     date: '2026-06-09',
