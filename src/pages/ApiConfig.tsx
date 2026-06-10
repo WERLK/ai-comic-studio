@@ -569,10 +569,17 @@ function PlatformCard({
               <span className={`${apiKey ? 'text-green-400' : `text-${colorClass}`}`}>{icon}</span>
             </div>
             <div>
-              <h4 className={`font-medium text-white text-sm ${recommended ? 'flex items-center gap-1' : ''}`}>
+              <a
+                href={website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`font-medium text-sm hover:underline flex items-center gap-1 ${recommended ? 'text-cyber-pink hover:text-pink-300' : 'text-white hover:text-gray-200'}`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 {recommended && <Crown className="w-3 h-3 text-cyber-yellow inline" />}
                 {name}
-              </h4>
+                <ExternalLink className="w-3 h-3 inline opacity-50 ml-1" />
+              </a>
             </div>
           </div>
           <div className="flex items-center gap-2">

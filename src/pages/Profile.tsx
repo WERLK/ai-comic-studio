@@ -65,6 +65,10 @@ export function Profile() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const handleComingSoon = (name: string) => {
+    flashMessage(`${name}功能即将上线，敬请期待！`);
+  };
+
 
   const handleExportUser = () => {
     const json = exportUserData();
@@ -246,28 +250,26 @@ export function Profile() {
             onClick={() => navigate('/')}
           />
 
-          <div className="h-px bg-cyber-purple/20 my-4" />
-
           <MenuItem
             icon={Settings}
-            label="设置"
-            subLabel="应用配置"
+            label="系统设置"
+            subLabel="应用配置与API"
             color="from-gray-500 to-gray-600"
-            onClick={() => handleComingSoon('设置')}
+            onClick={() => navigate('/settings')}
           />
 
           <MenuItem
             icon={Bell}
-            label="通知"
-            subLabel="消息提醒"
+            label="消息通知"
+            subLabel="系统消息与提醒"
             color="from-blue-400 to-cyan-500"
-            onClick={() => handleComingSoon('通知')}
+            onClick={() => navigate('/notifications')}
           />
 
           <MenuItem
             icon={Shield}
             label="隐私安全"
-            subLabel="账号保护"
+            subLabel="账号保护与权限"
             color="from-green-400 to-emerald-500"
             onClick={() => navigate('/privacy-security')}
           />
@@ -275,7 +277,7 @@ export function Profile() {
           <MenuItem
             icon={HelpCircle}
             label="帮助与反馈"
-            subLabel="常见问题"
+            subLabel="常见问题与客服"
             color="from-orange-400 to-red-500"
             onClick={() => navigate('/help-feedback')}
           />
