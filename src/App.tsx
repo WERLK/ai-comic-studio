@@ -1,9 +1,34 @@
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Studio, Generator, Preview, Login, PointsCenter, Profile, Achievements, Settings, Notifications, PrivacySecurity, HelpFeedback, ApiConfig } from '@/pages';
 import { useAuthStore } from '@/stores';
 import { Sparkles, Coins, LogOut, User, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { AppVersion } from '@/components/AppVersion';
+
+// 路由级懒加载 - 按需加载页面组件，大幅提升首屏速度
+const Studio = lazy(() => import('@/pages/Studio').then(m => ({ default: m.Studio })));
+const Generator = lazy(() => import('@/pages/Generator').then(m => ({ default: m.Generator })));
+const Preview = lazy(() => import('@/pages/Preview').then(m => ({ default: m.Preview })));
+const Login = lazy(() => import('@/pages/Login').then(m => ({ default: m.Login })));
+const PointsCenter = lazy(() => import('@/pages/PointsCenter').then(m => ({ default: m.PointsCenter })));
+const Profile = lazy(() => import('@/pages/Profile').then(m => ({ default: m.Profile })));
+const Achievements = lazy(() => import('@/pages/Achievements').then(m => ({ default: m.Achievements })));
+const Settings = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })));
+const Notifications = lazy(() => import('@/pages/Notifications').then(m => ({ default: m.Notifications })));
+const PrivacySecurity = lazy(() => import('@/pages/PrivacySecurity').then(m => ({ default: m.PrivacySecurity })));
+const HelpFeedback = lazy(() => import('@/pages/HelpFeedback').then(m => ({ default: m.HelpFeedback })));
+const ApiConfig = lazy(() => import('@/pages/ApiConfig').then(m => ({ default: m.ApiConfig })));
+
+// 页面加载占位组件
+function PageLoader() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 border-2 border-cyber-purple/30 border-t-cyber-pink rounded-full animate-spin" />
+        <p className="text-gray-500 text-sm">加载中...</p>
+      </div>
+    </div>
+  );
+}
 
 function AppContent() {
   const navigate = useNavigate();
@@ -15,10 +40,12 @@ function AppContent() {
 
   if (isAuthPage) {
     return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -138,21 +165,23 @@ function AppContent() {
       </nav>
 
       <div className="pt-16">
-        <Routes>
-          <Route path="/" element={<Studio />} />
-          <Route path="/generator/:projectId" element={<Generator />} />
-          <Route path="/preview/:projectId" element={<Preview />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/points" element={<PointsCenter />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/achievements" element={<Achievements />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/privacy-security" element={<PrivacySecurity />} />
-          <Route path="/help-feedback" element={<HelpFeedback />} />
-          <Route path="/api-config" element={<ApiConfig />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<Studio />} />
+            <Route path="/generator/:projectId" element={<Generator />} />
+            <Route path="/preview/:projectId" element={<Preview />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/points" element={<PointsCenter />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/achievements" element={<Achievements />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/privacy-security" element={<PrivacySecurity />} />
+            <Route path="/help-feedback" element={<HelpFeedback />} />
+            <Route path="/api-config" element={<ApiConfig />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </div>
 
       {/* Footer with Version */}

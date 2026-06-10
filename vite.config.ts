@@ -7,16 +7,16 @@ export default defineConfig({
   base: './',
   server: {
     proxy: {
-      // 将 /api 请求转发到后端账号数据库服务 (server/index.ts)
       '/api': 'http://localhost:3001',
     },
   },
   build: {
     sourcemap: 'hidden',
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
+          vendor: ['react', 'react-dom', 'react-router-dom', 'zustand'],
           animation: ['framer-motion'],
           icons: ['lucide-react'],
         },
