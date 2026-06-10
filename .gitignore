@@ -19,4 +19,5 @@ node_modules
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
+*.sw?dist
+dist-ssr
