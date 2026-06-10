@@ -7,6 +7,8 @@ import {
   updateUser,
   STORAGE_KEYS,
   type PublicUser,
+  type LoginResult,
+  type RegisterResult,
 } from '@/utils/database';
 
 interface AuthStore extends AuthState {
@@ -76,7 +78,7 @@ const calcLevel = (totalEarned: number): number => {
 
 // 生产环境（GitHub Pages）或后端未启动时降级到 localStorage
 let API_BASE = '/api';
-let apiAvailable = true;
+let apiAvailable = false;
 let apiCheckDone = false;
 
 const checkApi = async (): Promise<boolean> => {
@@ -85,9 +87,27 @@ const checkApi = async (): Promise<boolean> => {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+    const res = await fetch(`${API_BASE}/health`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
     clearTimeout(timer);
-    apiAvailable = res.ok;
+
+    // 严格校验：必须返回 200 且响应类型为 JSON
+    // 避免 GitHub Pages / 静态部署 SPA fallback 返回 HTML (index.html) 200 导致误判
+    if (!res.ok) {
+      apiAvailable = false;
+      return apiAvailable;
+    }
+    const contentType = res.headers.get('content-type') || '';
+    const isJson = /application\/json/i.test(contentType);
+    if (!isJson) {
+      apiAvailable = false;
+      return apiAvailable;
+    }
+    const data = await res.json().catch(() => null);
+    // 要求响应是对象形式，排除 fallback 页面巧合解析的字符串
+    apiAvailable = data !== null && typeof data === 'object';
   } catch {
     apiAvailable = false;
   }
@@ -385,9 +405,10 @@ export const useAuthStore = create<AuthStore>()(
 
           // 2) 后端不可用 → 调用本地 database.ts
           const result = loginUser({ username: credentials.username, password: credentials.password });
-          if (!result.ok) {
-            set({ isLoading: false, serverError: result.message });
-            return { ok: false, code: result.code, message: result.message };
+          if (result.ok === false) {
+            const err = result as { code: string; message: string };
+            set({ isLoading: false, serverError: err.message });
+            return { ok: false, code: err.code, message: err.message };
           }
 
           const u: PublicUser = result.user;
@@ -481,9 +502,10 @@ export const useAuthStore = create<AuthStore>()(
             email: credentials.email,
             password: credentials.password,
           });
-          if (!result.ok) {
-            set({ isLoading: false, serverError: result.message });
-            return { ok: false, code: result.code, message: result.message };
+          if (result.ok === false) {
+            const err = result as { code: string; message: string };
+            set({ isLoading: false, serverError: err.message });
+            return { ok: false, code: err.code, message: err.message };
           }
 
           const u: PublicUser = result.user;

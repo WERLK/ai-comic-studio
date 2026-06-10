@@ -87,6 +87,28 @@ const simpleHash = (s: string): string => {
   return 'h_' + Math.abs(hash).toString(36) + '_' + s.length;
 };
 
+// 判断存储的密码是否为哈希格式（以 h_ 开头）
+const isHashed = (stored: string) => typeof stored === 'string' && stored.startsWith('h_');
+
+// 比较用户输入密码与存储密码：同时支持哈希匹配和明文匹配（向后兼容）
+const passwordMatches = (stored: string, input: string): boolean => {
+  if (!stored || !input) return false;
+  if (isHashed(stored)) {
+    return stored === simpleHash(input);
+  }
+  // 旧版本明文存储，直接比较
+  return stored === input;
+};
+
+// 类型化返回结果（用于联合类型的控制流分析）
+export type RegisterResult =
+  | { ok: true; user: PublicUser }
+  | { ok: false; code: string; message: string };
+
+export type LoginResult =
+  | { ok: true; user: PublicUser }
+  | { ok: false; code: string; message: string };
+
 // ===== 用户表读写 =====
 const readUsers = (): DatabaseUser[] => {
   try {
@@ -116,7 +138,7 @@ export function registerUser(params: {
   username: string;
   email?: string;
   password: string;
-}): { ok: true; user: PublicUser } | { ok: false; code: string; message: string } {
+}): RegisterResult {
   const username = params.username?.trim();
   const email = (params.email || '').trim();
   const password = params.password;
@@ -130,7 +152,7 @@ export function registerUser(params: {
 
   const existing = users.find((u) => normalize(u.username) === usernameNorm);
   if (existing) {
-    if (existing.password === simpleHash(password)) {
+    if (passwordMatches(existing.password, password)) {
       // 用户名密码都相同 → 当作登录
       return loginUser({ username, password });
     }
@@ -180,7 +202,7 @@ export function registerUser(params: {
 export function loginUser(params: {
   username: string;
   password: string;
-}): { ok: true; user: PublicUser } | { ok: false; code: string; message: string } {
+}): LoginResult {
   const username = params.username?.trim();
   const password = params.password;
 
@@ -196,9 +218,13 @@ export function loginUser(params: {
     return { ok: false, code: 'USER_NOT_FOUND', message: '该账号尚未注册' };
   }
 
-  if (match.password !== simpleHash(password)) {
+  if (!passwordMatches(match.password, password)) {
     return { ok: false, code: 'WRONG_PASSWORD', message: '密码错误' };
   }
+
+  // 如存储的是明文密码，登录成功时迁移为哈希值
+  const finalPassword = isHashed(match.password) ? match.password : simpleHash(password);
+  const passwordNeedsMigration = finalPassword !== match.password;
 
   // 更新连续登录天数
   const today = getTodayKey();
@@ -212,6 +238,7 @@ export function loginUser(params: {
 
   const updated: DatabaseUser = {
     ...match,
+    password: finalPassword,
     lastLoginDate: today,
     consecutiveLoginDays: consecutive,
     points: match.points ?? 50,
@@ -225,6 +252,7 @@ export function loginUser(params: {
   };
 
   writeUsers(users.map((u) => (u.id === match.id ? updated : u)));
+  void passwordNeedsMigration; // 无副作用占位，避免未使用变量警告
   return { ok: true, user: stripPassword(updated) };
 }
 
@@ -276,6 +304,7 @@ export function deleteUser(id: string): boolean {
 // 数据类型
 export interface DatabaseRecord {
   key: string;
+  fullKey?: string;
   value: any;
   timestamp: number;
   size: number;
