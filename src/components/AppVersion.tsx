@@ -2,9 +2,18 @@ import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.11.2';
+const APP_VERSION = '1.11.3';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.11.3',
+    date: '2026-06-10',
+    features: [
+      '修复注册/登录功能，database.ts 统一管理用户数据',
+      'registerUser/loginUser 新增完整API',
+      'authStore 优先后端API，失败回退本地database'
+    ]
+  },
   {
     version: '1.11.2',
     date: '2026-06-10',
