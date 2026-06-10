@@ -354,17 +354,52 @@ export function Studio() {
     try {
       let text = '';
 
-      if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
-        text = await file.text();
-      } else if (file.name.endsWith('.docx')) {
-        const arrayBuffer = await file.arrayBuffer();
-        text = await extractDocxText(arrayBuffer);
-      } else if (file.type.startsWith('image/')) {
+      // 基于文件名和 MIME 的双重判断，兼容 Android 文件选择器对 MIME 的误判
+      const name = (file.name || '').toLowerCase();
+      const type = (file.type || '').toLowerCase();
+      const isDocx =
+        name.endsWith('.docx') ||
+        type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      const isDoc = name.endsWith('.doc') || type === 'application/msword';
+      const isImage = type.startsWith('image/');
+      const isLikelyText =
+        name.endsWith('.txt') ||
+        name.endsWith('.md') ||
+        name.endsWith('.markdown') ||
+        name.endsWith('.rtf') ||
+        name.endsWith('.htm') ||
+        name.endsWith('.html') ||
+        name.endsWith('.json') ||
+        name.endsWith('.log') ||
+        type === 'text/plain' ||
+        type === 'text/markdown' ||
+        type === 'text/html' ||
+        type === 'application/json' ||
+        type === 'text/richtext' ||
+        type === ''; // Android 常见的空 type（自定义扩展名）
+
+      if (isImage) {
         const reader = new FileReader();
         reader.onload = () => setPreviewImage(reader.result as string);
         reader.readAsDataURL(file);
         setIsAnalyzing(false);
         return;
+      }
+
+      if (isDocx || isDoc) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          text = await extractDocxText(arrayBuffer);
+        } catch (err) {
+          // docx 解析失败时兜底：直接按文本读取，让用户仍能看到内容
+          console.warn('按 docx 解析失败，回退为纯文本读取:', err);
+          text = await file.text();
+        }
+      } else if (isLikelyText) {
+        text = await file.text();
+      } else {
+        // 对任何 Android/浏览器识别不出的文件类型都兜底：先尝试文本读取
+        text = await file.text();
       }
 
       if (text) {
@@ -599,7 +634,7 @@ export function Studio() {
                             type="file"
                             onChange={handleFileSelect}
                             className="hidden"
-                            accept=".txt,.md,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,application/octet-stream"
+                            accept=".txt,.md,.docx,.doc,.rtf,.json,.htm,.html,text/plain,text/markdown,text/richtext,text/html,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/json,application/octet-stream,text/*,application/*"
                           />
                           <div
                             onClick={() => fileInputRef.current?.click()}

@@ -91,11 +91,15 @@ export function Profile() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const content = ev.target?.result as string;
+      let content = ev.target?.result as string;
+      // Android 某些应用把 UTF-8 JSON 以系统默认编码读取，加上手动 BOM 兜底
+      if (content && typeof content === 'string') {
+        content = content.replace(/^\uFEFF/, '');
+      }
       const ok = importUserData(content);
-      flashMessage(ok ? '用户数据导入成功，账号信息已同步！' : '导入失败：文件格式不正确');
+      flashMessage(ok ? '用户数据导入成功，账号信息已同步！' : '导入失败：请确认使用从本站导出的 JSON 文件');
     };
-    reader.readAsText(file);
+    reader.readAsText(file, 'utf-8');
     e.target.value = '';
   };
 
