@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User, AuthState, LoginCredentials, RegisterCredentials, PointTransaction, PointReward, PointExchangeItem, VIP_LEVELS } from '@/types';
+import {
+  registerUser,
+  loginUser,
+  updateUser,
+  STORAGE_KEYS,
+  type PublicUser,
+} from '@/utils/database';
 
 interface AuthStore extends AuthState {
   user: User | null;
@@ -323,14 +330,14 @@ export const useAuthStore = create<AuthStore>()(
       levelRewards: makeLevelTasks(1, 0),
       exchangeItems: makeExchangeItems(),
 
-      // ===== 登录：调用后端 API /api/auth/login =====
+      // ===== 登录：优先后端 API，不可用时使用本地 database =====
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true });
         await checkApi();
 
         try {
+          // 1) 后端可用 → 调用真实账号数据库
           if (apiAvailable) {
-            // ===== 后端可用：调用真实的账号数据库 =====
             const res = await fetch(`${API_BASE}/auth/login`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -340,13 +347,11 @@ export const useAuthStore = create<AuthStore>()(
 
             if (!res.ok) {
               set({ isLoading: false, serverError: data.error || '登录失败' });
-              // 根据 HTTP 状态码区分错误类型
               if (res.status === 404) return { ok: false, code: 'USER_NOT_FOUND', message: data.error || '该账号尚未注册' };
               if (res.status === 401) return { ok: false, code: 'WRONG_PASSWORD', message: data.error || '密码错误' };
               return { ok: false, code: 'LOGIN_FAILED', message: data.error || '登录失败' };
             }
 
-            // 登录成功 - 后端返回的数据是真实账号数据源
             const backendUser = data.user;
             if (!backendUser) {
               set({ isLoading: false });
@@ -366,6 +371,9 @@ export const useAuthStore = create<AuthStore>()(
               level: backendUser.level ?? 1,
               projectsCount: backendUser.projectsCount ?? 0,
               isVIP: !!backendUser.isVIP,
+              vipLevel: backendUser.vipLevel ?? 0,
+              vipPoints: backendUser.vipPoints ?? 0,
+              vipExpireAt: backendUser.vipExpireAt ?? null,
               completedTasks: backendUser.completedTasks || [],
               visitedPages: backendUser.visitedPages || [],
               usedStyles: backendUser.usedStyles || [],
@@ -375,59 +383,32 @@ export const useAuthStore = create<AuthStore>()(
             return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
           }
 
-          // ===== 后端不可用：降级到 localStorage =====
-          const users = readUsersLocal();
-          const usernameNormalized = credentials.username.trim().toLowerCase();
-          const match = users.find(u => u.username?.trim().toLowerCase() === usernameNormalized);
-
-          if (!match) {
-            set({ isLoading: false });
-            return { ok: false, code: 'USER_NOT_FOUND', message: '该账号尚未注册' };
-          }
-          if (match.password !== credentials.password) {
-            set({ isLoading: false });
-            return { ok: false, code: 'WRONG_PASSWORD', message: '密码错误' };
+          // 2) 后端不可用 → 调用本地 database.ts
+          const result = loginUser({ username: credentials.username, password: credentials.password });
+          if (!result.ok) {
+            set({ isLoading: false, serverError: result.message });
+            return { ok: false, code: result.code, message: result.message };
           }
 
-          const today = getTodayKey();
-          let consecutive = match.consecutiveLoginDays || 1;
-          if (match.lastLoginDate && match.lastLoginDate !== today) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            consecutive = match.lastLoginDate === yesterday.toISOString().split('T')[0] ? consecutive + 1 : 1;
-          }
-
-          const updated: StoredUser = {
-            ...match,
-            lastLoginDate: today,
-            consecutiveLoginDays: consecutive,
-            points: match.points ?? 50,
-            totalEarnedPoints: match.totalEarnedPoints ?? 50,
-            level: calcLevel(match.totalEarnedPoints ?? 50),
-            projectsCount: match.projectsCount ?? 0,
-            isVIP: !!match.isVIP,
-            completedTasks: match.completedTasks || [],
-            visitedPages: match.visitedPages || [],
-            usedStyles: match.usedStyles || [],
-          };
-          writeUsersLocal(users.map(u => (u.id === match.id ? updated : u)));
-
-          const { password, ...safeUser } = updated;
-          const tasks = initTasksFromUser(safeUser);
-          const savedTransactions: PointTransaction[] = Array.isArray(updated.transactions) ? updated.transactions : [];
+          const u: PublicUser = result.user;
+          const tasks = initTasksFromUser(u as any);
+          const savedTransactions: PointTransaction[] = Array.isArray(u.transactions) ? u.transactions : [];
 
           set({
-            user: safeUser,
+            user: u,
             isAuthenticated: true,
             isLoading: false,
-            points: updated.points,
-            totalEarnedPoints: updated.totalEarnedPoints,
-            level: updated.level,
-            projectsCount: updated.projectsCount,
-            isVIP: updated.isVIP,
-            completedTasks: updated.completedTasks,
-            visitedPages: updated.visitedPages,
-            usedStyles: updated.usedStyles,
+            points: u.points ?? 50,
+            totalEarnedPoints: u.totalEarnedPoints ?? 50,
+            level: u.level ?? 1,
+            projectsCount: u.projectsCount ?? 0,
+            isVIP: !!u.isVIP,
+            vipLevel: u.vipLevel ?? 0,
+            vipPoints: u.vipPoints ?? 0,
+            vipExpireAt: u.vipExpireAt ?? null,
+            completedTasks: u.completedTasks || [],
+            visitedPages: u.visitedPages || [],
+            usedStyles: u.usedStyles || [],
             transactions: savedTransactions,
             ...tasks,
           });
@@ -438,12 +419,13 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      // ===== 注册：调用后端 API /api/auth/register =====
+      // ===== 注册：优先后端 API，不可用时使用本地 database =====
       register: async (credentials: RegisterCredentials) => {
         set({ isLoading: true });
         await checkApi();
 
         try {
+          // 1) 后端可用 → 调用真实账号数据库
           if (apiAvailable) {
             const res = await fetch(`${API_BASE}/auth/register`, {
               method: 'POST',
@@ -481,6 +463,9 @@ export const useAuthStore = create<AuthStore>()(
               level: backendUser.level ?? 1,
               projectsCount: backendUser.projectsCount ?? 0,
               isVIP: !!backendUser.isVIP,
+              vipLevel: backendUser.vipLevel ?? 0,
+              vipPoints: backendUser.vipPoints ?? 0,
+              vipExpireAt: backendUser.vipExpireAt ?? null,
               completedTasks: backendUser.completedTasks || [],
               visitedPages: backendUser.visitedPages || [],
               usedStyles: backendUser.usedStyles || [],
@@ -490,68 +475,37 @@ export const useAuthStore = create<AuthStore>()(
             return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
           }
 
-          // 后端不可用：降级 localStorage
-          const users = readUsersLocal();
-          const usernameNormalized = credentials.username.trim().toLowerCase();
-          const emailNormalized = (credentials.email || '').trim().toLowerCase();
-          const existing = users.find(u => u.username?.trim().toLowerCase() === usernameNormalized);
-
-          if (existing) {
-            if (existing.password === credentials.password) {
-              // 密码相同 - 视为登录（同手机号/用户名多端登录场景）
-              const loginResult = await get().login({ username: credentials.username, password: credentials.password });
-              set({ isLoading: false });
-              return loginResult;
-            }
-            set({ isLoading: false });
-            return { ok: false, code: 'USER_EXISTS', message: '该用户名已注册，请直接登录' };
+          // 2) 后端不可用 → 调用本地 database.ts
+          const result = registerUser({
+            username: credentials.username,
+            email: credentials.email,
+            password: credentials.password,
+          });
+          if (!result.ok) {
+            set({ isLoading: false, serverError: result.message });
+            return { ok: false, code: result.code, message: result.message };
           }
 
-          const today = getTodayKey();
-          const initialPoints = 50;
-          const newUser: StoredUser = {
-            id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
-            username: credentials.username.trim(),
-            email: emailNormalized,
-            points: initialPoints,
-            totalEarnedPoints: initialPoints,
-            level: 1,
-            projectsCount: 0,
-            isVIP: false,
-            createdAt: new Date().toISOString(),
-            lastLoginDate: today,
-            consecutiveLoginDays: 1,
-            completedTasks: [],
-            visitedPages: [],
-            usedStyles: [],
-            password: credentials.password,
-            transactions: [{
-              id: Date.now().toString(),
-              type: 'earn',
-              amount: initialPoints,
-              description: '新用户欢迎积分',
-              createdAt: new Date().toISOString(),
-            }],
-          };
-
-          writeUsersLocal([...users, newUser]);
-
-          const { password, ...safeUser } = newUser;
-          const tasks = initTasksFromUser(safeUser);
+          const u: PublicUser = result.user;
+          const tasks = initTasksFromUser(u as any);
+          const savedTransactions: PointTransaction[] = Array.isArray(u.transactions) ? u.transactions : [];
 
           set({
-            user: safeUser,
+            user: u,
             isAuthenticated: true,
             isLoading: false,
-            points: initialPoints,
-            totalEarnedPoints: initialPoints,
-            level: 1,
-            projectsCount: 0,
-            isVIP: false,
-            completedTasks: [],
-            visitedPages: [],
-            usedStyles: [],
-            transactions: (newUser.transactions || []),
+            points: u.points ?? 50,
+            totalEarnedPoints: u.totalEarnedPoints ?? 50,
+            level: u.level ?? 1,
+            projectsCount: u.projectsCount ?? 0,
+            isVIP: !!u.isVIP,
+            vipLevel: u.vipLevel ?? 0,
+            vipPoints: u.vipPoints ?? 0,
+            vipExpireAt: u.vipExpireAt ?? null,
+            completedTasks: u.completedTasks || [],
+            visitedPages: u.visitedPages || [],
+            usedStyles: u.usedStyles || [],
+            transactions: savedTransactions,
             ...tasks,
           });
           return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
@@ -570,7 +524,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       clearAllData: () => {
-        localStorage.removeItem(USERS_KEY);
+        localStorage.removeItem(STORAGE_KEYS.USERS);
         localStorage.removeItem('manga-studio-projects-v2');
         localStorage.removeItem('lucky_wheel_state_v2');
         const fresh = initTasksFromUser(null);
