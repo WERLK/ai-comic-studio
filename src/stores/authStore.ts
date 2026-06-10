@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, AuthState, LoginCredentials, RegisterCredentials, PointTransaction, PointReward, PointExchangeItem } from '@/types';
+import { User, AuthState, LoginCredentials, RegisterCredentials, PointTransaction, PointReward, PointExchangeItem, VIP_LEVELS } from '@/types';
 
 interface AuthStore extends AuthState {
   user: User | null;
@@ -9,6 +9,9 @@ interface AuthStore extends AuthState {
   totalEarnedPoints: number;
   projectsCount: number;
   isVIP: boolean;
+  vipLevel: number;        // VIP等级 0-5
+  vipPoints: number;       // 会员积分
+  vipExpireAt: string | null; // VIP过期时间
   transactions: PointTransaction[];
   completedTasks: string[];
   visitedPages: string[];
@@ -37,6 +40,12 @@ interface AuthStore extends AuthState {
   recordPageVisit: (page: string) => void;
   recordStyleUse: (style: string) => void;
   recordProjectCreation: (frameCount: number, hasCharacters: boolean, hasDialogue: boolean, hasVoice: boolean, style: string) => void;
+  // ===== 会员系统 =====
+  addVIPPoints: (amount: number, description: string) => void;  // 增加会员积分
+  upgradeVIP: (targetLevel: number) => boolean;                 // 升级VIP等级
+  checkVIPExpired: () => boolean;                               // 检查VIP是否过期
+  getCurrentVIPLevel: () => typeof VIP_LEVELS[number];          // 获取当前VIP等级配置
+  getNextVIPLevel: () => typeof VIP_LEVELS[number] | null;      // 获取下一级VIP配置
   // 数据导出导入 (用于跨设备同步，绕过 localStorage 限制)
   exportUserData: () => string;
   importUserData: (json: string) => boolean;
@@ -297,6 +306,9 @@ export const useAuthStore = create<AuthStore>()(
       totalEarnedPoints: 0,
       projectsCount: 0,
       isVIP: false,
+      vipLevel: 0,
+      vipPoints: 0,
+      vipExpireAt: null,
       transactions: [],
       completedTasks: [],
       visitedPages: [],
@@ -949,6 +961,9 @@ export const useAuthStore = create<AuthStore>()(
             level: extra.level ?? calcLevel(extra.totalEarnedPoints ?? importedUser.totalEarnedPoints ?? 50),
             projectsCount: extra.projectsCount ?? importedUser.projectsCount ?? 0,
             isVIP: !!extra.isVIP || !!importedUser.isVIP,
+            vipLevel: extra.vipLevel ?? importedUser.vipLevel ?? 0,
+            vipPoints: extra.vipPoints ?? importedUser.vipPoints ?? 0,
+            vipExpireAt: extra.vipExpireAt ?? importedUser.vipExpireAt ?? null,
             completedTasks: extra.completedTasks ?? importedUser.completedTasks ?? [],
             visitedPages: extra.visitedPages ?? importedUser.visitedPages ?? [],
             usedStyles: extra.usedStyles ?? importedUser.usedStyles ?? [],
@@ -965,6 +980,9 @@ export const useAuthStore = create<AuthStore>()(
                 level: updatedUser.level,
                 projectsCount: updatedUser.projectsCount,
                 isVIP: updatedUser.isVIP,
+                vipLevel: updatedUser.vipLevel,
+                vipPoints: updatedUser.vipPoints,
+                vipExpireAt: updatedUser.vipExpireAt,
                 completedTasks: updatedUser.completedTasks,
                 visitedPages: updatedUser.visitedPages,
                 usedStyles: updatedUser.usedStyles,
@@ -982,6 +1000,9 @@ export const useAuthStore = create<AuthStore>()(
             level: updatedUser.level,
             projectsCount: updatedUser.projectsCount,
             isVIP: updatedUser.isVIP,
+            vipLevel: updatedUser.vipLevel ?? 0,
+            vipPoints: updatedUser.vipPoints ?? 0,
+            vipExpireAt: updatedUser.vipExpireAt ?? null,
             completedTasks: updatedUser.completedTasks,
             visitedPages: updatedUser.visitedPages,
             usedStyles: updatedUser.usedStyles,
@@ -992,6 +1013,118 @@ export const useAuthStore = create<AuthStore>()(
         } catch {
           return false;
         }
+      },
+
+      // ===== 会员系统 =====
+      addVIPPoints: (amount: number, description: string) => {
+        set(state => {
+          const newVIPPoints = (state.vipPoints || 0) + amount;
+          // 自动计算VIP等级
+          let newVIPLevel = 0;
+          for (let i = VIP_LEVELS.length - 1; i >= 0; i--) {
+            if (newVIPPoints >= VIP_LEVELS[i].minPoints) {
+              newVIPLevel = VIP_LEVELS[i].level;
+              break;
+            }
+          }
+          const newIsVIP = newVIPLevel >= 1;
+
+          if (state.user) {
+            const users = readUsersLocal();
+            writeUsersLocal(users.map(u => u.id === state.user!.id ? ({
+              ...u,
+              vipPoints: newVIPPoints,
+              vipLevel: newVIPLevel,
+              isVIP: newIsVIP,
+            }) : u));
+          }
+
+          return {
+            vipPoints: newVIPPoints,
+            vipLevel: newVIPLevel,
+            isVIP: newIsVIP,
+            user: state.user ? { ...state.user, vipPoints: newVIPPoints, vipLevel: newVIPLevel, isVIP: newIsVIP } : null,
+          };
+        });
+      },
+
+      upgradeVIP: (targetLevel: number) => {
+        const state = get();
+        if (targetLevel < 1 || targetLevel >= VIP_LEVELS.length) return false;
+        const target = VIP_LEVELS[targetLevel];
+        if (!target) return false;
+        // 升级需要消耗普通积分
+        const cost = target.minPoints;
+        if (state.points < cost) return false;
+
+        const ok = get().spendPoints(cost, `升级至${target.name}`);
+        if (!ok) return false;
+
+        const expireDate = new Date();
+        expireDate.setMonth(expireDate.getMonth() + 1); // 默认1个月有效期
+
+        set(s => {
+          const newVIPPoints = Math.max(s.vipPoints || 0, target.minPoints);
+          if (s.user) {
+            const users = readUsersLocal();
+            writeUsersLocal(users.map(u => u.id === s.user!.id ? ({
+              ...u,
+              vipLevel: targetLevel,
+              isVIP: true,
+              vipPoints: newVIPPoints,
+              vipExpireAt: expireDate.toISOString(),
+            }) : u));
+          }
+          return {
+            vipLevel: targetLevel,
+            isVIP: true,
+            vipPoints: newVIPPoints,
+            vipExpireAt: expireDate.toISOString(),
+            user: s.user ? { ...s.user, vipLevel: targetLevel, isVIP: true, vipPoints: newVIPPoints, vipExpireAt: expireDate.toISOString() } : null,
+          };
+        });
+        return true;
+      },
+
+      checkVIPExpired: () => {
+        const state = get();
+        if (!state.isVIP || !state.vipExpireAt) return false;
+        const now = new Date();
+        const expire = new Date(state.vipExpireAt);
+        if (now > expire) {
+          // VIP已过期，降级
+          set(s => {
+            if (s.user) {
+              const users = readUsersLocal();
+              writeUsersLocal(users.map(u => u.id === s.user!.id ? ({
+                ...u,
+                isVIP: false,
+                vipLevel: 0,
+                vipExpireAt: undefined,
+              }) : u));
+            }
+            return {
+              isVIP: false,
+              vipLevel: 0,
+              vipExpireAt: null,
+              user: s.user ? { ...s.user, isVIP: false, vipLevel: 0, vipExpireAt: undefined } : null,
+            };
+          });
+          return true;
+        }
+        return false;
+      },
+
+      getCurrentVIPLevel: () => {
+        const state = get();
+        return VIP_LEVELS[state.vipLevel || 0] || VIP_LEVELS[0];
+      },
+
+      getNextVIPLevel: () => {
+        const state = get();
+        const next = (state.vipLevel || 0) + 1;
+        if (next >= VIP_LEVELS.length) return null;
+        return VIP_LEVELS[next];
       },
     }),
     {
@@ -1005,6 +1138,9 @@ export const useAuthStore = create<AuthStore>()(
         level: state.level,
         projectsCount: state.projectsCount,
         isVIP: state.isVIP,
+        vipLevel: state.vipLevel,
+        vipPoints: state.vipPoints,
+        vipExpireAt: state.vipExpireAt,
         transactions: state.transactions,
         completedTasks: state.completedTasks,
         visitedPages: state.visitedPages,

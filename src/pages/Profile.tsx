@@ -16,6 +16,8 @@ import {
   Download,
   Upload,
   Sparkles,
+  Crown,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
@@ -56,7 +58,7 @@ const MenuItem = ({
 
 export function Profile() {
   const navigate = useNavigate();
-  const { user, points, totalEarnedPoints, logout, transactions, exportUserData, importUserData } = useAuthStore();
+  const { user, points, totalEarnedPoints, logout, transactions, exportUserData, importUserData, isVIP, vipLevel, getCurrentVIPLevel } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -226,13 +228,37 @@ export function Profile() {
 
         {/* Menu Items */}
         <div className="space-y-3">
-          <MenuItem
-            icon={Coins}
-            label="积分中心"
-            subLabel="查看任务和商城"
-            color="from-cyber-yellow to-cyber-pink"
-            onClick={() => navigate('/points')}
-          />
+          {/* 会员中心入口 - 最醒目 */}
+          <button
+            onClick={() => navigate('/vip')}
+            className={`w-full flex items-center gap-4 rounded-2xl p-4 transition-all group ${
+              isVIP
+                ? 'bg-gradient-to-r from-amber-900/40 to-yellow-900/40 border border-amber-500/30 hover:border-amber-400/50'
+                : 'bg-cyber-dark2/80 border border-cyber-purple/20 hover:border-cyber-pink/50'
+            }`}
+          >
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              isVIP ? 'bg-gradient-to-br from-amber-500 to-yellow-600' : 'bg-gradient-to-br from-gray-600 to-gray-700'
+            }`}>
+              <Crown className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="flex items-center gap-2">
+                <p className={`font-medium ${isVIP ? 'text-amber-400' : 'text-white'}`}>
+                  {isVIP ? getCurrentVIPLevel().name : '开通会员'}
+                </p>
+                {isVIP && (
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 text-[10px]">
+                    Lv.{vipLevel}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400">
+                {isVIP ? '查看权益与升级' : '解锁更多创作权益'}
+              </p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-500" />
+          </button>
 
           <MenuItem
             icon={Trophy}
@@ -253,7 +279,7 @@ export function Profile() {
           <MenuItem
             icon={Settings}
             label="系统设置"
-            subLabel="应用配置与API"
+            subLabel="主题、语言、缓存"
             color="from-gray-500 to-gray-600"
             onClick={() => navigate('/settings')}
           />

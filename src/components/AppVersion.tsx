@@ -2,9 +2,33 @@ import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 
 // 从 package.json 读取的版本号
-const APP_VERSION = '1.8.2';
+const APP_VERSION = '1.10.0';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.10.0',
+    date: '2026-06-10',
+    features: [
+      '完整会员系统上线',
+      '5级会员体系：青铜/白银/黄金/铂金/钻石',
+      '会员积分与普通积分双轨制',
+      '会员中心页面：权益/升级/积分获取',
+      '个人中心新增会员入口',
+      '任务积分倍数、每日额外积分等权益'
+    ]
+  },
+  {
+    version: '1.9.0',
+    date: '2026-06-10',
+    features: [
+      'UI全面重新设计',
+      '底部Tab导航：创作/积分/API/我的',
+      'API密钥配置提升为一级入口',
+      '顶部栏简化，更清爽',
+      '个人中心菜单精简优化',
+      '全屏页面自动隐藏底部导航'
+    ]
+  },
   {
     version: '1.8.2',
     date: '2026-06-10',

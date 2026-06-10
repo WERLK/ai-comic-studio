@@ -17,6 +17,7 @@ const Notifications = lazy(() => import('@/pages/Notifications').then(m => ({ de
 const PrivacySecurity = lazy(() => import('@/pages/PrivacySecurity').then(m => ({ default: m.PrivacySecurity })));
 const HelpFeedback = lazy(() => import('@/pages/HelpFeedback').then(m => ({ default: m.HelpFeedback })));
 const ApiConfig = lazy(() => import('@/pages/ApiConfig').then(m => ({ default: m.ApiConfig })));
+const VIPCenter = lazy(() => import('@/pages/VIPCenter').then(m => ({ default: m.VIPCenter })));
 
 // 页面加载占位组件
 function PageLoader() {
@@ -179,6 +180,7 @@ function AppContent() {
             <Route path="/privacy-security" element={<PrivacySecurity />} />
             <Route path="/help-feedback" element={<HelpFeedback />} />
             <Route path="/api-config" element={<ApiConfig />} />
+            <Route path="/vip" element={<VIPCenter />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
