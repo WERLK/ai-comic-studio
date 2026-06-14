@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
-
-// 由 vite.config.ts 的 define 选项从 package.json 注入
-// 确保只要更新 package.json 版本号，页面就会自动同步
-declare const __APP_VERSION__: string;
-const APP_VERSION: string = (typeof __APP_VERSION__ !== 'undefined') ? __APP_VERSION__ : '1.0.0';
+import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
+  {
+    version: '1.11.8',
+    date: '2026-06-14',
+    features: [
+      '统一版本号来源：改为从 src/config/version.ts 读取 package.json 的 version 字段',
+      'main.tsx / AppVersion.tsx / VersionHistory.tsx 三处都使用同一个 APP_VERSION 常量',
+      '彻底消除版本号写死字符串导致"永远显示旧版本"的问题'
+    ]
+  },
   {
     version: '1.11.7',
     date: '2026-06-10',

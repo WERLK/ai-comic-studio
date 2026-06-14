@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
-import { AppVersion } from '@/components/AppVersion';
-
-// 从 package.json 读取的版本号
-const APP_VERSION = '1.7.0';
+import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
   {
