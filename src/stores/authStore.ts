@@ -375,20 +375,90 @@ export const useAuthStore = create<AuthStore>()(
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
+              // 后端登录失败时，尝试从本地存储回退
+              if (res.status === 404) {
+                const localResult = loginUser({ username: credentials.username, password: credentials.password });
+                if (localResult.ok) {
+                  const u: PublicUser = localResult.user;
+                  const tasks = initTasksFromUser(u as any);
+                  const savedTransactions: PointTransaction[] = Array.isArray(u.transactions) ? u.transactions : [];
+
+                  set({
+                    user: u,
+                    isAuthenticated: true,
+                    isLoading: false,
+                    points: u.points ?? 50,
+                    totalEarnedPoints: u.totalEarnedPoints ?? 50,
+                    level: u.level ?? 1,
+                    projectsCount: u.projectsCount ?? 0,
+                    isVIP: !!u.isVIP,
+                    vipLevel: u.vipLevel ?? 0,
+                    vipPoints: u.vipPoints ?? 0,
+                    vipExpireAt: u.vipExpireAt ?? null,
+                    completedTasks: u.completedTasks || [],
+                    visitedPages: u.visitedPages || [],
+                    usedStyles: u.usedStyles || [],
+                    transactions: savedTransactions,
+                    ...tasks,
+                  });
+                  try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+                  setTimeout(() => get().syncToCloud(), 0);
+                  return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
+                }
+              }
               set({ isLoading: false, serverError: data.error || '登录失败' });
-              if (res.status === 404) return { ok: false, code: 'USER_NOT_FOUND', message: data.error || '该账号尚未注册' };
-              if (res.status === 401) return { ok: false, code: 'WRONG_PASSWORD', message: data.error || '密码错误' };
+              if (res.status === 404) return { ok: false, code: 'USER_NOT_FOUND', message: data.error || '该账号尚未注册，请先注册或检查用户名是否正确' };
+              if (res.status === 401) return { ok: false, code: 'WRONG_PASSWORD', message: data.error || '密码错误，请重新输入' };
               return { ok: false, code: 'LOGIN_FAILED', message: data.error || '登录失败' };
             }
 
             const backendUser = data.user;
             if (!backendUser) {
+              // 后端返回空数据，尝试本地回退
+              const localResult = loginUser({ username: credentials.username, password: credentials.password });
+              if (localResult.ok) {
+                const u: PublicUser = localResult.user;
+                const tasks = initTasksFromUser(u as any);
+                const savedTransactions: PointTransaction[] = Array.isArray(u.transactions) ? u.transactions : [];
+
+                set({
+                  user: u,
+                  isAuthenticated: true,
+                  isLoading: false,
+                  points: u.points ?? 50,
+                  totalEarnedPoints: u.totalEarnedPoints ?? 50,
+                  level: u.level ?? 1,
+                  projectsCount: u.projectsCount ?? 0,
+                  isVIP: !!u.isVIP,
+                  vipLevel: u.vipLevel ?? 0,
+                  vipPoints: u.vipPoints ?? 0,
+                  vipExpireAt: u.vipExpireAt ?? null,
+                  completedTasks: u.completedTasks || [],
+                  visitedPages: u.visitedPages || [],
+                  usedStyles: u.usedStyles || [],
+                  transactions: savedTransactions,
+                  ...tasks,
+                });
+                try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+                setTimeout(() => get().syncToCloud(), 0);
+                return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
+              }
               set({ isLoading: false });
               return { ok: false, code: 'LOGIN_FAILED', message: '服务器返回数据异常' };
             }
 
             const tasks = initTasksFromUser(backendUser);
             const savedTransactions: PointTransaction[] = Array.isArray(backendUser.transactions) ? backendUser.transactions : [];
+
+            // 同时保存到本地存储，确保数据同步
+            const localUsers = readUsersLocal();
+            const existingIndex = localUsers.findIndex(u => u.id === backendUser.id);
+            if (existingIndex >= 0) {
+              localUsers[existingIndex] = { ...localUsers[existingIndex], ...backendUser };
+            } else {
+              localUsers.push(backendUser as any);
+            }
+            writeUsersLocal(localUsers);
 
             set({
               user: backendUser,
@@ -450,8 +520,39 @@ export const useAuthStore = create<AuthStore>()(
           setTimeout(() => get().syncToCloud(), 0);
           return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
         } catch (err: any) {
+          // 网络异常时，尝试从本地存储登录
+          try {
+            const result = loginUser({ username: credentials.username, password: credentials.password });
+            if (result.ok) {
+              const u: PublicUser = result.user;
+              const tasks = initTasksFromUser(u as any);
+              const savedTransactions: PointTransaction[] = Array.isArray(u.transactions) ? u.transactions : [];
+
+              set({
+                user: u,
+                isAuthenticated: true,
+                isLoading: false,
+                points: u.points ?? 50,
+                totalEarnedPoints: u.totalEarnedPoints ?? 50,
+                level: u.level ?? 1,
+                projectsCount: u.projectsCount ?? 0,
+                isVIP: !!u.isVIP,
+                vipLevel: u.vipLevel ?? 0,
+                vipPoints: u.vipPoints ?? 0,
+                vipExpireAt: u.vipExpireAt ?? null,
+                completedTasks: u.completedTasks || [],
+                visitedPages: u.visitedPages || [],
+                usedStyles: u.usedStyles || [],
+                transactions: savedTransactions,
+                ...tasks,
+              });
+              try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+              return { ok: true, code: 'LOGIN_OK', message: '登录成功（离线模式）' };
+            }
+          } catch { /* ignore */ }
+
           set({ isLoading: false, serverError: err?.message || '网络错误' });
-          return { ok: false, code: 'NETWORK_ERROR', message: '网络连接异常，请稍后重试' };
+          return { ok: false, code: 'NETWORK_ERROR', message: '网络连接异常，请检查网络后重试' };
         }
       },
 
@@ -475,19 +576,92 @@ export const useAuthStore = create<AuthStore>()(
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
+              // 后端注册失败时，检查是否用户名已存在于本地
+              if (res.status === 409) {
+                const localResult = loginUser({ username: credentials.username, password: credentials.password });
+                if (localResult.ok) {
+                  const u: PublicUser = localResult.user;
+                  const tasks = initTasksFromUser(u as any);
+                  const savedTransactions: PointTransaction[] = Array.isArray(u.transactions) ? u.transactions : [];
+
+                  set({
+                    user: u,
+                    isAuthenticated: true,
+                    isLoading: false,
+                    points: u.points ?? 50,
+                    totalEarnedPoints: u.totalEarnedPoints ?? 50,
+                    level: u.level ?? 1,
+                    projectsCount: u.projectsCount ?? 0,
+                    isVIP: !!u.isVIP,
+                    vipLevel: u.vipLevel ?? 0,
+                    vipPoints: u.vipPoints ?? 0,
+                    vipExpireAt: u.vipExpireAt ?? null,
+                    completedTasks: u.completedTasks || [],
+                    visitedPages: u.visitedPages || [],
+                    usedStyles: u.usedStyles || [],
+                    transactions: savedTransactions,
+                    ...tasks,
+                  });
+                  try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+                  setTimeout(() => get().syncToCloud(), 0);
+                  return { ok: true, code: 'REGISTER_OK', message: '登录成功' };
+                }
+              }
               set({ isLoading: false, serverError: data.error || '注册失败' });
-              if (res.status === 409) return { ok: false, code: 'USER_EXISTS', message: data.error || '该用户名已注册' };
+              if (res.status === 409) return { ok: false, code: 'USER_EXISTS', message: data.error || '该用户名已注册，请直接登录' };
               return { ok: false, code: 'REGISTER_FAILED', message: data.error || '注册失败' };
             }
 
             const backendUser = data.user;
             if (!backendUser) {
+              // 后端返回空数据，尝试本地注册
+              const localResult = registerUser({
+                username: credentials.username,
+                email: credentials.email,
+                password: credentials.password,
+              });
+              if (localResult.ok) {
+                const u: PublicUser = localResult.user;
+                const tasks = initTasksFromUser(u as any);
+                const savedTransactions: PointTransaction[] = Array.isArray(u.transactions) ? u.transactions : [];
+
+                set({
+                  user: u,
+                  isAuthenticated: true,
+                  isLoading: false,
+                  points: u.points ?? 50,
+                  totalEarnedPoints: u.totalEarnedPoints ?? 50,
+                  level: u.level ?? 1,
+                  projectsCount: u.projectsCount ?? 0,
+                  isVIP: !!u.isVIP,
+                  vipLevel: u.vipLevel ?? 0,
+                  vipPoints: u.vipPoints ?? 0,
+                  vipExpireAt: u.vipExpireAt ?? null,
+                  completedTasks: u.completedTasks || [],
+                  visitedPages: u.visitedPages || [],
+                  usedStyles: u.usedStyles || [],
+                  transactions: savedTransactions,
+                  ...tasks,
+                });
+                try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+                return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
+              }
               set({ isLoading: false });
               return { ok: false, code: 'REGISTER_FAILED', message: '服务器返回数据异常' };
             }
 
             const tasks = initTasksFromUser(backendUser);
             const savedTransactions: PointTransaction[] = Array.isArray(backendUser.transactions) ? backendUser.transactions : [];
+
+            // 同时保存到本地存储，确保数据同步
+            const localUsers = readUsersLocal();
+            const existingIndex = localUsers.findIndex(u => u.id === backendUser.id || String(u.username).toLowerCase() === String(backendUser.username).toLowerCase());
+            if (existingIndex >= 0) {
+              localUsers[existingIndex] = { ...localUsers[existingIndex], ...backendUser };
+            } else {
+              localUsers.push(backendUser as any);
+            }
+            writeUsersLocal(localUsers);
 
             set({
               user: backendUser,
@@ -551,8 +725,43 @@ export const useAuthStore = create<AuthStore>()(
           setTimeout(() => get().syncToCloud(), 0);
           return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
         } catch (err: any) {
+          // 网络异常时，尝试从本地存储注册
+          try {
+            const result = registerUser({
+              username: credentials.username,
+              email: credentials.email,
+              password: credentials.password,
+            });
+            if (result.ok) {
+              const u: PublicUser = result.user;
+              const tasks = initTasksFromUser(u as any);
+              const savedTransactions: PointTransaction[] = Array.isArray(u.transactions) ? u.transactions : [];
+
+              set({
+                user: u,
+                isAuthenticated: true,
+                isLoading: false,
+                points: u.points ?? 50,
+                totalEarnedPoints: u.totalEarnedPoints ?? 50,
+                level: u.level ?? 1,
+                projectsCount: u.projectsCount ?? 0,
+                isVIP: !!u.isVIP,
+                vipLevel: u.vipLevel ?? 0,
+                vipPoints: u.vipPoints ?? 0,
+                vipExpireAt: u.vipExpireAt ?? null,
+                completedTasks: u.completedTasks || [],
+                visitedPages: u.visitedPages || [],
+                usedStyles: u.usedStyles || [],
+                transactions: savedTransactions,
+                ...tasks,
+              });
+              try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+              return { ok: true, code: 'REGISTER_OK', message: '注册成功（离线模式）' };
+            }
+          } catch { /* ignore */ }
+
           set({ isLoading: false, serverError: err?.message || '网络错误' });
-          return { ok: false, code: 'NETWORK_ERROR', message: '网络连接异常，请稍后重试' };
+          return { ok: false, code: 'NETWORK_ERROR', message: '网络连接异常，请检查网络后重试' };
         }
       },
 
