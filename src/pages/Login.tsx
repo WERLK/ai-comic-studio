@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Lock, User, Mail, Loader2, Eye, EyeOff, Download, Upload, Smartphone, Github } from 'lucide-react';
+import { Sparkles, Lock, User, Mail, Loader2, Eye, EyeOff, Download, Upload, Smartphone } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
-import { registerGitHubUser, loginGitHubUser, checkGitHubService, setGitHubToken, getGitHubToken } from '@/utils/githubDatabase';
+import { registerUser, loginUser, checkAutoLogin, saveLastUserId } from '@/utils/simpleAuth';
 
 export function Login() {
   const navigate = useNavigate();
@@ -15,9 +15,33 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [githubToken, setGithubToken] = useState(getGitHubToken());
-  const [showTokenInput, setShowTokenInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 自动登录检测
+  useEffect(() => {
+    const autoUser = checkAutoLogin();
+    if (autoUser) {
+      // 自动登录
+      useAuthStore.setState({
+        user: autoUser,
+        isAuthenticated: true,
+        isLoading: false,
+        points: autoUser.points ?? 50,
+        totalEarnedPoints: autoUser.totalEarnedPoints ?? 50,
+        level: autoUser.level ?? 1,
+        projectsCount: autoUser.projectsCount ?? 0,
+        isVIP: !!autoUser.isVIP,
+        vipLevel: autoUser.vipLevel ?? 0,
+        vipPoints: autoUser.vipPoints ?? 0,
+        vipExpireAt: autoUser.vipExpireAt ?? null,
+        completedTasks: autoUser.completedTasks || [],
+        visitedPages: autoUser.visitedPages || [],
+        usedStyles: autoUser.usedStyles || [],
+        transactions: autoUser.transactions || [],
+      });
+      navigate('/');
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,27 +52,16 @@ export function Login() {
       return;
     }
 
-    const token = getGitHubToken();
-    if (!token) {
-      setError('请先配置 GitHub Token');
-      setShowTokenInput(true);
-      return;
-    }
-
     try {
-      // 检查 GitHub 服务是否可用
-      const isHealthy = await checkGitHubService(token);
-      if (!isHealthy) {
-        setError('GitHub 服务连接失败，请检查 Token 是否有效');
-        return;
-      }
-
-      // 调用 GitHub 数据库 API
+      // 调用注册/登录 API
       const result = showRegister
-        ? await registerGitHubUser(token, { username, password, email })
-        : await loginGitHubUser(token, { username, password });
+        ? await registerUser(username, password, email)
+        : await loginUser(username, password);
 
       if (result.success && result.user) {
+        // 保存最后登录的用户ID（用于自动登录）
+        saveLastUserId(result.user.id);
+
         // 更新 store
         useAuthStore.setState({
           user: result.user,
@@ -75,17 +88,6 @@ export function Login() {
     } catch (err: any) {
       setError(err?.message || (showRegister ? '注册失败' : '登录失败'));
     }
-  };
-
-  const handleSaveToken = () => {
-    if (!githubToken) {
-      setError('请输入 GitHub Token');
-      return;
-    }
-    setGitHubToken(githubToken);
-    setShowTokenInput(false);
-    setSyncMessage('GitHub Token 已保存');
-    setTimeout(() => setSyncMessage(null), 3000);
   };
 
   const handleExport = () => {
@@ -164,49 +166,6 @@ export function Login() {
           </div>
 
           <div className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-6">
-            {/* GitHub Token 配置 */}
-            <div className="mb-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Github className="w-4 h-4 text-yellow-400" />
-                <p className="text-sm font-medium text-yellow-400">GitHub 云端数据库</p>
-              </div>
-              <p className="text-xs text-gray-500 leading-relaxed mb-3">
-                使用 GitHub Issues 作为云端数据库，无需额外服务器。首次使用需要配置 GitHub Token。
-              </p>
-              {!showTokenInput ? (
-                <button
-                  onClick={() => setShowTokenInput(true)}
-                  className="w-full py-2 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 text-yellow-400 text-xs font-medium rounded-lg transition-colors"
-                >
-                  {getGitHubToken() ? '更新 GitHub Token' : '配置 GitHub Token'}
-                </button>
-              ) : (
-                <div className="space-y-2">
-                  <input
-                    type="password"
-                    value={githubToken}
-                    onChange={(e) => setGithubToken(e.target.value)}
-                    placeholder="ghp_xxxxxxxxxxxxxxxx"
-                    className="w-full px-3 py-2 bg-black/30 border border-gray-600/30 rounded-lg text-white placeholder:text-gray-600 text-sm focus:outline-none focus:border-yellow-500/50"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSaveToken}
-                      className="flex-1 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 text-yellow-400 text-xs font-medium rounded-lg transition-colors"
-                    >
-                      保存 Token
-                    </button>
-                    <button
-                      onClick={() => setShowTokenInput(false)}
-                      className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-400 text-xs rounded-lg transition-colors"
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">用户名</label>
@@ -300,10 +259,10 @@ export function Login() {
           <div className="mt-6 bg-cyber-dark2/40 border border-cyber-purple/20 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-3">
               <Smartphone className="w-4 h-4 text-cyber-blue" />
-              <p className="text-sm font-medium text-gray-300">跨设备数据同步</p>
+              <p className="text-sm font-medium text-gray-300">数据说明</p>
             </div>
             <p className="text-xs text-gray-500 leading-relaxed mb-4">
-              账号数据保存在 GitHub Issues 中，登录后自动同步；也可使用下方手动导出/导入 JSON 文件作为备份。
+              用户数据保存在浏览器本地，注册后自动保存。如需跨设备同步，请使用导出/导入功能。
             </p>
             <div className="flex gap-2">
               <button
