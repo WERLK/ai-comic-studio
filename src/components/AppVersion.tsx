@@ -4,6 +4,18 @@ import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
   {
+    version: '1.16.0',
+    date: '2026-06-15',
+    features: [
+      '版本号动态更新：从 package.json 自动读取，不再写死',
+      'Vite 构建时自动注入 __APP_VERSION__ 和 __BUILD_TIME__ 全局变量',
+      '时间动态显示功能恢复：实时时钟显示日期、星期和时间',
+      'UI界面重构：移除赛博朋克风格，采用简洁现代设计',
+      '响应式适配增强：支持电脑端、平板端、移动端',
+      '浏览器兼容：支持小米/华为/OPPO/vivo厂商浏览器、百度浏览器、夸克浏览器'
+    ]
+  },
+  {
     version: '1.15.0',
     date: '2026-06-15',
     features: [

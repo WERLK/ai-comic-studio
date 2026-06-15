@@ -1,8 +1,18 @@
-// 单一版本号来源：直接从 package.json 读取
-// Vite 原生支持 JSON 导入，tree-shaking 只保留 version 字段
 import pkg from '../../package.json';
 
-export const APP_VERSION = pkg.version;
+declare const __APP_VERSION__: string;
+declare const __BUILD_TIME__: string;
 
-// 给 main.tsx 的版本检测逻辑用
-export const CURRENT_VERSION = pkg.version;
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : pkg.version;
+
+export const CURRENT_VERSION = APP_VERSION;
+
+export const BUILD_TIME = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : new Date().toISOString();
+
+export function getVersion(): string {
+  return APP_VERSION;
+}
+
+export function getBuildTime(): string {
+  return BUILD_TIME;
+}
