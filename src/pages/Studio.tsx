@@ -62,38 +62,130 @@ function parseScript(text: string): {
     ? firstLine
     : `AI漫剧-${Date.now().toString(36).toUpperCase()}`;
 
-  // 智能识别角色
-  const namePatterns = [
-    /[""']([\u4e00-\u9fa5]{2,4})[""'][：:是]?\s*(.{5,30}?)(?=\n|[""']|$)/g,
-    /([\u4e00-\u9fa5]{2,4})(?:说|道|问|答|喊|叫|想|觉得|认为|看着)[：:]\s*(.{3,30}?)(?=\n|$)/g,
-  ];
+  // ========== 角色解析（多策略组合，覆盖常见剧本格式）==========
   const foundNames = new Set<string>();
   const charDescriptions: Record<string, string> = {};
-  
-  for (const pattern of namePatterns) {
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const name = match[1].trim();
-      const desc = match[2].trim();
-      if (name.length >= 2 && name.length <= 4) {
-        foundNames.add(name);
-        if (!charDescriptions[name]) {
-          charDescriptions[name] = desc;
-        }
+  const charDialogueCount: Record<string, number> = {};
+
+  // 常见非角色关键词（避免误识别）
+  const excludeWords = new Set([
+    '场景', '地点', '时间', '人物', '角色', '旁白', '作者', '编剧',
+    '剧本', '故事', '正文', '序幕', '尾声', '第一幕', '第二幕', '第三幕',
+    '幕', '场', '节', '章', '简介', '摘要', '标题', '主题',
+    '同时', '与此同时', '这时候', '此时', '突然', '接着', '然后',
+  ]);
+
+  // 把"说/道/问/答"等动词词尾去掉，避免"李小明说"被当成完整角色名
+  const stripActionSuffix = (n: string) => {
+    return n.replace(/(说|道|问|答|喊|叫|自言自语|心想|说道|问道|答道|喊道|叫道|惊呼|低语|低声说|大声说|轻声说|冷笑道|微笑道|怒道|苦笑道|叹了口气|开口道|笑道|回答道|继续说|接着说|又说|说道)$/u, '');
+  };
+
+  const addCharacter = (name: string, desc?: string) => {
+    let trimmed = stripActionSuffix(String(name || '').trim());
+    // 再检查一次词尾（处理"李小明说道"这种组合）
+    trimmed = stripActionSuffix(trimmed);
+    if (!trimmed || trimmed.length < 2 || trimmed.length > 10) return;
+    // 过滤纯数字/符号 或 只含排除词
+    if (/^[\d\s\-_,，。！？、·]+$/.test(trimmed)) return;
+    if (excludeWords.has(trimmed)) return;
+    // 过滤明显是场景/动作/提示语的短语（长度>4时更严格）
+    if (trimmed.length > 4 && /(场景|地点|时间|白天|夜晚|室内|室外|街道|房间|客厅|卧室|公园|学校|公司|医院|餐厅|咖啡馆|办公室|会议室|电梯|走廊|大厅|厨房|浴室|阳台|花园|车库|门口|路边|都市|传说|故事|剧本|章节|第一|第二|第三)$/.test(trimmed)) return;
+    // 包含全角/半角冒号的通常是标签，不是角色
+    if (/[：:]/.test(trimmed)) return;
+    // 只含描述性词语（如"神秘的都市"）也排除
+    if (/^(神秘的|美丽的|可爱的|可怕的|古老的|热闹的|安静的|昏暗的|明亮的|繁华的|荒芜的)/.test(trimmed) && trimmed.length >= 6) return;
+
+    foundNames.add(trimmed);
+    if (desc && !charDescriptions[trimmed]) {
+      charDescriptions[trimmed] = desc.slice(0, 80);
+    }
+    charDialogueCount[trimmed] = (charDialogueCount[trimmed] || 0) + 1;
+  };
+
+  // --- 策略1：角色清单（如 "人物：小明、小红、小刚" 或 "登场角色：\n小明\n小红"）---
+  const listPattern = /(?:人\s*物|角\s*色|登场角色|主要人物|出场人物|人物表|角色表)\s*[:：]\s*([\s\S]*?)(?=\n\s*(?:场景|地点|时间|第[一二三四五六七八九十]+[幕场章节]|【|$))/i;
+  const listMatch = text.match(listPattern);
+  if (listMatch) {
+    const block = listMatch[1];
+    // 支持 、 ， , \n ； 空格 等分隔
+    const names = block.split(/[、，,；;\n\r\t]+|\s{2,}/).map(n => n.trim()).filter(n => n && n.length <= 10);
+    names.forEach(n => {
+      // 支持 "小明（男主角）" 这种带括号的
+      const clean = n.replace(/[（(【].*?[）)】]/g, '').trim();
+      const metaMatch = n.match(/[（(【](.*?)[）)】]/);
+      addCharacter(clean, metaMatch ? metaMatch[1] : '');
+    });
+  }
+
+  // --- 策略2：对话行首角色（"角色名：" "【角色名】" "角色名\t" 等）---
+  const lines = text.split(/\r?\n/);
+  // 匹配行首的角色标记，如：
+  // 小明：你好
+  // 小明 ： 你好
+  // 【小明】：你好
+  // 小明（惊讶）：你好
+  // 小明. 你好
+  const dialogueLineRegex = /^\s*(?:[【\[]\s*)?([\u4e00-\u9fa5A-Za-z·]{2,10})(?:\s*[（(][^）)】\]]*[）)])?(?:\s*[】\]])?\s*[:：\.\t、]\s*(.*)$/;
+
+  // 仅用于识别角色名的简版：短行、后续是对话内容
+  for (const line of lines) {
+    if (!line.trim() || line.trim().length > 120) continue;
+    const m = line.match(dialogueLineRegex);
+    if (m) {
+      const name = m[1].trim();
+      const dialogue = (m[2] || '').trim();
+      // 必须是对话行（后面有内容），避免把 "第一章：" 之类识别成角色
+      if (dialogue && dialogue.length >= 1) {
+        addCharacter(name, dialogue);
       }
     }
   }
 
-  const characters = Array.from(foundNames).slice(0, 6).map((name, i) => ({
+  // --- 策略3："XX说/道/问/答/喊/叫/自言自语/心想/说道/问道/回答" 模式 ---
+  const actionRegex = /([\u4e00-\u9fa5A-Za-z·]{2,10})(?:说|道|问|答|喊|叫|自言自语|心想|说道|问道|回答|答道|喊道|叫道|惊呼|低声说|大声说|轻声说|冷笑道|微笑道|怒道|苦笑道|叹了口气|开口道)(?:[：:]|，|,|\.|。|！|\s)/g;
+  let m;
+  while ((m = actionRegex.exec(text)) !== null) {
+    addCharacter(m[1]);
+  }
+
+  // --- 策略4：带引号的角色对话 如 "你好。"小明说 ---
+  const quotedSpeakerRegex = /[""""]([^""""\n]{1,60})[""""]([^\n。！？]{0,20})([\u4e00-\u9fa5·A-Za-z]{2,10})(?:说|道|问|答|喊|叫)/g;
+  while ((m = quotedSpeakerRegex.exec(text)) !== null) {
+    addCharacter(m[3]);
+  }
+
+  // 按对话次数排序（出现越多越重要）
+  const sortedNames = Array.from(foundNames).sort((a, b) =>
+    (charDialogueCount[b] || 0) - (charDialogueCount[a] || 0)
+  ).slice(0, 8);
+
+  const characters = sortedNames.map((name, i) => ({
     name,
     description: charDescriptions[name] || `故事中的重要角色，性格独特，形象鲜明`,
-    role: i === 0 ? '主角' : i === 1 ? '配角' : '角色',
+    role: i === 0 ? '主角' : i <= 2 ? '配角' : '角色',
   }));
 
   // 智能识别场景
-  const sceneKeywords = ['场景', '地点', '在', '来到', '走进', '回到', '来到'];
-  const sceneMatches = text.match(/(?:场景[：:]\s*)?([^。！？\n]{3,30}?)/g) || [];
-  const scenes = sceneMatches.slice(0, 8).map(s => s.replace(/场景[：:]\s*/, '').trim()).filter(Boolean);
+  const sceneMatches: string[] = [];
+  // 场景/地点：XXX
+  const sceneLabelRegex = /(?:场景|地点|位置|时间|环境)[：:]\s*([^\n。！？]{2,40})/g;
+  while ((m = sceneLabelRegex.exec(text)) !== null) {
+    sceneMatches.push(m[1].trim());
+  }
+  // 【场景：XXX】 或 【XXX】
+  const bracketRegex = /[【\[]([^\]】\n]{2,30})[】\]]/g;
+  while ((m = bracketRegex.exec(text)) !== null) {
+    const content = m[1].replace(/^(场景|地点|时间|环境)[：:]?\s*/, '').trim();
+    if (content && !excludeWords.has(content)) sceneMatches.push(content);
+  }
+  // 去重 & 截断
+  const seen = new Set<string>();
+  const scenes = sceneMatches.filter(s => {
+    if (!s || s.length < 2 || s.length > 40) return false;
+    if (seen.has(s)) return false;
+    seen.add(s);
+    return true;
+  }).slice(0, 8);
 
   // 推荐画风
   const styleScores: Record<string, number> = { anime: 0, manga: 0, cyberpunk: 0, realistic: 0, watercolor: 0, chinese: 0 };
