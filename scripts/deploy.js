@@ -1,4 +1,3 @@
-// 部署脚本：构建 + 版本号注入 + docs/ 部署
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,18 +7,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-// 读取 package.json 版本号
 const pkgPath = path.join(rootDir, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 const VERSION = pkg.version;
 
 console.log(`\n🚀 开始部署 AI 漫剧工作室 v${VERSION}\n`);
 
-// 1. 读取 index.html 模板
 const indexHtmlPath = path.join(rootDir, 'index.html');
 let indexHtml = fs.readFileSync(indexHtmlPath, 'utf-8');
 
-// 2. 替换版本号
 const oldVersionMatch = indexHtml.match(/CURRENT_VERSION\s*=\s*['"][^'"]*['"]/);
 if (oldVersionMatch) {
   indexHtml = indexHtml.replace(
@@ -39,7 +35,6 @@ if (oldTitleMatch) {
 fs.writeFileSync(indexHtmlPath, indexHtml, 'utf-8');
 console.log('✅ 已更新 index.html 版本号');
 
-// 3. 执行构建（通过 npx 确保使用项目内的 vite）
 console.log('📦 开始构建...');
 try {
   execSync('npx vite build', { cwd: rootDir, stdio: 'inherit' });
@@ -48,11 +43,9 @@ try {
   process.exit(1);
 }
 
-// 4. 构建后再次确保 dist/index.html 有正确的版本号
 const distHtmlPath = path.join(rootDir, 'dist', 'index.html');
 if (fs.existsSync(distHtmlPath)) {
   let distHtml = fs.readFileSync(distHtmlPath, 'utf-8');
-  // 在 dist 的 HTML 中注入版本号到 title 和脚本变量
   const distTitleMatch = distHtml.match(/<title>[^<]*<\/title>/);
   if (distTitleMatch) {
     distHtml = distHtml.replace(
@@ -73,7 +66,6 @@ if (fs.existsSync(distHtmlPath)) {
   console.log('✅ 已注入 dist/index.html 版本号');
 }
 
-// 5. 复制 dist 到 docs
 const docsDir = path.join(rootDir, 'docs');
 if (fs.existsSync(docsDir)) {
   fs.rmSync(docsDir, { recursive: true });
@@ -96,6 +88,60 @@ function copyDir(src, dst) {
 copyDir(path.join(rootDir, 'dist'), docsDir);
 console.log('✅ 已复制 dist/ -> docs/');
 
-console.log(`\n🎉 部署完成！AI 漫剧工作室 v${VERSION} 已就绪`);
-console.log('   👉 docs/ 目录可直接部署到 GitHub Pages');
-console.log(`   👉 请运行: git add -A && git commit -m "部署: v${VERSION}" && git push\n`);
+console.log('\n📤 开始部署到 GitHub...');
+
+try {
+  console.log('  1. 更新 master 分支...');
+  execSync(`git add -A && git commit -m "deploy: v${VERSION}"`, { 
+    cwd: rootDir, 
+    stdio: 'inherit' 
+  });
+  execSync('git push origin master', { 
+    cwd: rootDir, 
+    stdio: 'inherit' 
+  });
+  console.log('   ✅ master 分支已推送');
+
+  console.log('  2. 部署到 gh-pages 分支...');
+  execSync('git checkout gh-pages', { 
+    cwd: rootDir, 
+    stdio: 'inherit' 
+  });
+  
+  execSync('rm -rf index.html assets', { 
+    cwd: rootDir, 
+    stdio: 'inherit' 
+  });
+  execSync('cp -r docs/* .', { 
+    cwd: rootDir, 
+    stdio: 'inherit' 
+  });
+  
+  execSync(`git add -A && git commit -m "deploy: v${VERSION}"`, { 
+    cwd: rootDir, 
+    stdio: 'inherit' 
+  });
+  execSync('git push origin gh-pages --force', { 
+    cwd: rootDir, 
+    stdio: 'inherit' 
+  });
+  console.log('   ✅ gh-pages 分支已推送');
+
+  execSync('git checkout master', { 
+    cwd: rootDir, 
+    stdio: 'inherit' 
+  });
+  console.log('   ✅ 已切换回 master 分支');
+
+} catch (e) {
+  console.error('❌ 推送失败');
+  try {
+    execSync('git checkout master', { cwd: rootDir, stdio: 'inherit' });
+  } catch {}
+  process.exit(1);
+}
+
+console.log(`\n🎉 部署完成！AI 漫剧工作室 v${VERSION}`);
+console.log('   ✅ master 分支已更新');
+console.log('   ✅ gh-pages 分支已更新');
+console.log('   ✅ GitHub Pages 将自动同步\n');
