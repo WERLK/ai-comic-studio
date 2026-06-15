@@ -13,6 +13,7 @@ export default defineConfig({
   build: {
     sourcemap: 'hidden',
     chunkSizeWarningLimit: 600,
+    outDir: 'dist',
     rollupOptions: {
       output: {
         manualChunks: {
@@ -25,6 +26,6 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    tsconfigPaths()
+    tsconfigPaths(),
   ],
 })

@@ -8,6 +8,7 @@
     "dev:server": "tsx server/index.ts",
     "dev:client": "vite",
     "build": "vite build",
+    "deploy": "node scripts/deploy.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "check": "tsc -b --noEmit"
