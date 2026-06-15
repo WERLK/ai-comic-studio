@@ -4,6 +4,15 @@ import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
   {
+    version: '1.11.9',
+    date: '2026-06-15',
+    features: [
+      '新增微信浏览器强制刷新机制（HTML层面版本检测）',
+      '修复 index.html title 版本号写死问题',
+      '当检测到新版本时自动清除缓存并重载页面'
+    ]
+  },
+  {
     version: '1.11.8',
     date: '2026-06-14',
     features: [
