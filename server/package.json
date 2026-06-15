@@ -1,7 +1,7 @@
 {
   "name": "ai-comic-studio-api",
   "version": "1.0.0",
-  "description": "AI漫剧工作室后端API - SQLite版本",
+  "description": "AI漫剧工作室后端API - Cyclic版本",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
