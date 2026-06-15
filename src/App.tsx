@@ -1,6 +1,6 @@
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores';
-import { Sparkles, Coins, LogOut, User, Menu, X, Bell, Settings2 } from 'lucide-react';
+import { Sparkles, Coins, LogOut, User, Menu, X, Bell, Settings2, Wifi, WifiOff } from 'lucide-react';
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AppVersion } from '@/components/AppVersion';
 import { VerticalClock } from '@/components/VerticalClock';
@@ -35,14 +35,32 @@ function PageLoader() {
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, logout, points, autoLogin } = useAuthStore();
+  const { user, isAuthenticated, logout, points, autoLogin, apiAvailable, isOnline, checkNetworkStatus, refreshNetworkStatus } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [browserFixClass, setBrowserFixClass] = useState('');
 
   useEffect(() => {
     autoLogin();
     setBrowserFixClass(getBrowserFixClass());
+    checkNetworkStatus();
   }, []);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsMenuOpen(false);
+      refreshNetworkStatus();
+    };
+    const handleOffline = () => {
+      setIsMenuOpen(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [refreshNetworkStatus]);
 
   const isAuthPage = location.pathname === '/login' || location.pathname.startsWith('/#/login');
 
@@ -74,8 +92,22 @@ function AppContent() {
             </div>
           </div>
 
-          <div className="hidden lg:flex items-center">
+          <div className="hidden lg:flex items-center gap-3">
             <VerticalClock />
+            <button
+              onClick={refreshNetworkStatus}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all ${
+                apiAvailable 
+                  ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20' 
+                  : isOnline 
+                    ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20'
+                    : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+              }`}
+              title={apiAvailable ? '服务器已连接' : isOnline ? '网络在线，服务器未连接' : '网络离线'}
+            >
+              {apiAvailable ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+              <span className="text-xs">{apiAvailable ? '在线' : isOnline ? '离线' : '无网络'}</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2">

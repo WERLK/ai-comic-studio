@@ -150,7 +150,8 @@ export function getAIConfig(): AIServiceConfig {
 }
 
 // 后端 API 地址
-const API_BASE = 'http://localhost:3001';
+// 使用相对路径，由 Vite proxy 在开发环境转发到 http://localhost:3001
+const API_BASE = '/api';
 
 // 将前端 API Keys 同步到后端
 async function syncKeysToBackend() {

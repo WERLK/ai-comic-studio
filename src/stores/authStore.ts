@@ -39,6 +39,10 @@ interface AuthStore extends AuthState {
   levelRewards: PointReward[];
   exchangeItems: PointExchangeItem[];
   serverError?: string;
+  // ===== 网络状态 =====
+  isOnline: boolean;          // 网络是否在线
+  apiAvailable: boolean;      // API 是否可用
+  lastNetworkCheck: number;   // 最后一次网络检查时间
   clearAllData: () => void;
   login: (credentials: LoginCredentials) => Promise<{ ok: boolean; code?: string; message?: string }>;
   register: (credentials: RegisterCredentials) => Promise<{ ok: boolean; code?: string; message?: string }>;
@@ -66,6 +70,9 @@ interface AuthStore extends AuthState {
   autoLogin: () => Promise<boolean>;
   deleteAccount: () => void;
   syncToCloud: () => void;
+  // ===== 网络状态管理 =====
+  checkNetworkStatus: () => Promise<boolean>;  // 检查网络状态
+  refreshNetworkStatus: () => void;            // 刷新网络状态
 }
 
 const getTodayKey = () => new Date().toISOString().split('T')[0];
@@ -88,14 +95,24 @@ const calcLevel = (totalEarned: number): number => {
 let API_BASE = '/api';
 let apiAvailable = false;
 let apiCheckDone = false;
+let lastCheckTime = 0;
+const CHECK_INTERVAL = 30000;
 
 const checkApi = async (force = false): Promise<boolean> => {
-  if (!force && apiCheckDone) return apiAvailable;
-  if (!force) apiCheckDone = true;
+  const now = Date.now();
+  
+  if (!force && apiCheckDone && now - lastCheckTime < CHECK_INTERVAL) {
+    return apiAvailable;
+  }
+  
+  if (!force) {
+    apiCheckDone = true;
+  }
+  lastCheckTime = now;
   
   let attempts = 0;
-  const maxAttempts = 2;
-  const timeout = 8000;
+  const maxAttempts = 3;
+  const timeout = 10000;
   
   while (attempts < maxAttempts) {
     try {
@@ -106,6 +123,7 @@ const checkApi = async (force = false): Promise<boolean> => {
         signal: controller.signal,
         headers: { Accept: 'application/json' },
         cache: 'no-cache',
+        mode: 'cors',
       });
       
       clearTimeout(timer);
@@ -117,6 +135,7 @@ const checkApi = async (force = false): Promise<boolean> => {
         const userRes = await fetch(`${API_BASE}/users`, {
           headers: { Accept: 'application/json' },
           cache: 'no-cache',
+          mode: 'cors',
         });
         
         if (userRes.ok) {
@@ -149,12 +168,18 @@ const checkApi = async (force = false): Promise<boolean> => {
     
     attempts++;
     if (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
   
   apiAvailable = false;
   return apiAvailable;
+};
+
+const resetApiCheck = () => {
+  apiCheckDone = false;
+  apiAvailable = false;
+  lastCheckTime = 0;
 };
 
 // ===== localStorage 后备（后端不可用时使用）=====
@@ -393,16 +418,41 @@ export const useAuthStore = create<AuthStore>()(
       memberRewards: makeMemberTasks(false),
       levelRewards: makeLevelTasks(1, 0),
       exchangeItems: makeExchangeItems(),
+      // ===== 网络状态 =====
+      isOnline: typeof navigator !== 'undefined' && navigator.onLine,
+      apiAvailable: false,
+      lastNetworkCheck: 0,
+
+      // ===== 网络状态管理 =====
+      checkNetworkStatus: async () => {
+        const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+        set({ isOnline });
+        
+        if (!isOnline) {
+          set({ apiAvailable: false });
+          return false;
+        }
+        
+        const result = await checkApi(true);
+        set({ apiAvailable: result, lastNetworkCheck: Date.now() });
+        return result;
+      },
+      
+      refreshNetworkStatus: () => {
+        resetApiCheck();
+        get().checkNetworkStatus();
+      },
 
       // ===== 登录：仅使用云端数据库验证 =====
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true });
-        await checkApi();
+        await checkApi(true);
 
         try {
           // 仅通过云端数据库验证
           if (!apiAvailable) {
             set({ isLoading: false });
+            resetApiCheck();
             return { ok: false, code: 'NETWORK_ERROR', message: '请连接网络后再登录' };
           }
 
@@ -455,6 +505,7 @@ export const useAuthStore = create<AuthStore>()(
           return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
         } catch (err: any) {
           set({ isLoading: false, serverError: err?.message || '网络错误' });
+          resetApiCheck();
           return { ok: false, code: 'NETWORK_ERROR', message: '网络连接异常，请检查网络后重试' };
         }
       },
@@ -462,12 +513,13 @@ export const useAuthStore = create<AuthStore>()(
       // ===== 注册：仅使用云端数据库保存 =====
       register: async (credentials: RegisterCredentials) => {
         set({ isLoading: true });
-        await checkApi();
+        await checkApi(true);
 
         try {
           // 仅通过云端数据库注册
           if (!apiAvailable) {
             set({ isLoading: false });
+            resetApiCheck();
             return { ok: false, code: 'NETWORK_ERROR', message: '请连接网络后再注册' };
           }
 
@@ -523,6 +575,7 @@ export const useAuthStore = create<AuthStore>()(
           return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
         } catch (err: any) {
           set({ isLoading: false, serverError: err?.message || '网络错误' });
+          resetApiCheck();
           return { ok: false, code: 'NETWORK_ERROR', message: '网络连接异常，请检查网络后重试' };
         }
       },
