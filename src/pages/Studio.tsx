@@ -22,6 +22,7 @@ import { Button } from '@/components/common';
 import { AppVersion } from '@/components/AppVersion';
 import { analyzeScript, type AnalysisResult } from '@/services/aiService';
 import type { SceneStyle, Character, Frame } from '@/types';
+import { ScriptWizard } from '@/components/ScriptWizard';
 
 // ========== 工具函数 ==========
 
@@ -409,12 +410,13 @@ export function Studio() {
   ];
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
+  const [inputMode, setInputMode] = useState<'text' | 'upload' | 'wizard'>('text');
   const [storyText, setStoryText] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [showScriptWizard, setShowScriptWizard] = useState(false);
 
   // Step 2: 角色
   const [characters, setCharacters] = useState<{ name: string; description: string; role: string }[]>([]);
@@ -627,6 +629,14 @@ export function Studio() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/novel-promotion')}
+            className="px-3 py-1.5 bg-gradient-to-r from-cyber-blue/20 to-cyan-500/20 hover:from-cyber-blue/30 hover:to-cyan-500/30 border border-cyber-blue/30 hover:border-cyan-400/40 rounded-lg text-xs text-cyber-blue hover:text-white transition-all flex items-center gap-1.5"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">小说推广中心</span>
+            <span className="sm:hidden">小说</span>
+          </button>
           <AppVersion />
         </div>
       </header>
@@ -647,18 +657,29 @@ export function Studio() {
                 {[
                   { key: 'text', label: '文字输入', icon: FileText },
                   { key: 'upload', label: '上传素材', icon: Upload },
+                  { key: 'wizard', label: 'AI 辅助创作', icon: Wand2 },
                 ].map(tab => (
                   <button
                     key={tab.key}
-                    onClick={() => { setInputMode(tab.key as any); setAnalysisDone(false); }}
-                    className={`flex-1 py-3 px-5 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 ${
-                      inputMode === tab.key
+                    onClick={() => {
+                      if (tab.key === 'wizard') {
+                        setShowScriptWizard(true);
+                      } else {
+                        setInputMode(tab.key as any);
+                        setAnalysisDone(false);
+                      }
+                    }}
+                    className={`flex-1 py-3 px-3 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                      (inputMode === tab.key && tab.key !== 'wizard')
                         ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-neon'
-                        : 'bg-cyber-dark2 text-gray-400 border border-cyber-purple/20 hover:border-cyber-purple/40'
+                        : tab.key === 'wizard'
+                          ? 'bg-gradient-to-r from-cyber-blue/20 to-cyber-purple/20 border border-cyber-blue/30 text-cyber-blue hover:border-cyber-pink/50 hover:text-cyber-pink'
+                          : 'bg-cyber-dark2 text-gray-400 border border-cyber-purple/20 hover:border-cyber-purple/40'
                     }`}
                   >
                     <tab.icon className="w-4 h-4" />
-                    {tab.label}
+                    <span className="hidden sm:inline">{tab.label}</span>
+                    {tab.key === 'wizard' && <span className="text-[9px] bg-cyber-blue/20 px-1.5 py-0.5 rounded sm:hidden">NEW</span>}
                   </button>
                 ))}
               </div>
@@ -698,6 +719,7 @@ export function Studio() {
                           variant="primary"
                           className="w-full"
                           size="lg"
+                          id="analyze-script-btn"
                           onClick={handleAnalyze}
                           disabled={!storyText.trim() || isAnalyzing}
                         >
@@ -1207,6 +1229,25 @@ export function Studio() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* ===== AI 剧本创作向导 ===== */}
+        {showScriptWizard && (
+          <ScriptWizard
+            onClose={() => setShowScriptWizard(false)}
+            onComplete={(generatedScript) => {
+              // 将生成的剧本填入编辑器，并自动触发分析
+              setStoryText(generatedScript);
+              setAnalysisDone(false);
+              setInputMode('text');
+              setShowScriptWizard(false);
+              // 自动触发 AI 分析
+              setTimeout(() => {
+                const analyzeBtn = document.getElementById('analyze-script-btn');
+                if (analyzeBtn) analyzeBtn.click();
+              }, 300);
+            }}
+          />
         )}
       </div>
     </div>

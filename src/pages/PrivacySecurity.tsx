@@ -20,7 +20,7 @@ import { AppVersion } from '@/components/AppVersion';
 
 export function PrivacySecurity() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, deleteAccount } = useAuthStore();
 
   // 修改密码状态
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -127,12 +127,8 @@ export function PrivacySecurity() {
 
   // 处理账号注销
   const handleDeleteAccount = () => {
-    if (window.confirm('确定要注销账号吗？此操作不可恢复，所有数据将被永久删除。')) {
-      if (window.confirm('再次确认：注销后无法恢复数据，确定继续吗？')) {
-        alert('账号注销功能开发中，敬请期待');
-      }
-    }
-    setShowDeleteConfirm(false);
+    // 真正删除账号 → 数据同步到云端删除，再清本地，最后跳首页
+    deleteAccount();
   };
 
   return (

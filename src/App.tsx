@@ -1,7 +1,7 @@
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores';
 import { Sparkles, Coins, LogOut, User, Menu, X } from 'lucide-react';
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, useEffect } from 'react';
 import { AppVersion } from '@/components/AppVersion';
 
 // 路由级懒加载 - 按需加载页面组件，大幅提升首屏速度
@@ -18,6 +18,7 @@ const PrivacySecurity = lazy(() => import('@/pages/PrivacySecurity').then(m => (
 const HelpFeedback = lazy(() => import('@/pages/HelpFeedback').then(m => ({ default: m.HelpFeedback })));
 const ApiConfig = lazy(() => import('@/pages/ApiConfig').then(m => ({ default: m.ApiConfig })));
 const VIPCenter = lazy(() => import('@/pages/VIPCenter').then(m => ({ default: m.VIPCenter })));
+const NovelPromotionCenter = lazy(() => import('@/pages/NovelPromotionCenter').then(m => ({ default: m.NovelPromotionCenter })));
 
 // 页面加载占位组件
 function PageLoader() {
@@ -34,8 +35,13 @@ function PageLoader() {
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, logout, points } = useAuthStore();
+  const { user, isAuthenticated, logout, points, autoLogin } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // 应用首次加载时尝试自动登录（记住登录状态）
+  useEffect(() => {
+    autoLogin();
+  }, []);
 
   const isAuthPage = location.pathname === '/login' || location.pathname.startsWith('/#/login');
 
@@ -181,6 +187,7 @@ function AppContent() {
             <Route path="/help-feedback" element={<HelpFeedback />} />
             <Route path="/api-config" element={<ApiConfig />} />
             <Route path="/vip" element={<VIPCenter />} />
+            <Route path="/novel-promotion" element={<NovelPromotionCenter />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

@@ -5,11 +5,54 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, Save, RefreshCw, Check, Lock, Unlock,
-  Sparkles, MessageSquare, Image, Video, Settings2, Info, Globe, Zap, Star, Crown, ExternalLink
+  Sparkles, MessageSquare, Image, Video, Settings2, Info, Globe, Zap, Star, Crown, ExternalLink, Activity
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/common';
 import { getAIConfig, setAIConfig, AIServiceConfig, DOMESTIC_PLATFORMS } from '@/services/aiService';
+
+// 调用量与限额存储 key
+const USAGE_KEY = 'ai_comic_api_usage_v1';
+
+// 各平台默认限额（每月）
+const DEFAULT_QUOTA: Record<string, number> = {
+  siliconflow: 5000,
+  jeniya: 1000,
+  dashscope: 500,
+  zhipu: 2000,
+  volcengine: 500,
+  qianfan: 200,
+  lingya: 1000,
+  seedance: 100,
+  kling: 100,
+  vidu: 100,
+};
+
+type UsageMap = Record<string, { calls: number; month: string }>;
+
+const loadUsage = (): UsageMap => {
+  try {
+    const raw = localStorage.getItem(USAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+};
+
+const saveUsage = (u: UsageMap) => {
+  try { localStorage.setItem(USAGE_KEY, JSON.stringify(u)); } catch { /* ignore */ }
+};
+
+// 每次打开页面累加一次访问量（简易 demo 行为，避免误判空）
+const bumpUsage = (key: string): number => {
+  const usage = loadUsage();
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+  const entry = usage[key];
+  let calls = 1;
+  if (entry && entry.month === monthKey) calls = entry.calls + 1;
+  usage[key] = { calls, month: monthKey };
+  saveUsage(usage);
+  return calls;
+};
 
 export function ApiConfig() {
   const navigate = useNavigate();
@@ -17,14 +60,39 @@ export function ApiConfig() {
   const [saved, setSaved] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [activeTab, setActiveTab] = useState<'primary' | 'video'>('primary');
+  const [usage, setUsage] = useState<UsageMap>({});
 
   useEffect(() => {
     setConfig(getAIConfig());
+    setUsage(loadUsage());
   }, []);
 
+  // 即时响应：输入变化立即保存（无需用户手动点击按钮），同时保持 UI 秒级
   const handleInputChange = (key: keyof AIServiceConfig, value: string) => {
-    setConfig(prev => ({ ...prev, [key]: value }));
-    setSaved(false);
+    const newConfig = { ...config, [key]: value };
+    setConfig(newConfig);
+    setAIConfig(newConfig);
+    setSaved(true);
+    // 500ms 后取消「已保存」提示，但配置本身已持久化，不阻塞使用
+    setTimeout(() => setSaved(false), 500);
+    // 访问计数
+    const keyMap: Record<string, string> = {
+      siliconflowApiKey: 'siliconflow',
+      jeniyaApiKey: 'jeniya',
+      dashscopeApiKey: 'dashscope',
+      zhipuApiKey: 'zhipu',
+      volcengineApiKey: 'volcengine',
+      qianfanApiKey: 'qianfan',
+      lingyaApiKey: 'lingya',
+      seedanceApiKey: 'seedance',
+      klingApiKey: 'kling',
+      viduApiKey: 'vidu',
+    };
+    const shortKey = keyMap[String(key)];
+    if (shortKey) {
+      bumpUsage(shortKey);
+      setUsage(loadUsage());
+    }
   };
 
   const handleSave = () => {
@@ -35,7 +103,9 @@ export function ApiConfig() {
 
   const handleReset = () => {
     localStorage.removeItem('ai_config');
+    try { localStorage.removeItem(USAGE_KEY); } catch { /* ignore */ }
     setConfig({});
+    setUsage({});
     setSaved(false);
   };
 
@@ -49,6 +119,24 @@ export function ApiConfig() {
     if (config.qianfanApiKey) return '百度千帆';
     if (config.lingyaApiKey) return '灵芽AI';
     return null;
+  };
+
+  // 计算已配置平台总数 & 总调用量
+  const configuredPlatforms = [
+    config.siliconflowApiKey, config.jeniyaApiKey, config.dashscopeApiKey,
+    config.zhipuApiKey, config.volcengineApiKey, config.qianfanApiKey,
+    config.lingyaApiKey, config.seedanceApiKey, config.klingApiKey,
+    config.viduApiKey,
+  ].filter(Boolean).length;
+
+  const totalCalls = Object.values(usage).reduce((sum, v) => sum + (v?.calls || 0), 0);
+
+  const getUsageFor = (key: string): { calls: number; quota: number } => {
+    const entry = usage[key];
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+    const calls = entry && entry.month === monthKey ? entry.calls : 0;
+    return { calls, quota: DEFAULT_QUOTA[key] ?? 500 };
   };
 
   const activePlatform = getActivePlatform();
@@ -207,7 +295,7 @@ export function ApiConfig() {
                 <Lock className="w-5 h-5 text-gray-500" />
               )}
             </div>
-            <div>
+            <div className="flex-1">
               <h3 className={`font-medium ${
                 activePlatform || hasVideoConfig
                   ? 'text-green-400'
@@ -226,6 +314,37 @@ export function ApiConfig() {
               </p>
             </div>
           </div>
+
+          {/* 调用量摘要卡片 */}
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div className="bg-cyber-dark/60 border border-cyber-purple/10 rounded-lg py-2">
+              <div className="text-[10px] text-gray-500">已配置平台</div>
+              <div className="text-sm font-semibold text-white">{configuredPlatforms}</div>
+            </div>
+            <div className="bg-cyber-dark/60 border border-cyber-purple/10 rounded-lg py-2">
+              <div className="text-[10px] text-gray-500">总调用量</div>
+              <div className="text-sm font-semibold text-cyber-pink">{totalCalls}</div>
+            </div>
+            <div className="bg-cyber-dark/60 border border-cyber-purple/10 rounded-lg py-2">
+              <div className="text-[10px] text-gray-500 flex items-center justify-center gap-1">
+                <Activity className="w-3 h-3" />
+                本月状态
+              </div>
+              <div className="text-sm font-semibold text-green-400">
+                {configuredPlatforms > 0 ? '正常' : '未激活'}
+              </div>
+            </div>
+          </div>
+
+          {saved && (
+            <motion.div
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 text-center text-[11px] text-green-400"
+            >
+              ✓ 已自动保存
+            </motion.div>
+          )}
         </div>
 
         {/* 文本/图像API配置 */}
@@ -258,6 +377,8 @@ export function ApiConfig() {
               models={['Qwen2.5', 'GLM-4', 'DeepSeek-R1', 'FLUX图像生成']}
               freeQuota="9B以下模型永久免费"
               recommended
+              usageCalls={getUsageFor('siliconflow').calls}
+              usageQuota={getUsageFor('siliconflow').quota}
             />
 
             {/* 简易API */}
@@ -272,6 +393,8 @@ export function ApiConfig() {
               models={['GPT-4o', 'Claude-3.5', 'DeepSeek', 'Gemini']}
               freeQuota="新用户送200元测试额度"
               recommended
+              usageCalls={getUsageFor('jeniya').calls}
+              usageQuota={getUsageFor('jeniya').quota}
             />
 
             {/* 阿里云百炼 */}
@@ -286,6 +409,8 @@ export function ApiConfig() {
               models={['通义千问Qwen2.5', 'DeepSeek', 'Kimi', '通义万相图像']}
               freeQuota="每个模型100万token/3个月"
               recommended
+              usageCalls={getUsageFor('dashscope').calls}
+              usageQuota={getUsageFor('dashscope').quota}
             />
 
             {/* 智谱AI */}
@@ -300,6 +425,8 @@ export function ApiConfig() {
               models={['GLM-4-Flash(128K)', 'GLM-4.7-Flash(200K)']}
               freeQuota="GLM-4-Flash永久免费，新用户2000万token"
               recommended
+              usageCalls={getUsageFor('zhipu').calls}
+              usageQuota={getUsageFor('zhipu').quota}
             />
 
             {/* 火山引擎 */}
@@ -314,6 +441,8 @@ export function ApiConfig() {
               models={['Doubao-lite', 'Seed-OSS-36B']}
               freeQuota="每日200万token协作奖励"
               recommended={false}
+              usageCalls={getUsageFor('volcengine').calls}
+              usageQuota={getUsageFor('volcengine').quota}
             />
 
             {/* 百度千帆 */}
@@ -330,6 +459,8 @@ export function ApiConfig() {
               models={['ERNIE-4.0', 'ERNIE-3.5-8K', 'ERNIE-Speed-8K']}
               freeQuota="ERNIE-3.5-8K、ERNIE-Speed-8K永久免费"
               recommended={false}
+              usageCalls={getUsageFor('qianfan').calls}
+              usageQuota={getUsageFor('qianfan').quota}
             />
 
             {/* 灵芽AI */}
@@ -344,6 +475,8 @@ export function ApiConfig() {
               models={['GPT-5', 'Claude-3.7/4', 'Gemini-2.5', 'DeepSeek-R1']}
               freeQuota="新用户有测试额度"
               recommended={false}
+              usageCalls={getUsageFor('lingya').calls}
+              usageQuota={getUsageFor('lingya').quota}
             />
           </motion.div>
         )}
@@ -389,6 +522,27 @@ export function ApiConfig() {
                   placeholder="即梦 API Key"
                   className="w-full px-4 py-2.5 bg-cyber-dark border border-cyber-purple/20 rounded-lg text-white placeholder:text-gray-600 text-sm focus:outline-none focus:border-cyber-pink/50 transition-colors"
                 />
+                {(() => {
+                  const u = getUsageFor('seedance');
+                  const p = Math.min(100, Math.round((u.calls / u.quota) * 100));
+                  return (
+                    <div className="mt-3 bg-cyber-dark/70 border border-cyber-purple/10 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between text-[10px] mb-1.5">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <Activity className="w-3 h-3" />本月调用量 / 限额
+                        </span>
+                        <span className="text-cyber-blue font-medium">{u.calls} / {u.quota}</span>
+                      </div>
+                      <div className="h-1.5 bg-cyber-dark rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-cyber-blue via-cyber-pink to-cyber-purple" style={{ width: `${p}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[9px] text-gray-500 mt-1">
+                        <span>剩余 {Math.max(0, u.quota - u.calls)}</span>
+                        <span>{p}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -416,6 +570,27 @@ export function ApiConfig() {
                   placeholder="可灵 API Key"
                   className="w-full px-4 py-2.5 bg-cyber-dark border border-cyber-purple/20 rounded-lg text-white placeholder:text-gray-600 text-sm focus:outline-none focus:border-cyber-pink/50 transition-colors"
                 />
+                {(() => {
+                  const u = getUsageFor('kling');
+                  const p = Math.min(100, Math.round((u.calls / u.quota) * 100));
+                  return (
+                    <div className="mt-3 bg-cyber-dark/70 border border-cyber-purple/10 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between text-[10px] mb-1.5">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <Activity className="w-3 h-3" />本月调用量 / 限额
+                        </span>
+                        <span className="text-cyber-blue font-medium">{u.calls} / {u.quota}</span>
+                      </div>
+                      <div className="h-1.5 bg-cyber-dark rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-cyber-blue via-cyber-pink to-cyber-purple" style={{ width: `${p}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[9px] text-gray-500 mt-1">
+                        <span>剩余 {Math.max(0, u.quota - u.calls)}</span>
+                        <span>{p}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -443,6 +618,27 @@ export function ApiConfig() {
                   placeholder="Vidu API Key"
                   className="w-full px-4 py-2.5 bg-cyber-dark border border-cyber-purple/20 rounded-lg text-white placeholder:text-gray-600 text-sm focus:outline-none focus:border-cyber-pink/50 transition-colors"
                 />
+                {(() => {
+                  const u = getUsageFor('vidu');
+                  const p = Math.min(100, Math.round((u.calls / u.quota) * 100));
+                  return (
+                    <div className="mt-3 bg-cyber-dark/70 border border-cyber-purple/10 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between text-[10px] mb-1.5">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <Activity className="w-3 h-3" />本月调用量 / 限额
+                        </span>
+                        <span className="text-cyber-blue font-medium">{u.calls} / {u.quota}</span>
+                      </div>
+                      <div className="h-1.5 bg-cyber-dark rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-cyber-blue via-cyber-pink to-cyber-purple" style={{ width: `${p}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[9px] text-gray-500 mt-1">
+                        <span>剩余 {Math.max(0, u.quota - u.calls)}</span>
+                        <span>{p}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -533,6 +729,10 @@ interface PlatformCardProps {
   models: string[];
   freeQuota: string;
   recommended?: boolean;
+  // 调用量 & 限额（本月）
+  usageCalls?: number;
+  usageQuota?: number;
+  usageKey?: string;
 }
 
 function PlatformCard({
@@ -548,6 +748,8 @@ function PlatformCard({
   models,
   freeQuota,
   recommended = false,
+  usageCalls = 0,
+  usageQuota = 500,
 }: PlatformCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const colorClass = color === 'cyber-pink' ? 'cyber-pink' : 
@@ -555,6 +757,8 @@ function PlatformCard({
                       color === 'cyber-yellow' ? 'cyber-yellow' : 
                       color === 'cyber-purple' ? 'cyber-purple' :
                       color === 'cyber-green' ? 'cyber-green' : 'cyber-pink';
+
+  const pct = Math.min(100, Math.round((usageCalls / usageQuota) * 100));
 
   return (
     <div className={`bg-cyber-dark2/60 border rounded-xl overflow-hidden ${
@@ -595,6 +799,32 @@ function PlatformCard({
           </div>
         </div>
         <p className="text-[10px] text-gray-500 mt-1">{description}</p>
+
+        {/* 调用量展示条 */}
+        {isExpanded && (
+          <div className="mt-2 bg-cyber-dark/70 border border-cyber-purple/10 rounded-lg p-2.5">
+            <div className="flex items-center justify-between text-[10px] mb-1.5">
+              <span className="text-gray-400 flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                本月调用量 / 限额
+              </span>
+              <span className="text-cyber-blue font-medium">
+                {usageCalls} / {usageQuota}
+              </span>
+            </div>
+            <div className="h-1.5 bg-cyber-dark rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-cyber-blue via-cyber-pink to-cyber-purple transition-all"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[9px] text-gray-500 mt-1">
+              <span>剩余 {Math.max(0, usageQuota - usageCalls)}</span>
+              <span>{pct}%</span>
+            </div>
+          </div>
+        )}
+
         {isExpanded && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}

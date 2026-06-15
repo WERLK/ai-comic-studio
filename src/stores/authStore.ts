@@ -5,11 +5,15 @@ import {
   registerUser,
   loginUser,
   updateUser,
+  deleteUser,
   STORAGE_KEYS,
   type PublicUser,
   type LoginResult,
   type RegisterResult,
 } from '@/utils/database';
+
+// 记住登录凭据的本地 key
+const REMEMBER_KEY = 'ai_comic_remember_user_v1';
 
 interface AuthStore extends AuthState {
   user: User | null;
@@ -58,6 +62,10 @@ interface AuthStore extends AuthState {
   // 数据导出导入 (用于跨设备同步，绕过 localStorage 限制)
   exportUserData: () => string;
   importUserData: (json: string) => boolean;
+  // ===== 自动登录 / 注销账号 / 云端同步 =====
+  autoLogin: () => Promise<boolean>;
+  deleteAccount: () => void;
+  syncToCloud: () => void;
 }
 
 const getTodayKey = () => new Date().toISOString().split('T')[0];
@@ -328,6 +336,7 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      autoLoginDone: false,
       points: 0,
       level: 1,
       totalEarnedPoints: 0,
@@ -400,6 +409,9 @@ export const useAuthStore = create<AuthStore>()(
               transactions: savedTransactions,
               ...tasks,
             });
+            // 记住登录 & 云端同步
+            try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+            setTimeout(() => get().syncToCloud(), 0);
             return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
           }
 
@@ -433,6 +445,9 @@ export const useAuthStore = create<AuthStore>()(
             transactions: savedTransactions,
             ...tasks,
           });
+          // 记住登录 & 云端同步
+          try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+          setTimeout(() => get().syncToCloud(), 0);
           return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
         } catch (err: any) {
           set({ isLoading: false, serverError: err?.message || '网络错误' });
@@ -493,6 +508,8 @@ export const useAuthStore = create<AuthStore>()(
               transactions: savedTransactions,
               ...tasks,
             });
+            try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+            setTimeout(() => get().syncToCloud(), 0);
             return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
           }
 
@@ -530,6 +547,8 @@ export const useAuthStore = create<AuthStore>()(
             transactions: savedTransactions,
             ...tasks,
           });
+          try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
+          setTimeout(() => get().syncToCloud(), 0);
           return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
         } catch (err: any) {
           set({ isLoading: false, serverError: err?.message || '网络错误' });
@@ -538,11 +557,203 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: () => {
+        try { localStorage.removeItem(REMEMBER_KEY); } catch { /* ignore */ }
         set({
           user: null,
           isAuthenticated: false,
           isLoading: false,
         });
+        // 使用 window.location 跳转首页，确保路由与 UI 状态同步
+        try {
+          window.location.hash = '#/';
+        } catch {
+          /* ignore */
+        }
+      },
+
+      // ===== 删除账号：同时清云端 & 本地数据，完成后回到首页 =====
+      deleteAccount: () => {
+        const state = get();
+        const currentUser = state.user;
+
+        // 1) 同步到云端（尽力而为，失败不阻断）
+        if (currentUser && currentUser.id && apiAvailable) {
+          try {
+            fetch(`${API_BASE}/users/${currentUser.id}`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+            }).catch(() => {});
+          } catch { /* ignore */ }
+        }
+
+        // 2) 本地删除
+        if (currentUser && currentUser.id) {
+          deleteUser(currentUser.id);
+        }
+
+        // 3) 清除会话与记住登录
+        try { localStorage.removeItem(REMEMBER_KEY); } catch { /* ignore */ }
+        try { localStorage.removeItem(STORAGE_KEYS.USERS); } catch { /* ignore */ }
+        try { localStorage.removeItem('ai_comic_users_v2'); } catch { /* ignore */ }
+        try { localStorage.removeItem('ai_comic_backup_users'); } catch { /* ignore */ }
+        try { localStorage.removeItem('manga-studio-projects-v2'); } catch { /* ignore */ }
+
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          points: 0,
+          level: 1,
+          totalEarnedPoints: 0,
+          projectsCount: 0,
+          isVIP: false,
+          vipLevel: 0,
+          vipPoints: 0,
+          vipExpireAt: null,
+          transactions: [],
+          completedTasks: [],
+          visitedPages: [],
+          usedStyles: [],
+          dailyRewards: makeDailyTasks(),
+          achievementRewards: makeAchievementTasks({ projects: 0, consecutiveDays: 1, totalEarned: 0 }),
+          socialRewards: makeSocialTasks(),
+          creationRewards: makeCreationTasks({ projects: 0, maxFrames: 0, usedStyleCount: 0, hasVoice: false, hasDialogue: false, hasNarration: false, exported: 0 }),
+          exploreRewards: makeExploreTasks({ usedStyleCount: 0, visitedPages: [] }),
+          specialRewards: makeSpecialTasks(),
+          memberRewards: makeMemberTasks(false),
+          levelRewards: makeLevelTasks(1, 0),
+          exchangeItems: makeExchangeItems(),
+        });
+        try { window.location.hash = '#/'; } catch { /* ignore */ }
+      },
+
+      // ===== 自动登录：打开应用后尝试用记住的账号登录 =====
+      autoLogin: async () => {
+        const state = get();
+        if (state.autoLoginDone) return !!state.user;
+        set({ autoLoginDone: true });
+
+        let remembered: { username?: string } | null = null;
+        try {
+          const raw = localStorage.getItem(REMEMBER_KEY);
+          if (raw) remembered = JSON.parse(raw) as { username?: string };
+        } catch {
+          remembered = null;
+        }
+        if (!remembered?.username) return false;
+
+        // 检查是否已有登录用户，避免重复登录
+        if (state.user && state.user.username === remembered.username) return true;
+
+        await checkApi();
+
+        // 优先从云端拉取该用户数据（若云端可用）
+        if (apiAvailable) {
+          try {
+            const res = await fetch(`${API_BASE}/auth/user/${encodeURIComponent(remembered.username)}`, {
+              headers: { Accept: 'application/json' },
+            });
+            if (res.ok) {
+              const data = await res.json().catch(() => ({}));
+              const backendUser = data.user;
+              if (backendUser) {
+                const tasks = initTasksFromUser(backendUser);
+                const savedTransactions: PointTransaction[] = Array.isArray(backendUser.transactions) ? backendUser.transactions : [];
+                set({
+                  user: backendUser,
+                  isAuthenticated: true,
+                  isLoading: false,
+                  points: backendUser.points ?? 50,
+                  totalEarnedPoints: backendUser.totalEarnedPoints ?? 50,
+                  level: backendUser.level ?? 1,
+                  projectsCount: backendUser.projectsCount ?? 0,
+                  isVIP: !!backendUser.isVIP,
+                  vipLevel: backendUser.vipLevel ?? 0,
+                  vipPoints: backendUser.vipPoints ?? 0,
+                  vipExpireAt: backendUser.vipExpireAt ?? null,
+                  completedTasks: backendUser.completedTasks || [],
+                  visitedPages: backendUser.visitedPages || [],
+                  usedStyles: backendUser.usedStyles || [],
+                  transactions: savedTransactions,
+                  ...tasks,
+                });
+                return true;
+              }
+            }
+          } catch {
+            /* 云端失败，回退到本地 */
+          }
+        }
+
+        // 本地回退：扫描本地数据库，按 username 匹配并恢复会话
+        try {
+          const usersRaw = localStorage.getItem(STORAGE_KEYS.USERS);
+          const usersRaw2 = localStorage.getItem('ai_comic_users_v2');
+          const parsedUsers = (() => {
+            try { return usersRaw ? JSON.parse(usersRaw) : null; } catch { return null; }
+          })();
+          const parsedUsers2 = (() => {
+            try { return usersRaw2 ? JSON.parse(usersRaw2) : null; } catch { return null; }
+          })();
+          const list = (Array.isArray(parsedUsers) ? parsedUsers : [])
+            .concat(Array.isArray(parsedUsers2) ? parsedUsers2 : []);
+          const match = list.find(u => u && typeof u === 'object' && String((u as any).username).toLowerCase() === remembered.username.toLowerCase());
+          if (match) {
+            const tasks = initTasksFromUser(match);
+            const savedTransactions: PointTransaction[] = Array.isArray((match as any).transactions) ? (match as any).transactions : [];
+            set({
+              user: match,
+              isAuthenticated: true,
+              isLoading: false,
+              points: (match as any).points ?? 50,
+              totalEarnedPoints: (match as any).totalEarnedPoints ?? 50,
+              level: (match as any).level ?? 1,
+              projectsCount: (match as any).projectsCount ?? 0,
+              isVIP: !!(match as any).isVIP,
+              vipLevel: (match as any).vipLevel ?? 0,
+              vipPoints: (match as any).vipPoints ?? 0,
+              vipExpireAt: (match as any).vipExpireAt ?? null,
+              completedTasks: (match as any).completedTasks || [],
+              visitedPages: (match as any).visitedPages || [],
+              usedStyles: (match as any).usedStyles || [],
+              transactions: savedTransactions,
+              ...tasks,
+            });
+            return true;
+          }
+        } catch { /* ignore */ }
+
+        // 没找到 → 清除记住登录，避免死循环
+        try { localStorage.removeItem(REMEMBER_KEY); } catch { /* ignore */ }
+        return false;
+      },
+
+      // ===== 同步当前用户数据到云端 =====
+      syncToCloud: () => {
+        const state = get();
+        if (!state.user || !state.user.id) return;
+        if (!apiAvailable) return;
+        const payload = {
+          points: state.points,
+          totalEarnedPoints: state.totalEarnedPoints,
+          level: state.level,
+          projectsCount: state.projectsCount,
+          isVIP: state.isVIP,
+          vipLevel: state.vipLevel,
+          vipPoints: state.vipPoints,
+          vipExpireAt: state.vipExpireAt,
+          completedTasks: state.completedTasks,
+          visitedPages: state.visitedPages,
+          usedStyles: state.usedStyles,
+          transactions: state.transactions,
+        };
+        try {
+          fetch(`${API_BASE}/users/${state.user.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }).catch(() => {});
+        } catch { /* ignore */ }
       },
 
       clearAllData: () => {

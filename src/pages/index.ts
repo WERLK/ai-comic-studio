@@ -9,3 +9,6 @@ export { Settings } from './Settings';
 export { Notifications } from './Notifications';
 export { PrivacySecurity } from './PrivacySecurity';
 export { HelpFeedback } from './HelpFeedback';
+export { ApiConfig } from './ApiConfig';
+export { VIPCenter } from './VIPCenter';
+export { NovelPromotionCenter } from './NovelPromotionCenter';
