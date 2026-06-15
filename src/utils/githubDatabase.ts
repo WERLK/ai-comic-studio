@@ -7,7 +7,6 @@
 // GitHub 配置（使用您的账号）
 const GITHUB_OWNER = 'WERLK';
 const GITHUB_REPO = 'ai-comic-studio-db'; // 存储数据的仓库
-const GITHUB_TOKEN = 'ghp_xxxxxxxxxxxxxxxx'; // 用户需要提供 Personal Access Token
 
 interface GitHubUser {
   id: string;
