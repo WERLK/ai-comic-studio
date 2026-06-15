@@ -89,36 +89,71 @@ let API_BASE = '/api';
 let apiAvailable = false;
 let apiCheckDone = false;
 
-const checkApi = async (): Promise<boolean> => {
-  if (apiCheckDone) return apiAvailable;
-  apiCheckDone = true;
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${API_BASE}/health`, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
-    });
-    clearTimeout(timer);
-
-    // 严格校验：必须返回 200 且响应类型为 JSON
-    // 避免 GitHub Pages / 静态部署 SPA fallback 返回 HTML (index.html) 200 导致误判
-    if (!res.ok) {
-      apiAvailable = false;
+const checkApi = async (force = false): Promise<boolean> => {
+  if (!force && apiCheckDone) return apiAvailable;
+  if (!force) apiCheckDone = true;
+  
+  let attempts = 0;
+  const maxAttempts = 2;
+  const timeout = 8000;
+  
+  while (attempts < maxAttempts) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      
+      const res = await fetch(`${API_BASE}/health`, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+        cache: 'no-cache',
+      });
+      
+      clearTimeout(timer);
+      
+      // 严格校验：必须返回 200 且响应类型为 JSON
+      // 避免 GitHub Pages / 静态部署 SPA fallback 返回 HTML (index.html) 200 导致误判
+      if (!res.ok) {
+        // 如果健康检查失败，尝试用 GET 请求验证 API 是否可访问
+        const userRes = await fetch(`${API_BASE}/users`, {
+          headers: { Accept: 'application/json' },
+          cache: 'no-cache',
+        });
+        
+        if (userRes.ok) {
+          const userData = await userRes.json().catch(() => null);
+          if (userData !== null && (Array.isArray(userData) || typeof userData === 'object')) {
+            apiAvailable = true;
+            return apiAvailable;
+          }
+        }
+        
+        apiAvailable = false;
+        return apiAvailable;
+      }
+      
+      const contentType = res.headers.get('content-type') || '';
+      const isJson = /application\/json/i.test(contentType);
+      if (!isJson) {
+        apiAvailable = false;
+        return apiAvailable;
+      }
+      
+      const data = await res.json().catch(() => null);
+      // 要求响应是对象形式，排除 fallback 页面巧合解析的字符串
+      apiAvailable = data !== null && typeof data === 'object';
       return apiAvailable;
+      
+    } catch (err) {
+      // 网络错误，继续重试
     }
-    const contentType = res.headers.get('content-type') || '';
-    const isJson = /application\/json/i.test(contentType);
-    if (!isJson) {
-      apiAvailable = false;
-      return apiAvailable;
+    
+    attempts++;
+    if (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
-    const data = await res.json().catch(() => null);
-    // 要求响应是对象形式，排除 fallback 页面巧合解析的字符串
-    apiAvailable = data !== null && typeof data === 'object';
-  } catch {
-    apiAvailable = false;
   }
+  
+  apiAvailable = false;
   return apiAvailable;
 };
 
