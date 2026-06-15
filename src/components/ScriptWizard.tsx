@@ -90,12 +90,73 @@ export function ScriptWizard({ onClose, onComplete }: ScriptWizardProps) {
   const [generatedScript, setGeneratedScript] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   
-  // 小说生成相关状态
+  // ===== 小说生成相关状态
   const [novelPrompt, setNovelPrompt] = useState('');
   const [novelGenre, setNovelGenre] = useState('');
   const [novelLength, setNovelLength] = useState<'short' | 'medium' | 'long'>('medium');
   const [generatedNovel, setGeneratedNovel] = useState<GeneratedNovel | null>(null);
   const [isGeneratingNovel, setIsGeneratingNovel] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+
+  // 预设提示词模板
+  const promptPresets = [
+    {
+      id: 'fantasy_adventure',
+      title: '奇幻冒险',
+      emoji: '🧙',
+      genre: '玄幻',
+      prompt: '一个普通少年意外获得了神秘力量，踏上了寻找身世之谜的冒险之旅。途中遇到了志同道合的伙伴，一起挑战强大的敌人，揭开了一个尘封千年的秘密。',
+    },
+    {
+      id: 'urban_hero',
+      title: '都市英雄',
+      emoji: '🦸',
+      genre: '都市',
+      prompt: '平凡的上班族在一次意外中获得了超能力，从此开始了白天上班、晚上行侠仗义的双重生活。他必须在维护正义和保护家人之间找到平衡。',
+    },
+    {
+      id: 'time_travel',
+      title: '时空穿越',
+      emoji: '⏳',
+      genre: '综合',
+      prompt: '一位现代科学家发明了时间机器，不小心穿越到了古代。他必须利用现代知识在陌生的时代生存下去，并找到回到现代的方法。',
+    },
+    {
+      id: 'space_exploration',
+      title: '星际探索',
+      emoji: '🚀',
+      genre: '科幻',
+      prompt: '在未来世界，人类已经开始星际殖民。一支探险队发现了一个神秘的外星文明遗迹，揭开了宇宙的巨大秘密。',
+    },
+    {
+      id: 'campus_love',
+      title: '校园恋爱',
+      emoji: '💕',
+      genre: '校园',
+      prompt: '高中校园里，两个性格迥异的学生因为一次意外而产生交集。在相处中，他们逐渐发现彼此的闪光点，一段青涩的恋情悄然萌芽。',
+    },
+    {
+      id: 'mystery_detective',
+      title: '悬疑探案',
+      emoji: '🔍',
+      genre: '悬疑',
+      prompt: '一个安静的小镇上发生了离奇的谋杀案。一位退休侦探决定重新出山，凭借敏锐的观察力和丰富的经验，一步步揭开真相。',
+    },
+    {
+      id: 'xianxia_cultivation',
+      title: '仙侠修仙',
+      emoji: '☁️',
+      genre: '仙侠',
+      prompt: '少年出身贫寒，却意外得到了上古传承。在弱肉强食的修仙世界中，他凭借毅力和机遇，一步步踏上仙途，最终成为一代传奇。',
+    },
+    {
+      id: 'apocalypse_survival',
+      title: '末世生存',
+      emoji: '☢️',
+      genre: '末世',
+      prompt: '一场突如其来的灾难摧毁了人类文明。幸存者们必须在废墟中寻找食物和水源，对抗变异生物和心怀恶意的幸存者，重建人类文明。',
+    },
+  ];
 
   // API 配置状态
   const [apiConfigs, setApiConfigs] = useState<AIServiceConfig>(() => getAIConfig());
@@ -516,7 +577,7 @@ ${characters[1]?.name || '角色B'}："${generateDialogue('response', scriptType
                   <div>
                     <h3 className="text-white font-medium mb-1">✨ 小说创作</h3>
                     <p className="text-xs text-gray-500">
-                      您可以根据提示词生成小说，或上传已有小说进行改编。AI 将根据小说内容自动生成剧本。
+                      您可以使用预设模板或自定义提示词生成小说，也可以上传已有小说进行改编。AI 将根据小说内容自动生成剧本。
                     </p>
                   </div>
 
@@ -538,6 +599,7 @@ ${characters[1]?.name || '角色B'}："${generateDialogue('response', scriptType
                           onClick={() => {
                             setGeneratedNovel(null);
                             setNovelPrompt('');
+                            setSelectedPreset(null);
                           }}
                           className="px-3 py-1.5 border border-cyber-purple/20 rounded-lg text-xs text-gray-400 hover:text-white"
                         >
@@ -566,7 +628,10 @@ ${characters[1]?.name || '角色B'}："${generateDialogue('response', scriptType
                       </p>
                       <div className="flex gap-2 mt-3">
                         <button
-                          onClick={() => setImportedNovelContent('')}
+                          onClick={() => {
+                            setImportedNovelContent('');
+                            setSelectedPreset(null);
+                          }}
                           className="px-3 py-1.5 border border-cyber-purple/20 rounded-lg text-xs text-gray-400 hover:text-white"
                         >
                           重新选择
@@ -576,11 +641,63 @@ ${characters[1]?.name || '角色B'}："${generateDialogue('response', scriptType
                     </div>
                   )}
 
-                  {/* 提示词输入区域 */}
+                  {/* 预设提示词模板 */}
+                  <div className="bg-cyber-dark/60 border border-cyber-purple/20 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Star className="w-4 h-4 text-cyber-yellow" />
+                      <span className="text-sm text-white font-medium">快速选择预设模板</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {promptPresets.map(preset => (
+                        <button
+                          key={preset.id}
+                          onClick={() => {
+                            setSelectedPreset(preset.id);
+                            setNovelPrompt(preset.prompt);
+                            setNovelGenre(preset.genre);
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all hover:scale-[1.02] ${
+                            selectedPreset === preset.id
+                              ? 'bg-cyber-pink/20 border-cyber-pink/50 text-white'
+                              : 'bg-cyber-dark/50 border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-lg">{preset.emoji}</span>
+                            <span className="text-xs font-medium">{preset.title}</span>
+                          </div>
+                          <p className="text-[10px] text-gray-500 line-clamp-2">
+                            {preset.prompt.slice(0, 30)}...
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                    {selectedPreset && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-3 flex items-center gap-2 text-xs text-cyber-pink"
+                      >
+                        <Check className="w-3 h-3" />
+                        已选择预设模板：{promptPresets.find(p => p.id === selectedPreset)?.title}
+                        <button
+                          onClick={() => {
+                            setSelectedPreset(null);
+                            setNovelPrompt('');
+                          }}
+                          className="ml-auto text-gray-500 hover:text-white"
+                        >
+                          清除
+                        </button>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* 自定义提示词输入区域 */}
                   <div className="bg-cyber-dark/60 border border-cyber-purple/20 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Sparkles className="w-4 h-4 text-cyber-pink" />
-                      <span className="text-sm text-white font-medium">AI 根据提示词生成小说</span>
+                      <span className="text-sm text-white font-medium">自定义创作提示词</span>
                     </div>
                     
                     <div className="space-y-3">
@@ -588,7 +705,10 @@ ${characters[1]?.name || '角色B'}："${generateDialogue('response', scriptType
                         <label className="block text-[10px] text-gray-500 mb-1.5">📝 创作提示词</label>
                         <textarea
                           value={novelPrompt}
-                          onChange={e => setNovelPrompt(e.target.value)}
+                          onChange={e => {
+                            setNovelPrompt(e.target.value);
+                            setSelectedPreset(null);
+                          }}
                           placeholder="输入您想要创作的小说主题或情节提示，例如：一个普通人意外获得超能力，开始了一段冒险之旅..."
                           rows={3}
                           className="w-full px-3 py-2 bg-cyber-dark2 border border-cyber-purple/20 rounded-lg text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-cyber-pink/50 resize-none"
@@ -679,6 +799,7 @@ ${characters[1]?.name || '角色B'}："${generateDialogue('response', scriptType
                       setImportedNovelContent(content);
                       setImportedNovelMeta({ title: meta.title, author: meta.author });
                       setGeneratedNovel(null);
+                      setSelectedPreset(null);
                     }}
                     onClose={() => {}}
                   />
