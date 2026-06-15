@@ -1,12 +1,11 @@
 /**
- * 免费云端数据库服务 - 使用 JSONBin.io 或自建简易后端
+ * 免费云端数据库服务 - 使用 JSONBin.io
  * 无需部署服务器，直接对接免费云存储
  */
 
-const JSONBIN_API_KEY = '$2a$10$YourApiKeyHere'; // 用户需要替换为自己的 API Key
 const JSONBIN_BASE_URL = 'https://api.jsonbin.io/v3/b';
 
-// 存储桶 ID（用户注册后创建）
+// 存储桶 ID（自动创建或从本地存储读取）
 let BIN_ID = '';
 
 try {
@@ -64,7 +63,7 @@ const simpleHash = (s: string): string => {
   return 'h_' + Math.abs(hash).toString(36) + '_' + s.length;
 };
 
-// 创建新存储桶
+// 创建新存储桶（自动使用账户ID）
 export async function createBin(apiKey: string): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
     const res = await fetch(JSONBIN_BASE_URL, {
@@ -300,4 +299,22 @@ export async function checkCloudService(apiKey: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// 自动初始化：尝试创建存储桶（如果还没有）
+export async function initCloudDatabase(apiKey: string): Promise<{ success: boolean; error?: string }> {
+  if (BIN_ID) {
+    // 已有存储桶，检查是否可用
+    const isAvailable = await checkCloudService(apiKey);
+    if (isAvailable) {
+      return { success: true };
+    }
+  }
+  
+  // 创建新存储桶
+  const result = await createBin(apiKey);
+  if (result.success) {
+    return { success: true };
+  }
+  return { success: false, error: result.error || '初始化云端数据库失败' };
 }
