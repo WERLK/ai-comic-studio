@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Lock, User, Mail, Loader2, Eye, EyeOff, Download, Upload, Smartphone } from 'lucide-react';
+import { Sparkles, Lock, User, Mail, Loader2, Eye, EyeOff, Download, Upload, Smartphone, Database } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
 
@@ -216,6 +216,24 @@ export function Login() {
                 </button>
               </p>
             </div>
+          </div>
+
+          <div className="mt-6 bg-cyber-dark2/40 border border-cyber-purple/20 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Database className="w-4 h-4 text-cyber-blue" />
+              <p className="text-sm font-medium text-gray-300">云端数据库配置</p>
+            </div>
+            <p className="text-xs text-gray-500 leading-relaxed mb-4">
+              首次使用需要配置云端数据库，用于保存用户账号和数据。已为您预配置 JSONBin.io，点击测试连接即可。
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/cloud-database')}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-cyber-blue/10 hover:bg-cyber-blue/20 border border-cyber-blue/30 text-cyber-blue text-xs font-medium rounded-xl transition-colors"
+            >
+              <Database className="w-3.5 h-3.5" />
+              配置云端数据库
+            </button>
           </div>
 
           <div className="mt-6 bg-cyber-dark2/40 border border-cyber-purple/20 rounded-2xl p-4">
