@@ -1,7 +1,7 @@
 {
   "name": "ai-comic-studio-api",
   "version": "1.0.0",
-  "description": "AI漫剧工作室后端API",
+  "description": "AI漫剧工作室后端API - SQLite版本",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -12,7 +12,7 @@
     "cors": "^2.8.5",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.0.0",
+    "sqlite3": "^5.1.6",
     "dotenv": "^16.3.1"
   },
   "devDependencies": {

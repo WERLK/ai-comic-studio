@@ -1,4 +1,5 @@
 // API 配置
+// 使用 Render 部署的后端地址
 const API_BASE = 'https://ai-comic-studio-api.onrender.com/api';
 
 // 获取存储的 token
