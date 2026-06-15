@@ -92,11 +92,36 @@ const calcLevel = (totalEarned: number): number => {
 // API 路径由 vite proxy 转发到 http://localhost:3001
 
 // 生产环境（GitHub Pages）或后端未启动时降级到 localStorage
-let API_BASE = '/api';
+// 优先使用环境变量或本地存储中配置的云端后端地址
+const getCloudApiBase = (): string => {
+  try {
+    const saved = localStorage.getItem('ai_comic_api_base');
+    if (saved) return saved;
+  } catch { /* ignore */ }
+  return '';
+};
+
+let API_BASE = getCloudApiBase() || '/api';
 let apiAvailable = false;
 let apiCheckDone = false;
 let lastCheckTime = 0;
 const CHECK_INTERVAL = 30000;
+
+const resetApiCheck = () => {
+  apiCheckDone = false;
+  apiAvailable = false;
+  lastCheckTime = 0;
+};
+
+export function setApiBase(url: string) {
+  API_BASE = url;
+  try { localStorage.setItem('ai_comic_api_base', url); } catch { /* ignore */ }
+  resetApiCheck();
+}
+
+export function getApiBase(): string {
+  return API_BASE;
+}
 
 const checkApi = async (force = false): Promise<boolean> => {
   const now = Date.now();
@@ -174,12 +199,6 @@ const checkApi = async (force = false): Promise<boolean> => {
   
   apiAvailable = false;
   return apiAvailable;
-};
-
-const resetApiCheck = () => {
-  apiCheckDone = false;
-  apiAvailable = false;
-  lastCheckTime = 0;
 };
 
 // ===== localStorage 后备（后端不可用时使用）=====

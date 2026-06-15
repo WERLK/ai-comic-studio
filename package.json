@@ -1,6 +1,5 @@
 {
   "name": "ai-comic-studio",
-  "private": true,
   "version": "1.20.0",
   "type": "module",
   "scripts": {
@@ -11,7 +10,8 @@
     "deploy": "node scripts/deploy.js",
     "lint": "eslint .",
     "preview": "vite preview",
-    "check": "tsc -b --noEmit"
+    "check": "tsc -b --noEmit",
+    "start:server": "node server/index.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",
