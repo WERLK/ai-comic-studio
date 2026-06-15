@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/common';
 import { NovelReader } from '@/components/NovelReader';
-import { getAIConfig, setAIConfig, type AIServiceConfig } from '@/services/aiService';
+import { getAIConfig, setAIConfig, type AIServiceConfig, generateNovelFromPrompt, type NovelGenerationOptions, type GeneratedNovel } from '@/services/aiService';
 
 const SCRIPT_TYPES = [
   { value: 'comedy', label: '喜剧', emoji: '😂', desc: '轻松幽默，欢乐不断' },
@@ -66,7 +66,7 @@ export function ScriptWizard({ onClose, onComplete }: ScriptWizardProps) {
   // ===== 向导步骤 =====
   const WIZARD_STEPS = [
     { id: 'type', label: '选择类型', icon: BookOpen },
-    { id: 'novel', label: '导入小说', icon: Upload },
+    { id: 'novel', label: '小说创作', icon: Sparkles },
     { id: 'basic', label: '基本信息', icon: FileText },
     { id: 'chars', label: '创建角色', icon: Users },
     { id: 'api', label: 'API 配置', icon: Settings2 },
@@ -89,6 +89,13 @@ export function ScriptWizard({ onClose, onComplete }: ScriptWizardProps) {
   const [outline, setOutline] = useState('');
   const [generatedScript, setGeneratedScript] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // 小说生成相关状态
+  const [novelPrompt, setNovelPrompt] = useState('');
+  const [novelGenre, setNovelGenre] = useState('');
+  const [novelLength, setNovelLength] = useState<'short' | 'medium' | 'long'>('medium');
+  const [generatedNovel, setGeneratedNovel] = useState<GeneratedNovel | null>(null);
+  const [isGeneratingNovel, setIsGeneratingNovel] = useState(false);
 
   // API 配置状态
   const [apiConfigs, setApiConfigs] = useState<AIServiceConfig>(() => getAIConfig());
@@ -503,17 +510,49 @@ ${characters[1]?.name || '角色B'}："${generateDialogue('response', scriptType
                 </div>
               )}
 
-              {/* Step 2: 导入小说 */}
+              {/* Step 2: 小说创作 */}
               {wizardStep === 1 && (
                 <div className="space-y-5">
                   <div>
-                    <h3 className="text-white font-medium mb-1">📚 导入小说（可选）</h3>
+                    <h3 className="text-white font-medium mb-1">✨ 小说创作</h3>
                     <p className="text-xs text-gray-500">
-                      如果您有一本小说想改编成漫剧，可以在此上传或搜索。暂不导入也可以手动填写故事内容。
+                      您可以根据提示词生成小说，或上传已有小说进行改编。AI 将根据小说内容自动生成剧本。
                     </p>
                   </div>
 
-                  {importedNovelContent ? (
+                  {/* 生成的小说预览 */}
+                  {generatedNovel && (
+                    <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Check className="w-4 h-4 text-green-400" />
+                        <span className="text-sm text-green-400 font-medium">已生成小说：《{generatedNovel.title}》</span>
+                      </div>
+                      {generatedNovel.summary && (
+                        <p className="text-xs text-gray-500 mb-1">简介：{generatedNovel.summary}</p>
+                      )}
+                      <p className="text-xs text-gray-400">
+                        章节：{generatedNovel.chapters.length}章 · 角色：{generatedNovel.characters.length}人
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => {
+                            setGeneratedNovel(null);
+                            setNovelPrompt('');
+                          }}
+                          className="px-3 py-1.5 border border-cyber-purple/20 rounded-lg text-xs text-gray-400 hover:text-white"
+                        >
+                          重新生成
+                        </button>
+                        <div className="flex-1" />
+                        <div className="text-[10px] text-gray-600 self-center">
+                          AI 将根据小说内容自动生成剧本
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 导入的小说预览 */}
+                  {importedNovelContent && !generatedNovel && (
                     <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <Check className="w-4 h-4 text-green-400" />
@@ -533,35 +572,113 @@ ${characters[1]?.name || '角色B'}："${generateDialogue('response', scriptType
                           重新选择
                         </button>
                         <div className="flex-1" />
-                        <div className="text-[10px] text-gray-600 self-center">
-                          AI 将根据小说内容自动生成剧本
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-cyber-purple/5 border border-cyber-purple/10 rounded-xl p-4 text-center">
-                      <p className="text-xs text-gray-400 mb-3">暂未导入小说，可以跳过此步骤</p>
-                      <div className="text-[10px] text-gray-600">
-                        跳过后可在「基本信息」中手动填写故事内容
                       </div>
                     </div>
                   )}
 
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => {/* 打开 NovelReader 弹窗，由外部状态控制 */}}
-                    className="w-full"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    {importedNovelContent ? '重新导入小说' : '上传 / 搜索小说'}
-                  </Button>
+                  {/* 提示词输入区域 */}
+                  <div className="bg-cyber-dark/60 border border-cyber-purple/20 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles className="w-4 h-4 text-cyber-pink" />
+                      <span className="text-sm text-white font-medium">AI 根据提示词生成小说</span>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[10px] text-gray-500 mb-1.5">📝 创作提示词</label>
+                        <textarea
+                          value={novelPrompt}
+                          onChange={e => setNovelPrompt(e.target.value)}
+                          placeholder="输入您想要创作的小说主题或情节提示，例如：一个普通人意外获得超能力，开始了一段冒险之旅..."
+                          rows={3}
+                          className="w-full px-3 py-2 bg-cyber-dark2 border border-cyber-purple/20 rounded-lg text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-cyber-pink/50 resize-none"
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] text-gray-500 mb-1.5">🎭 小说类型</label>
+                          <select
+                            value={novelGenre}
+                            onChange={e => setNovelGenre(e.target.value)}
+                            className="w-full px-3 py-2 bg-cyber-dark2 border border-cyber-purple/20 rounded-lg text-white text-sm focus:outline-none focus:border-cyber-pink/50"
+                          >
+                            <option value="">请选择类型</option>
+                            <option value="玄幻">玄幻</option>
+                            <option value="都市">都市</option>
+                            <option value="言情">言情</option>
+                            <option value="科幻">科幻</option>
+                            <option value="历史">历史</option>
+                            <option value="悬疑">悬疑</option>
+                            <option value="仙侠">仙侠</option>
+                            <option value="校园">校园</option>
+                            <option value="末世">末世</option>
+                            <option value="网游">网游</option>
+                            <option value="综合">综合</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-gray-500 mb-1.5">📖 篇幅长度</label>
+                          <select
+                            value={novelLength}
+                            onChange={e => setNovelLength(e.target.value as 'short' | 'medium' | 'long')}
+                            className="w-full px-3 py-2 bg-cyber-dark2 border border-cyber-purple/20 rounded-lg text-white text-sm focus:outline-none focus:border-cyber-pink/50"
+                          >
+                            <option value="short">短篇（3章）</option>
+                            <option value="medium">中篇（5章）</option>
+                            <option value="long">长篇（8章）</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="w-full"
+                        onClick={async () => {
+                          if (!novelPrompt.trim()) return;
+                          setIsGeneratingNovel(true);
+                          try {
+                            const options: NovelGenerationOptions = {
+                              genre: novelGenre || '综合',
+                              length: novelLength,
+                            };
+                            const novel = await generateNovelFromPrompt(novelPrompt, options);
+                            setGeneratedNovel(novel);
+                            setImportedNovelContent(novel.content);
+                            setImportedNovelMeta({ title: novel.title, author: 'AI 创作' });
+                          } finally {
+                            setIsGeneratingNovel(false);
+                          }
+                        }}
+                        disabled={!novelPrompt.trim() || isGeneratingNovel}
+                        isLoading={isGeneratingNovel}
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        {isGeneratingNovel ? 'AI 创作中...' : 'AI 生成小说'}
+                      </Button>
+                    </div>
+                  </div>
 
-                  {/* NovelReader 弹窗由 showNovelReader 状态控制 */}
+                  {/* 上传小说选项 */}
+                  <div className="border-t border-cyber-purple/10 pt-4">
+                    <p className="text-xs text-gray-500 mb-3">或者上传已有小说文件：</p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      上传小说文件
+                    </Button>
+                  </div>
+
+                  {/* NovelReader 弹窗 */}
                   <NovelReader
                     onImport={(content, meta) => {
                       setImportedNovelContent(content);
                       setImportedNovelMeta({ title: meta.title, author: meta.author });
+                      setGeneratedNovel(null);
                     }}
                     onClose={() => {}}
                   />

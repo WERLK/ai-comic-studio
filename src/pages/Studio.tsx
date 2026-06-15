@@ -584,60 +584,62 @@ export function Studio() {
   const canProceedStep4 = frames.length > 0 || characters.length > 0;
 
   return (
-    <div className="min-h-screen bg-cyber-dark cyber-grid">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       {/* Header */}
-      <header className="sticky top-16 z-40 h-16 bg-cyber-dark2/95 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-neon">
-            <Sparkles className="w-5 h-5 text-white" />
+      <header className="sticky top-16 z-40 bg-white/5 backdrop-blur-xl border-b border-gray-700/30 px-4 py-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="font-semibold text-white text-lg">剧本创作</h1>
+              <p className="text-xs text-gray-400 hidden sm:block">创建你的专属漫剧故事</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-display font-bold text-white text-base">AI 漫剧工作室</h1>
-            <p className="text-[10px] text-gray-500 hidden sm:block">智能生成 · 专业品质 · 零门槛创作</p>
+
+          {/* 步骤指示器 */}
+          <div className="flex items-center gap-1">
+            {steps.map((step, idx) => {
+              const Icon = step.icon;
+              const isActive = currentStep === step.id;
+              const isDone = currentStep > step.id;
+              return (
+                <div key={step.id} className="flex items-center">
+                  <button
+                    onClick={() => {
+                      if (isDone || (step.id === 1) || (step.id === 2 && canProceedStep2) || (step.id === 3 && canProceedStep3) || (step.id === 4 && canProceedStep4)) {
+                        setCurrentStep(step.id);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                      isActive ? 'bg-indigo-600 text-white shadow-lg' :
+                      isDone ? 'bg-green-500/20 text-green-400' :
+                      'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {isDone ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                    <span className="hidden sm:inline">{step.label}</span>
+                  </button>
+                  {idx < steps.length - 1 && (
+                    <ChevronRight className="w-3 h-3 text-gray-600 mx-1" />
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
 
-        {/* 步骤指示器 */}
-        <div className="flex items-center gap-1">
-          {steps.map((step, idx) => {
-            const Icon = step.icon;
-            const isActive = currentStep === step.id;
-            const isDone = currentStep > step.id;
-            return (
-              <div key={step.id} className="flex items-center">
-                <button
-                  onClick={() => {
-                    if (isDone || (step.id === 1) || (step.id === 2 && canProceedStep2) || (step.id === 3 && canProceedStep3) || (step.id === 4 && canProceedStep4)) {
-                      setCurrentStep(step.id);
-                    }
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    isActive ? 'bg-cyber-pink text-white shadow-neon' :
-                    isDone ? 'bg-cyber-purple/30 text-cyber-purple' :
-                    'text-gray-500'
-                  }`}
-                >
-                  {isDone ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
-                  <span className="hidden sm:inline">{step.label}</span>
-                </button>
-                {idx < steps.length - 1 && (
-                  <ChevronRight className="w-3 h-3 text-gray-600 mx-0.5" />
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/novel-promotion')}
-            className="px-3 py-1.5 bg-gradient-to-r from-cyber-blue/20 to-cyan-500/20 hover:from-cyber-blue/30 hover:to-cyan-500/30 border border-cyber-blue/30 hover:border-cyan-400/40 rounded-lg text-xs text-cyber-blue hover:text-white transition-all flex items-center gap-1.5"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">小说推广中心</span>
-            <span className="sm:hidden">小说</span>
-          </button>
-          <AppVersion />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/novel-promotion')}
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-gray-600/30 hover:border-indigo-500/50 rounded-lg text-xs text-gray-300 hover:text-white transition-all flex items-center gap-1.5"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span className="hidden sm:inline">小说推广</span>
+              <span className="sm:hidden">推广</span>
+            </button>
+            <AppVersion />
+          </div>
         </div>
       </header>
 
@@ -653,7 +655,7 @@ export function Studio() {
               className="space-y-6"
             >
               {/* 模式切换 */}
-              <div className="flex gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {[
                   { key: 'text', label: '文字输入', icon: FileText },
                   { key: 'upload', label: '上传素材', icon: Upload },
@@ -669,49 +671,49 @@ export function Studio() {
                         setAnalysisDone(false);
                       }
                     }}
-                    className={`flex-1 py-3 px-3 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                    className={`py-4 px-4 rounded-xl font-medium text-sm transition-all duration-300 flex flex-col items-center gap-2 ${
                       (inputMode === tab.key && tab.key !== 'wizard')
-                        ? 'bg-gradient-to-r from-cyber-pink to-cyber-purple text-white shadow-neon'
+                        ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30'
                         : tab.key === 'wizard'
-                          ? 'bg-gradient-to-r from-cyber-blue/20 to-cyber-purple/20 border border-cyber-blue/30 text-cyber-blue hover:border-cyber-pink/50 hover:text-cyber-pink'
-                          : 'bg-cyber-dark2 text-gray-400 border border-cyber-purple/20 hover:border-cyber-purple/40'
+                          ? 'bg-white/5 border-2 border-indigo-500/30 text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/10'
+                          : 'bg-white/5 border border-gray-700/30 text-gray-400 hover:border-gray-600/50 hover:bg-white/10'
                     }`}
                   >
-                    <tab.icon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                    {tab.key === 'wizard' && <span className="text-[9px] bg-cyber-blue/20 px-1.5 py-0.5 rounded sm:hidden">NEW</span>}
+                    <tab.icon className="w-5 h-5" />
+                    <span>{tab.label}</span>
+                    {tab.key === 'wizard' && <span className="text-xs bg-indigo-500/20 px-2 py-0.5 rounded">AI</span>}
                   </button>
                 ))}
               </div>
 
-              <div className="grid lg:grid-cols-5 gap-6">
+              <div className="grid lg:grid-cols-3 gap-6">
                 {/* 左侧：输入区 */}
-                <div className="lg:col-span-3 space-y-4">
-                  <div className="bg-cyber-dark2/80 backdrop-blur-xl border border-cyber-purple/20 rounded-2xl p-6">
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="bg-white/5 backdrop-blur-xl border border-gray-700/30 rounded-2xl p-6">
                     {inputMode === 'text' ? (
-                      <div className="space-y-4">
+                      <div className="space-y-5">
                         <div>
-                          <label className="block text-sm font-medium text-cyber-blue mb-2">
-                            📝 项目名称
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            项目名称
                           </label>
                           <input
                             type="text"
                             value={projectTitle}
                             onChange={e => setProjectTitle(e.target.value)}
                             placeholder="给你的漫剧起个名字..."
-                            className="w-full px-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors"
+                            className="w-full px-4 py-3 bg-black/30 border border-gray-600/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-cyber-blue mb-2">
-                            📖 故事剧本
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            故事剧本
                           </label>
                           <textarea
                             value={storyText}
                             onChange={e => setStoryText(e.target.value)}
-                            placeholder={`在这里输入你的故事...\n\n例如：\n场景：未来都市的夜晚，霓虹灯闪烁\n小明走在街头，发现了一个神秘的机器人。\n"你好，我叫小智。"机器人说道。\n小明惊讶地后退一步，"你...你会说话？"...\n\n支持输入完整的剧本，系统会自动识别角色、场景和分镜。`}
-                            rows={12}
-                            className="w-full px-4 py-3 bg-cyber-dark border border-cyber-purple/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-cyber-pink transition-colors resize-none leading-relaxed"
+                            placeholder="在这里输入你的故事...\n\n例如：\n场景：未来都市的夜晚，霓虹灯闪烁\n小明走在街头，发现了一个神秘的机器人。\n机器人说道：你好，我叫小智。\n小明惊讶地后退一步：你...你会说话？\n\n支持输入完整的剧本，系统会自动识别角色、场景和分镜。"
+                            rows={10}
+                            className="w-full px-4 py-3 bg-black/30 border border-gray-600/30 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all resize-none leading-relaxed"
                           />
                         </div>
 
@@ -740,8 +742,8 @@ export function Studio() {
                       <div className="space-y-4">
                         {/* 上传区 */}
                         <div>
-                          <label className="block text-sm font-medium text-cyber-blue mb-2">
-                            📁 上传剧本文件
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            上传剧本文件
                           </label>
                           <input
                             ref={fileInputRef}
@@ -752,23 +754,23 @@ export function Studio() {
                           />
                           <div
                             onClick={() => fileInputRef.current?.click()}
-                            className="border-2 border-dashed border-cyber-purple/30 rounded-xl p-10 text-center cursor-pointer hover:border-cyber-pink/50 transition-colors"
+                            className="border-2 border-dashed border-gray-600/30 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all duration-300"
                           >
                             {isAnalyzing ? (
                               <div>
-                                <Loader2 className="w-12 h-12 mx-auto mb-3 text-cyber-pink animate-spin" />
-                                <p className="text-gray-400">正在解析文件内容...</p>
+                                <Loader2 className="w-10 h-10 mx-auto mb-3 text-indigo-500 animate-spin" />
+                                <p className="text-gray-400 text-sm">正在解析文件内容...</p>
                               </div>
                             ) : previewImage ? (
                               <div>
-                                <img src={previewImage} alt="Preview" className="max-h-32 mx-auto rounded-lg mb-3" />
+                                <img src={previewImage} alt="Preview" className="max-h-24 mx-auto rounded-lg mb-2" />
                                 <p className="text-gray-400 text-sm">{uploadedFile?.name}</p>
                               </div>
                             ) : (
                               <>
-                                <Upload className="w-12 h-12 mx-auto mb-3 text-cyber-purple/40" />
-                                <p className="text-gray-400 mb-1">点击上传剧本文件</p>
-                                <p className="text-xs text-gray-600">支持 .txt / .md / .docx</p>
+                                <Upload className="w-10 h-10 mx-auto mb-3 text-gray-500" />
+                                <p className="text-gray-400 text-sm mb-1">点击或拖拽上传文件</p>
+                                <p className="text-xs text-gray-500">支持 .txt / .md / .docx</p>
                               </>
                             )}
                           </div>
@@ -776,19 +778,19 @@ export function Studio() {
 
                         {/* 分析结果预览 */}
                         {analysisDone && characters.length > 0 && (
-                          <div className="bg-cyber-purple/10 border border-cyber-purple/20 rounded-xl p-4">
+                          <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-3">
                               <Check className="w-4 h-4 text-green-400" />
-                              <span className="text-sm font-medium text-white">剧本解析完成</span>
+                              <span className="text-sm font-medium text-green-400">剧本解析完成</span>
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div className="bg-cyber-dark/50 rounded-lg p-2">
+                              <div className="bg-black/30 rounded-lg p-2">
                                 <span className="text-gray-500">识别角色</span>
                                 <p className="text-white font-medium">{characters.length} 个</p>
                               </div>
-                              <div className="bg-cyber-dark/50 rounded-lg p-2">
+                              <div className="bg-black/30 rounded-lg p-2">
                                 <span className="text-gray-500">推荐分镜</span>
-                                <p className="text-cyber-yellow font-medium">{frames.length} 格</p>
+                                <p className="text-indigo-400 font-medium">{frames.length} 格</p>
                               </div>
                             </div>
                             <Button
@@ -807,23 +809,34 @@ export function Studio() {
                 </div>
 
                 {/* 右侧：提示 */}
-                <div className="lg:col-span-2 space-y-4">
-                  <div className="bg-gradient-to-br from-cyber-purple/10 to-cyber-pink/10 border border-cyber-purple/20 rounded-2xl p-5">
+                <div className="lg:col-span-1 space-y-4">
+                  <div className="bg-white/5 backdrop-blur-xl border border-gray-700/30 rounded-xl p-4">
                     <h3 className="font-medium text-white mb-3 flex items-center gap-2">
-                      <Star className="w-4 h-4 text-cyber-yellow" />
+                      <Star className="w-4 h-4 text-yellow-400" />
                       创作小贴士
                     </h3>
                     <ul className="space-y-2 text-xs text-gray-400">
-                      <li>• 剧本中包含角色对话（如"xxx说："）可自动识别角色</li>
-                      <li>• 场景切换词（突然、这时、与此同时）有助于智能分镜</li>
-                      <li>• 描述越详细，AI 生成效果越好</li>
-                      <li>• 可上传 .docx / .txt 格式的完整剧本</li>
-                      <li>• 建议单集剧本控制在 500-2000 字</li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-indigo-400">•</span>
+                        <span>剧本中包含角色对话（如"xxx说："）可自动识别角色</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-indigo-400">•</span>
+                        <span>场景切换词（突然、这时）有助于智能分镜</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-indigo-400">•</span>
+                        <span>描述越详细，AI 生成效果越好</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-indigo-400">•</span>
+                        <span>建议单集剧本控制在 500-2000 字</span>
+                      </li>
                     </ul>
                   </div>
 
-                  <div className="bg-cyber-dark2/60 border border-cyber-purple/20 rounded-2xl p-5">
-                    <h3 className="font-medium text-white mb-3">✨ AI 会帮你做什么</h3>
+                  <div className="bg-white/5 backdrop-blur-xl border border-gray-700/30 rounded-xl p-4">
+                    <h3 className="font-medium text-white mb-3">AI 会帮你做什么</h3>
                     <div className="space-y-3">
                       {[
                         { icon: '👤', text: '智能识别剧本中的角色' },
@@ -833,9 +846,9 @@ export function Studio() {
                         { icon: '🔊', text: '智能配音和音效' },
                         { icon: '📤', text: '一键导出成片' },
                       ].map((item, i) => (
-                        <div key={i} className="flex items-center gap-3 text-sm">
+                        <div key={i} className="flex items-center gap-3">
                           <span className="text-lg">{item.icon}</span>
-                          <span className="text-gray-400">{item.text}</span>
+                          <span className="text-gray-400 text-sm">{item.text}</span>
                         </div>
                       ))}
                     </div>

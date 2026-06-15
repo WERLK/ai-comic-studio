@@ -1,8 +1,9 @@
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores';
-import { Sparkles, Coins, LogOut, User, Menu, X } from 'lucide-react';
+import { Sparkles, Coins, LogOut, User, Menu, X, Bell, Settings2 } from 'lucide-react';
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AppVersion } from '@/components/AppVersion';
+import { VerticalClock } from '@/components/VerticalClock';
 
 // 路由级懒加载 - 按需加载页面组件，大幅提升首屏速度
 const Studio = lazy(() => import('@/pages/Studio').then(m => ({ default: m.Studio })));
@@ -58,50 +59,69 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-cyber-dark cyber-grid pb-24">
-      <nav className="fixed top-0 left-0 right-0 z-[100] bg-cyber-dark2/90 backdrop-blur-xl border-b border-cyber-purple/20 px-4 py-3">
+      <nav className="fixed top-0 left-0 right-0 z-[100] bg-gradient-to-b from-cyber-dark/95 via-cyber-dark2/90 to-cyber-dark2/80 backdrop-blur-xl border-b border-cyber-purple/10 px-4 py-3 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div
-            className="flex items-center gap-3 cursor-pointer"
+            className="flex items-center gap-3 cursor-pointer group"
             onClick={() => navigate('/')}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyber-pink via-cyber-purple to-cyber-blue flex items-center justify-center shadow-lg shadow-cyber-purple/20 group-hover:shadow-cyber-pink/30 transition-all duration-300">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <span className="font-display font-bold text-white hidden sm:block">AI漫剧</span>
+            <div className="hidden sm:block">
+              <h1 className="font-display font-bold text-white text-lg tracking-tight">AI漫剧工作室</h1>
+              <p className="text-[10px] text-gray-500 -mt-0.5">AI Comic Studio</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {isAuthenticated && (
-              <button
-                onClick={() => navigate('/profile')}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyber-dark border border-cyber-purple/30 hover:border-cyber-pink/50 transition-all"
-              >
-                <User className="w-4 h-4 text-cyber-pink" />
-                <span className="font-medium text-white hidden sm:inline">个人中心</span>
-              </button>
-            )}
+          {/* 中间时间显示 */}
+          <div className="hidden md:flex items-center">
+            <VerticalClock />
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* 通知按钮 */}
+            <button
+              onClick={() => navigate('/notifications')}
+              className="relative p-2 rounded-lg bg-cyber-dark/50 border border-cyber-purple/20 hover:border-cyber-pink/40 hover:bg-cyber-dark transition-all"
+            >
+              <Bell className="w-5 h-5 text-gray-400 hover:text-white" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-cyber-pink rounded-full"></span>
+            </button>
+
+            {/* 设置按钮 */}
+            <button
+              onClick={() => navigate('/settings')}
+              className="p-2 rounded-lg bg-cyber-dark/50 border border-cyber-purple/20 hover:border-cyber-blue/40 hover:bg-cyber-dark transition-all"
+            >
+              <Settings2 className="w-5 h-5 text-gray-400 hover:text-white" />
+            </button>
+
             {isAuthenticated && (
               <button
                 onClick={() => navigate('/points')}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyber-purple/20 border border-cyber-purple/30 hover:border-cyber-pink/50 transition-all"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-cyber-yellow/10 to-cyber-orange/10 border border-cyber-yellow/30 hover:border-cyber-yellow/50 hover:bg-cyber-yellow/15 transition-all"
               >
                 <Coins className="w-4 h-4 text-cyber-yellow" />
-                <span className="font-medium text-cyber-yellow">{points}</span>
+                <span className="font-bold text-cyber-yellow text-sm">{points}</span>
               </button>
             )}
 
             <div className="hidden sm:block">
               {isAuthenticated ? (
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
+                  <button
+                    onClick={() => navigate('/profile')}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-cyber-dark/80 border border-cyber-purple/20 hover:border-cyber-pink/40 transition-all"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-sm">
                       <User className="w-4 h-4 text-white" />
                     </div>
-                    <span className="text-white font-medium">{user?.username}</span>
-                  </div>
+                    <span className="text-white font-medium text-sm">{user?.username}</span>
+                  </button>
                   <button
                     onClick={() => logout()}
-                    className="p-2 text-gray-400 hover:text-red-400 transition-colors"
+                    className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
                   >
                     <LogOut className="w-5 h-5" />
                   </button>
@@ -109,7 +129,7 @@ function AppContent() {
               ) : (
                 <button
                   onClick={() => navigate('/login')}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyber-pink to-cyber-purple text-white font-medium shadow-neon hover:shadow-lg transition-all"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyber-pink via-cyber-purple to-cyber-blue text-white font-medium shadow-lg shadow-cyber-purple/25 hover:shadow-xl hover:shadow-cyber-pink/30 transition-all duration-300"
                 >
                   登录
                 </button>
@@ -117,7 +137,7 @@ function AppContent() {
             </div>
 
             <button
-              className="sm:hidden p-2 text-gray-400 hover:text-white transition-colors"
+              className="sm:hidden p-2 rounded-lg text-gray-400 hover:text-white hover:bg-cyber-dark transition-colors"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
               {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -126,46 +146,87 @@ function AppContent() {
         </div>
 
         {isMenuOpen && (
-          <div className="sm:hidden mt-3 pt-3 border-t border-cyber-purple/20 relative z-[200]">
+          <div className="sm:hidden mt-3 pt-3 border-t border-cyber-purple/10 bg-cyber-dark/90 backdrop-blur-xl rounded-b-xl overflow-hidden">
+            <div className="px-3 py-2">
+              <VerticalClock />
+            </div>
             {isAuthenticated ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 px-3 py-2">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
-                    <User className="w-4 h-4 text-white" />
+              <div className="space-y-1 px-3 py-2">
+                <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-cyber-dark/50">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
+                    <User className="w-5 h-5 text-white" />
                   </div>
-                  <span className="text-white font-medium">{user?.username}</span>
+                  <div>
+                    <p className="text-white font-medium">{user?.username}</p>
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <Coins className="w-3 h-3 text-cyber-yellow" />
+                      {points} 积分
+                    </p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => {
+                    navigate('/profile');
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-cyber-dark/50 transition-all flex items-center gap-2"
+                >
+                  <User className="w-4 h-4" />
+                  个人中心
+                </button>
                 <button
                   onClick={() => {
                     navigate('/points');
                     setIsMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-gray-400 hover:text-white transition-colors flex items-center gap-2"
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-cyber-dark/50 transition-all flex items-center gap-2"
                 >
-                  <Coins className="w-4 h-4" />
+                  <Coins className="w-4 h-4 text-cyber-yellow" />
                   积分中心
+                </button>
+                <button
+                  onClick={() => {
+                    navigate('/notifications');
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-cyber-dark/50 transition-all flex items-center gap-2"
+                >
+                  <Bell className="w-4 h-4" />
+                  通知消息
+                </button>
+                <button
+                  onClick={() => {
+                    navigate('/settings');
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-cyber-dark/50 transition-all flex items-center gap-2"
+                >
+                  <Settings2 className="w-4 h-4" />
+                  设置
                 </button>
                 <button
                   onClick={() => {
                     logout();
                     setIsMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-red-400 hover:text-red-300 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all flex items-center gap-2"
                 >
                   <LogOut className="w-4 h-4" />
                   退出登录
                 </button>
               </div>
             ) : (
-              <button
-                onClick={() => {
-                  navigate('/login');
-                  setIsMenuOpen(false);
-                }}
-                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-cyber-pink to-cyber-purple text-white font-medium text-center"
-              >
-                登录
-              </button>
+              <div className="px-3 py-2">
+                <button
+                  onClick={() => {
+                    navigate('/login');
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-cyber-pink via-cyber-purple to-cyber-blue text-white font-medium text-center shadow-lg"
+                >
+                  登录
+                </button>
+              </div>
             )}
           </div>
         )}

@@ -1074,6 +1074,208 @@ export async function generateVideo(prompts: string[], options: AIVideoOptions =
   return fallbackGenerateVideo(prompts, style);
 }
 
+// ========== 小说生成服务 ==========
+
+export interface NovelGenerationOptions {
+  genre?: string;
+  length?: 'short' | 'medium' | 'long';
+  characters?: number;
+  chapters?: number;
+}
+
+export interface GeneratedNovel {
+  title: string;
+  content: string;
+  summary: string;
+  characters: { name: string; description: string }[];
+  chapters: string[];
+}
+
+/**
+ * 根据提示词生成小说内容
+ */
+export async function generateNovelFromPrompt(prompt: string, options: NovelGenerationOptions = {}): Promise<GeneratedNovel> {
+  const aggregator = getActiveAggregator();
+  
+  const genre = options.genre || '综合';
+  const length = options.length || 'medium';
+  const charCount = options.characters || 3;
+  const chapterCount = options.chapters || (length === 'short' ? 3 : length === 'medium' ? 5 : 8);
+  
+  const lengthDesc = length === 'short' ? '短篇（约5000字）' : length === 'medium' ? '中篇（约15000字）' : '长篇（约30000字）';
+  
+  const systemPrompt = `
+你是一位资深网络小说作家，擅长创作各种类型的精彩故事。请根据用户提供的提示词创作一部完整的小说。
+
+要求：
+1. 标题要吸引人，符合网络小说风格
+2. 故事结构完整，有开端、发展、高潮、结局
+3. 角色鲜明，有独特的性格和背景
+4. 情节紧凑，引人入胜
+5. 语言流畅，符合网络文学风格
+
+输出格式：
+【标题】xxx
+【简介】xxx
+【角色】
+- 角色名：简介
+【章节列表】
+1. 章节名1
+2. 章节名2
+...
+【正文】
+（完整小说内容，分章节呈现）
+`.trim();
+
+  const userPrompt = `
+创作要求：
+- 类型：${genre}
+- 篇幅：${lengthDesc}（${chapterCount}章）
+- 角色数量：${charCount}个主要角色
+- 核心提示：${prompt}
+
+请创作一部完整的小说。
+`.trim();
+
+  if (aggregator) {
+    try {
+      let modelName = 'gpt-4o-mini';
+      if (aggregator.key === 'siliconflowApiKey') {
+        modelName = 'deepseek-ai/DeepSeek-V3-0324';
+      } else if (aggregator.key === 'dashscopeApiKey') {
+        modelName = 'qwen2.5-72b-instruct';
+      } else if (aggregator.key === 'zhipuApiKey') {
+        modelName = 'glm-4-flash';
+      }
+
+      const response = await fetch(`${aggregator.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${aggregator.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          max_tokens: 8000,
+          temperature: 0.8,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn(`${aggregator.name} 小说生成失败`);
+        return generateFallbackNovel(prompt, options);
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || '';
+      return parseNovelOutput(content) || generateFallbackNovel(prompt, options);
+    } catch (error) {
+      console.warn('小说生成异常:', error);
+      return generateFallbackNovel(prompt, options);
+    }
+  }
+
+  return generateFallbackNovel(prompt, options);
+}
+
+function parseNovelOutput(content: string): GeneratedNovel | null {
+  try {
+    const titleMatch = content.match(/【标题】(.+)/);
+    const summaryMatch = content.match(/【简介】(.+)/);
+    const charsMatch = content.match(/【角色】([\s\S]*?)(?=【章节列表】|【正文】|$)/);
+    const chaptersMatch = content.match(/【章节列表】([\s\S]*?)(?=【正文】|$)/);
+    const contentMatch = content.match(/【正文】([\s\S]*)/);
+
+    const title = titleMatch?.[1]?.trim() || '未命名小说';
+    const summary = summaryMatch?.[1]?.trim() || '';
+    
+    const characters: { name: string; description: string }[] = [];
+    if (charsMatch) {
+      const charLines = charsMatch[1].split('\n').filter(l => l.trim());
+      for (const line of charLines) {
+        const match = line.match(/[-•*]\s*([^：:]+?)[：:]\s*(.+)/);
+        if (match) {
+          characters.push({ name: match[1].trim(), description: match[2].trim() });
+        }
+      }
+    }
+
+    const chapters: string[] = [];
+    if (chaptersMatch) {
+      const chapterLines = chaptersMatch[1].split('\n').filter(l => l.trim());
+      for (const line of chapterLines) {
+        const match = line.match(/\d+[.\uff0e、]\s*(.+)/);
+        if (match) {
+          chapters.push(match[1].trim());
+        }
+      }
+    }
+
+    const novelContent = contentMatch?.[1]?.trim() || '';
+
+    return { title, content: novelContent, summary, characters, chapters };
+  } catch {
+    return null;
+  }
+}
+
+function generateFallbackNovel(prompt: string, options: NovelGenerationOptions): GeneratedNovel {
+  const genre = options.genre || '综合';
+  const length = options.length || 'medium';
+  const chapterCount = length === 'short' ? 3 : length === 'medium' ? 5 : 8;
+  
+  const titles = [
+    '命运的齿轮开始转动',
+    '重生之逆袭之路',
+    '穿越者的异世界之旅',
+    '都市之最强系统',
+    '玄幻之无敌神尊',
+    '网游之巅峰传说',
+    '仙侠之万古长青',
+    '末世之生存法则',
+  ];
+  
+  const title = `${prompt.length > 10 ? prompt.slice(0, 10) : prompt} - ${titles[Math.floor(Math.random() * titles.length)]}`;
+  
+  const charTemplates = [
+    { name: '林辰', desc: '主角，穿越者，性格坚毅，心怀正义' },
+    { name: '苏瑶', desc: '女主角，温柔善良，天赋异禀' },
+    { name: '王傲天', desc: '反派，野心勃勃，实力强大' },
+    { name: '李长老', desc: '导师，经验丰富，深藏不露' },
+    { name: '小雪', desc: '萌宠，可爱聪慧，陪伴主角成长' },
+  ];
+  
+  const characters = charTemplates.slice(0, options.characters || 3);
+  
+  const chapters = Array.from({ length: chapterCount }, (_, i) => {
+    const chapterNames = ['初入江湖', '崭露头角', '危机四伏', '锋芒毕露', '惊天秘密', '巅峰对决', '尘埃落定', '新的征程'];
+    return chapterNames[i] || `第${i + 1}章 新的挑战`;
+  });
+  
+  const chapterContent = chapters.map((chapter, i) => {
+    const contents = [
+      `【第${i + 1}章 ${chapter}】\n\n林辰站在这片陌生的土地上，心中充满了迷茫与期待。穿越到这个世界已经三天了，他依然无法接受眼前的现实...`,
+      `【第${i + 1}章 ${chapter}】\n\n"没想到在这里遇到了你！"苏瑶惊喜地看着林辰，眼中闪烁着光芒。两人的命运从此交织在一起...`,
+      `【第${i + 1}章 ${chapter}】\n\n王傲天阴冷的目光扫过林辰："小子，敢跟我抢东西，你还嫩了点！"一场惊心动魄的对决即将展开...`,
+      `【第${i + 1}章 ${chapter}】\n\n李长老捋着胡须："你的天赋远超常人，但仍需勤加修炼。来，我传你一套顶级功法..."`,
+      `【第${i + 1}章 ${chapter}】\n\n"汪汪！"小雪欢快地跑过来，嘴里叼着一枚闪烁着神秘光芒的玉佩...`,
+    ];
+    return contents[i % contents.length];
+  });
+  
+  return {
+    title,
+    content: chapterContent.join('\n\n'),
+    summary: `这是一部关于${prompt}的${genre}小说，讲述主角林辰在异界的传奇故事。`,
+    characters: characters.map(c => ({ name: c.name, description: c.desc })),
+    chapters,
+  };
+}
+
 // ========== 国内API平台信息 ==========
 
 export interface DomesticPlatformInfo {
