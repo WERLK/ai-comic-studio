@@ -23,6 +23,7 @@ import { AppVersion } from '@/components/AppVersion';
 import { analyzeScript, type AnalysisResult } from '@/services/aiService';
 import type { SceneStyle, Character, Frame } from '@/types';
 import { ScriptWizard } from '@/components/ScriptWizard';
+import { VerticalClock } from '@/components/VerticalClock';
 
 // ========== 工具函数 ==========
 
@@ -627,6 +628,11 @@ export function Studio() {
                 </div>
               );
             })}
+          </div>
+
+          {/* 动态时间显示 */}
+          <div className="hidden lg:flex items-center">
+            <VerticalClock />
           </div>
 
           <div className="flex items-center gap-3">
