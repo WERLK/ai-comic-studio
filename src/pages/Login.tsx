@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Lock, User, Mail, Loader2, Eye, EyeOff, Download, Upload, Smartphone, Database } from 'lucide-react';
+import { Sparkles, Lock, User, Mail, Loader2, Eye, EyeOff, Download, Upload, Smartphone } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
+import { register, login, checkApiHealth } from '@/utils/api';
 
 export function Login() {
   const navigate = useNavigate();
@@ -25,29 +26,43 @@ export function Login() {
       return;
     }
 
-    const result = showRegister
-      ? await useAuthStore.getState().register({ username, email, password })
-      : await useAuthStore.getState().login({ username, password });
+    try {
+      // 检查后端是否可用
+      const isHealthy = await checkApiHealth();
+      if (!isHealthy) {
+        setError('后端服务暂时不可用，请稍后重试');
+        return;
+      }
 
-    if (result.ok) {
-      navigate('/');
-      return;
-    }
+      // 调用后端 API
+      const data = showRegister
+        ? await register(username, password, email)
+        : await login(username, password);
 
-    // 根据后端返回的错误码显示不同提示
-    const code = result.code;
-    if (code === 'USER_NOT_FOUND') {
-      setError('该账号尚未注册，请先注册或检查用户名是否正确');
-    } else if (code === 'WRONG_PASSWORD') {
-      setError('密码错误，请重新输入');
-    } else if (code === 'USER_EXISTS') {
-      setError('该用户名已注册，请直接登录或更换用户名');
-    } else if (code === 'MISSING_FIELDS') {
-      setError('用户名和密码不能为空');
-    } else if (code === 'NETWORK_ERROR') {
-      setError('网络连接异常，请检查网络后重试');
-    } else {
-      setError(result.message || (showRegister ? '注册失败，请稍后重试' : '登录失败，请稍后重试'));
+      if (data.user) {
+        // 更新 store
+        useAuthStore.setState({
+          user: data.user,
+          isAuthenticated: true,
+          isLoading: false,
+          points: data.user.points ?? 50,
+          totalEarnedPoints: data.user.totalEarnedPoints ?? 50,
+          level: data.user.level ?? 1,
+          projectsCount: data.user.projectsCount ?? 0,
+          isVIP: !!data.user.isVIP,
+          vipLevel: data.user.vipLevel ?? 0,
+          vipPoints: data.user.vipPoints ?? 0,
+          vipExpireAt: data.user.vipExpireAt ?? null,
+          completedTasks: data.user.completedTasks || [],
+          visitedPages: data.user.visitedPages || [],
+          usedStyles: data.user.usedStyles || [],
+          transactions: data.user.transactions || [],
+        });
+
+        navigate('/');
+      }
+    } catch (err: any) {
+      setError(err?.message || (showRegister ? '注册失败' : '登录失败'));
     }
   };
 
@@ -78,7 +93,6 @@ export function Login() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       let content = ev.target?.result as string;
-      // Android 某些应用把 UTF-8 JSON 以系统默认编码读取，加上手动 BOM 兜底
       if (content && typeof content === 'string') {
         content = content.replace(/^\uFEFF/, '');
       }
@@ -90,7 +104,7 @@ export function Login() {
           navigate('/');
         }, 2000);
       } else {
-        setError('导入失败：文件格式不正确或已损坏（请确认使用从本站导出的 JSON 文件）');
+        setError('导入失败：文件格式不正确或已损坏');
       }
     };
     reader.readAsText(file, 'utf-8');
@@ -220,29 +234,11 @@ export function Login() {
 
           <div className="mt-6 bg-cyber-dark2/40 border border-cyber-purple/20 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Database className="w-4 h-4 text-cyber-blue" />
-              <p className="text-sm font-medium text-gray-300">云端数据库配置</p>
-            </div>
-            <p className="text-xs text-gray-500 leading-relaxed mb-4">
-              首次使用需要配置云端数据库，用于保存用户账号和数据。已为您预配置 JSONBin.io，点击测试连接即可。
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/cloud-database')}
-              className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-cyber-blue/10 hover:bg-cyber-blue/20 border border-cyber-blue/30 text-cyber-blue text-xs font-medium rounded-xl transition-colors"
-            >
-              <Database className="w-3.5 h-3.5" />
-              配置云端数据库
-            </button>
-          </div>
-
-          <div className="mt-6 bg-cyber-dark2/40 border border-cyber-purple/20 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-3">
               <Smartphone className="w-4 h-4 text-cyber-blue" />
               <p className="text-sm font-medium text-gray-300">跨设备数据同步</p>
             </div>
             <p className="text-xs text-gray-500 leading-relaxed mb-4">
-              账号数据保存在后端服务器，登录后自动从云端同步；也可使用下方手动导出/导入 JSON 文件作为备份。
+              账号数据保存在云端数据库，登录后自动同步；也可使用下方手动导出/导入 JSON 文件作为备份。
             </p>
             <div className="flex gap-2">
               <button
