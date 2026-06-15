@@ -103,19 +103,37 @@ try {
   console.log('   ✅ master 分支已推送');
 
   console.log('  2. 部署到 gh-pages 分支...');
+  const tempDist = path.join(rootDir, '.temp-deploy-dist');
+  if (fs.existsSync(tempDist)) {
+    fs.rmSync(tempDist, { recursive: true });
+  }
+  copyDir(path.join(rootDir, 'dist'), tempDist);
+
   execSync('git checkout gh-pages', { 
     cwd: rootDir, 
     stdio: 'inherit' 
   });
   
-  execSync('rm -rf index.html assets', { 
+  execSync('rm -rf index.html assets favicon.svg', { 
     cwd: rootDir, 
-    stdio: 'inherit' 
+    stdio: 'inherit',
+    stderr: 'ignore'
   });
-  execSync('cp -r docs/* .', { 
-    cwd: rootDir, 
-    stdio: 'inherit' 
-  });
+  
+  const tempEntries = fs.readdirSync(tempDist, { withFileTypes: true });
+  for (const entry of tempEntries) {
+    const srcPath = path.join(tempDist, entry.name);
+    const dstPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      copyDir(srcPath, dstPath);
+    } else {
+      fs.copyFileSync(srcPath, dstPath);
+    }
+  }
+
+  if (fs.existsSync(tempDist)) {
+    fs.rmSync(tempDist, { recursive: true });
+  }
   
   execSync(`git add -A && git commit -m "deploy: v${VERSION}"`, { 
     cwd: rootDir, 
