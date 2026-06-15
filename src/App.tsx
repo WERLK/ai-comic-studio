@@ -1,6 +1,6 @@
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores';
-import { Sparkles, Coins, LogOut, User, Menu, X, Bell, Settings2, Wifi, WifiOff } from 'lucide-react';
+import { Sparkles, Coins, LogOut, User, Menu, X, Bell, Settings2, Wifi, WifiOff, Database } from 'lucide-react';
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AppVersion } from '@/components/AppVersion';
 import { VerticalClock } from '@/components/VerticalClock';
@@ -18,6 +18,7 @@ const Notifications = lazy(() => import('@/pages/Notifications').then(m => ({ de
 const PrivacySecurity = lazy(() => import('@/pages/PrivacySecurity').then(m => ({ default: m.PrivacySecurity })));
 const HelpFeedback = lazy(() => import('@/pages/HelpFeedback').then(m => ({ default: m.HelpFeedback })));
 const ApiConfig = lazy(() => import('@/pages/ApiConfig').then(m => ({ default: m.ApiConfig })));
+const CloudDatabaseConfig = lazy(() => import('@/pages/CloudDatabaseConfig').then(m => ({ default: m.CloudDatabaseConfig })));
 const VIPCenter = lazy(() => import('@/pages/VIPCenter').then(m => ({ default: m.VIPCenter })));
 const NovelPromotionCenter = lazy(() => import('@/pages/NovelPromotionCenter').then(m => ({ default: m.NovelPromotionCenter })));
 
@@ -243,6 +244,16 @@ function AppContent() {
                 </button>
                 <button
                   onClick={() => {
+                    navigate('/cloud-database');
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-black/30 transition-all flex items-center gap-3"
+                >
+                  <Database className="w-5 h-5" />
+                  云端数据库
+                </button>
+                <button
+                  onClick={() => {
                     logout();
                     setIsMenuOpen(false);
                   }}
@@ -284,6 +295,7 @@ function AppContent() {
             <Route path="/privacy-security" element={<PrivacySecurity />} />
             <Route path="/help-feedback" element={<HelpFeedback />} />
             <Route path="/api-config" element={<ApiConfig />} />
+            <Route path="/cloud-database" element={<CloudDatabaseConfig />} />
             <Route path="/vip" element={<VIPCenter />} />
             <Route path="/novel-promotion" element={<NovelPromotionCenter />} />
             <Route path="*" element={<Navigate to="/" replace />} />
