@@ -4,6 +4,7 @@ import { Sparkles, Coins, LogOut, User, Menu, X, Bell, Settings2 } from 'lucide-
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AppVersion } from '@/components/AppVersion';
 import { VerticalClock } from '@/components/VerticalClock';
+import { getBrowserFixClass } from '@/utils/browserDetector';
 
 const Studio = lazy(() => import('@/pages/Studio').then(m => ({ default: m.Studio })));
 const Generator = lazy(() => import('@/pages/Generator').then(m => ({ default: m.Generator })));
@@ -36,9 +37,11 @@ function AppContent() {
   const location = useLocation();
   const { user, isAuthenticated, logout, points, autoLogin } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [browserFixClass, setBrowserFixClass] = useState('');
 
   useEffect(() => {
     autoLogin();
+    setBrowserFixClass(getBrowserFixClass());
   }, []);
 
   const isAuthPage = location.pathname === '/login' || location.pathname.startsWith('/#/login');
@@ -55,7 +58,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <div className={`min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 ${browserFixClass}`}>
       <nav className="fixed top-0 left-0 right-0 z-[100] bg-white/5 backdrop-blur-xl border-b border-gray-700/30 px-4 py-3 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div
