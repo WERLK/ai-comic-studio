@@ -5,12 +5,17 @@
 
 const JSONBIN_BASE_URL = 'https://api.jsonbin.io/v3/b';
 
-// 存储桶 ID（自动创建或从本地存储读取）
+// 默认存储桶 ID（已为用户创建）
+const DEFAULT_BIN_ID = '6a2fd749f5f4af5e29f47b6f';
+
+// 存储桶 ID（优先使用本地存储，否则使用默认值）
 let BIN_ID = '';
 
 try {
-  BIN_ID = localStorage.getItem('ai_comic_bin_id') || '';
-} catch { /* ignore */ }
+  BIN_ID = localStorage.getItem('ai_comic_bin_id') || DEFAULT_BIN_ID;
+} catch { 
+  BIN_ID = DEFAULT_BIN_ID;
+}
 
 export function setBinId(id: string) {
   BIN_ID = id;

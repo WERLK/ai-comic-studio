@@ -5,7 +5,7 @@ import { setBinId, getBinId, initCloudDatabase, checkCloudService } from '@/util
 
 export function CloudDatabaseConfig() {
   const navigate = useNavigate();
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState('$2a$10$uZylvcpmveZ2yFj7F6PMgeGoAP3k4q4zHKTAQo8veDY/NdC2RGUlG');
   const [binId, setBinIdState] = useState(getBinId());
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -83,14 +83,11 @@ export function CloudDatabaseConfig() {
           </div>
 
           <div className="space-y-4">
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-              <p className="text-yellow-400 text-sm font-medium mb-2">配置步骤：</p>
-              <ol className="text-gray-400 text-sm space-y-1 list-decimal list-inside">
-                <li>访问 <a href="https://jsonbin.io" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline inline-flex items-center gap-1">jsonbin.io <ExternalLink className="w-3 h-3" /></a> 注册账号</li>
-                <li>在 API Keys 页面获取 Master Key</li>
-                <li>将 Key 填入下方，点击"自动初始化"</li>
-                <li>程序会自动创建存储桶，无需手动操作</li>
-              </ol>
+            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
+              <p className="text-green-400 text-sm font-medium mb-2">✅ 云端数据库已配置</p>
+              <p className="text-gray-400 text-sm">
+                存储桶已创建，API Key 已预填。点击"测试连接"验证，或直接使用注册/登录功能。
+              </p>
             </div>
 
             <div>
@@ -105,21 +102,19 @@ export function CloudDatabaseConfig() {
                 className="w-full px-4 py-3 bg-black/30 border border-gray-600/30 rounded-xl text-white placeholder:text-gray-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
               />
               <p className="text-gray-600 text-xs mt-2">
-                您的账户ID: 6a2fd4efb6609a3a51889f13
+                您的账户ID: 6a2fd4efb6609a3a51889f13 | 存储桶ID: {binId || '6a2fd749f5f4af5e29f47b6f'}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                存储桶 ID (Bin ID) <span className="text-gray-500">- 自动生成</span>
+                存储桶 ID (Bin ID) <span className="text-gray-500">- 已创建</span>
               </label>
               <input
                 type="text"
-                value={binId}
-                onChange={(e) => setBinIdState(e.target.value)}
-                placeholder="点击自动初始化后自动生成"
+                value={binId || '6a2fd749f5f4af5e29f47b6f'}
                 readOnly
-                className="w-full px-4 py-3 bg-black/30 border border-gray-600/30 rounded-xl text-gray-400 placeholder:text-gray-600 focus:outline-none transition-colors cursor-not-allowed"
+                className="w-full px-4 py-3 bg-black/30 border border-gray-600/30 rounded-xl text-gray-400 focus:outline-none transition-colors cursor-not-allowed"
               />
             </div>
 
