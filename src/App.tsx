@@ -5,7 +5,6 @@ import { useState, lazy, Suspense, useEffect } from 'react';
 import { AppVersion } from '@/components/AppVersion';
 import { VerticalClock } from '@/components/VerticalClock';
 
-// 路由级懒加载 - 按需加载页面组件，大幅提升首屏速度
 const Studio = lazy(() => import('@/pages/Studio').then(m => ({ default: m.Studio })));
 const Generator = lazy(() => import('@/pages/Generator').then(m => ({ default: m.Generator })));
 const Preview = lazy(() => import('@/pages/Preview').then(m => ({ default: m.Preview })));
@@ -21,12 +20,11 @@ const ApiConfig = lazy(() => import('@/pages/ApiConfig').then(m => ({ default: m
 const VIPCenter = lazy(() => import('@/pages/VIPCenter').then(m => ({ default: m.VIPCenter })));
 const NovelPromotionCenter = lazy(() => import('@/pages/NovelPromotionCenter').then(m => ({ default: m.NovelPromotionCenter })));
 
-// 页面加载占位组件
 function PageLoader() {
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-2 border-cyber-purple/30 border-t-cyber-pink rounded-full animate-spin" />
+        <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
         <p className="text-gray-500 text-sm">加载中...</p>
       </div>
     </div>
@@ -39,7 +37,6 @@ function AppContent() {
   const { user, isAuthenticated, logout, points, autoLogin } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // 应用首次加载时尝试自动登录（记住登录状态）
   useEffect(() => {
     autoLogin();
   }, []);
@@ -58,14 +55,14 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-cyber-dark cyber-grid pb-24">
-      <nav className="fixed top-0 left-0 right-0 z-[100] bg-gradient-to-b from-cyber-dark/95 via-cyber-dark2/90 to-cyber-dark2/80 backdrop-blur-xl border-b border-cyber-purple/10 px-4 py-3 shadow-lg">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      <nav className="fixed top-0 left-0 right-0 z-[100] bg-white/5 backdrop-blur-xl border-b border-gray-700/30 px-4 py-3 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div
             className="flex items-center gap-3 cursor-pointer group"
             onClick={() => navigate('/')}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyber-pink via-cyber-purple to-cyber-blue flex items-center justify-center shadow-lg shadow-cyber-purple/20 group-hover:shadow-cyber-pink/30 transition-all duration-300">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/30 transition-all duration-300">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div className="hidden sm:block">
@@ -74,25 +71,22 @@ function AppContent() {
             </div>
           </div>
 
-          {/* 中间时间显示 */}
-          <div className="hidden md:flex items-center">
+          <div className="hidden lg:flex items-center">
             <VerticalClock />
           </div>
 
           <div className="flex items-center gap-2">
-            {/* 通知按钮 */}
             <button
               onClick={() => navigate('/notifications')}
-              className="relative p-2 rounded-lg bg-cyber-dark/50 border border-cyber-purple/20 hover:border-cyber-pink/40 hover:bg-cyber-dark transition-all"
+              className="relative p-2 rounded-lg bg-black/30 border border-gray-600/30 hover:border-indigo-500/50 hover:bg-black/50 transition-all"
             >
               <Bell className="w-5 h-5 text-gray-400 hover:text-white" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-cyber-pink rounded-full"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
 
-            {/* 设置按钮 */}
             <button
               onClick={() => navigate('/settings')}
-              className="p-2 rounded-lg bg-cyber-dark/50 border border-cyber-purple/20 hover:border-cyber-blue/40 hover:bg-cyber-dark transition-all"
+              className="p-2 rounded-lg bg-black/30 border border-gray-600/30 hover:border-indigo-500/50 hover:bg-black/50 transition-all"
             >
               <Settings2 className="w-5 h-5 text-gray-400 hover:text-white" />
             </button>
@@ -100,24 +94,24 @@ function AppContent() {
             {isAuthenticated && (
               <button
                 onClick={() => navigate('/points')}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-cyber-yellow/10 to-cyber-orange/10 border border-cyber-yellow/30 hover:border-cyber-yellow/50 hover:bg-cyber-yellow/15 transition-all"
+                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30 hover:border-yellow-500/50 hover:bg-yellow-500/15 transition-all"
               >
-                <Coins className="w-4 h-4 text-cyber-yellow" />
-                <span className="font-bold text-cyber-yellow text-sm">{points}</span>
+                <Coins className="w-4 h-4 text-yellow-400" />
+                <span className="font-bold text-yellow-400 text-sm">{points}</span>
               </button>
             )}
 
-            <div className="hidden sm:block">
+            <div className="hidden md:block">
               {isAuthenticated ? (
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => navigate('/profile')}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-cyber-dark/80 border border-cyber-purple/20 hover:border-cyber-pink/40 transition-all"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/30 border border-gray-600/30 hover:border-indigo-500/50 hover:bg-black/50 transition-all"
                   >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center shadow-sm">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
                       <User className="w-4 h-4 text-white" />
                     </div>
-                    <span className="text-white font-medium text-sm">{user?.username}</span>
+                    <span className="text-white font-medium text-sm hidden lg:block">{user?.username}</span>
                   </button>
                   <button
                     onClick={() => logout()}
@@ -129,7 +123,7 @@ function AppContent() {
               ) : (
                 <button
                   onClick={() => navigate('/login')}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyber-pink via-cyber-purple to-cyber-blue text-white font-medium shadow-lg shadow-cyber-purple/25 hover:shadow-xl hover:shadow-cyber-pink/30 transition-all duration-300"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 transition-all duration-300"
                 >
                   登录
                 </button>
@@ -137,7 +131,7 @@ function AppContent() {
             </div>
 
             <button
-              className="sm:hidden p-2 rounded-lg text-gray-400 hover:text-white hover:bg-cyber-dark transition-colors"
+              className="md:hidden p-2 rounded-lg text-gray-400 hover:text-white hover:bg-black/30 transition-colors"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
               {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -146,22 +140,30 @@ function AppContent() {
         </div>
 
         {isMenuOpen && (
-          <div className="sm:hidden mt-3 pt-3 border-t border-cyber-purple/10 bg-cyber-dark/90 backdrop-blur-xl rounded-b-xl overflow-hidden">
-            <div className="px-3 py-2">
+          <div className="md:hidden mt-3 pt-3 border-t border-gray-700/30 bg-black/50 backdrop-blur-xl rounded-b-xl overflow-hidden">
+            <div className="px-3 py-3">
               <VerticalClock />
             </div>
+            {isAuthenticated && (
+              <div className="px-3 py-2">
+                <button
+                  onClick={() => navigate('/points')}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 hover:border-yellow-500/50 hover:bg-yellow-500/15 transition-all"
+                >
+                  <Coins className="w-5 h-5 text-yellow-400" />
+                  <span className="font-bold text-yellow-400">{points} 积分</span>
+                </button>
+              </div>
+            )}
             {isAuthenticated ? (
               <div className="space-y-1 px-3 py-2">
-                <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-cyber-dark/50">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyber-pink to-cyber-purple flex items-center justify-center">
+                <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-black/30">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
                     <User className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <p className="text-white font-medium">{user?.username}</p>
-                    <p className="text-xs text-gray-500 flex items-center gap-1">
-                      <Coins className="w-3 h-3 text-cyber-yellow" />
-                      {points} 积分
-                    </p>
+                    <p className="text-xs text-gray-500">已登录</p>
                   </div>
                 </div>
                 <button
@@ -169,9 +171,9 @@ function AppContent() {
                     navigate('/profile');
                     setIsMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-cyber-dark/50 transition-all flex items-center gap-2"
+                  className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-black/30 transition-all flex items-center gap-3"
                 >
-                  <User className="w-4 h-4" />
+                  <User className="w-5 h-5" />
                   个人中心
                 </button>
                 <button
@@ -179,9 +181,9 @@ function AppContent() {
                     navigate('/points');
                     setIsMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-cyber-dark/50 transition-all flex items-center gap-2"
+                  className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-black/30 transition-all flex items-center gap-3"
                 >
-                  <Coins className="w-4 h-4 text-cyber-yellow" />
+                  <Coins className="w-5 h-5 text-yellow-400" />
                   积分中心
                 </button>
                 <button
@@ -189,9 +191,9 @@ function AppContent() {
                     navigate('/notifications');
                     setIsMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-cyber-dark/50 transition-all flex items-center gap-2"
+                  className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-black/30 transition-all flex items-center gap-3"
                 >
-                  <Bell className="w-4 h-4" />
+                  <Bell className="w-5 h-5" />
                   通知消息
                 </button>
                 <button
@@ -199,9 +201,9 @@ function AppContent() {
                     navigate('/settings');
                     setIsMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-cyber-dark/50 transition-all flex items-center gap-2"
+                  className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-black/30 transition-all flex items-center gap-3"
                 >
-                  <Settings2 className="w-4 h-4" />
+                  <Settings2 className="w-5 h-5" />
                   设置
                 </button>
                 <button
@@ -209,20 +211,20 @@ function AppContent() {
                     logout();
                     setIsMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all flex items-center gap-2"
+                  className="w-full text-left px-4 py-3 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all flex items-center gap-3"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-5 h-5" />
                   退出登录
                 </button>
               </div>
             ) : (
-              <div className="px-3 py-2">
+              <div className="px-3 py-3">
                 <button
                   onClick={() => {
                     navigate('/login');
                     setIsMenuOpen(false);
                   }}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-cyber-pink via-cyber-purple to-cyber-blue text-white font-medium text-center shadow-lg"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium text-center shadow-lg"
                 >
                   登录
                 </button>
@@ -232,7 +234,7 @@ function AppContent() {
         )}
       </nav>
 
-      <div className="pt-16">
+      <div className="pt-16 pb-20">
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Studio />} />
@@ -254,8 +256,7 @@ function AppContent() {
         </Suspense>
       </div>
 
-      {/* Footer with Version */}
-      <footer className="fixed bottom-0 left-0 right-0 z-50 bg-cyber-dark2/90 backdrop-blur-xl border-t border-cyber-purple/20 px-4 py-3">
+      <footer className="fixed bottom-0 left-0 right-0 z-50 bg-white/5 backdrop-blur-xl border-t border-gray-700/30 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="text-xs text-gray-500">
             © 2026 AI漫剧工作室

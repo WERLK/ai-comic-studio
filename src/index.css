@@ -5,13 +5,16 @@
 @tailwind utilities;
 
 :root {
-  font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
 }
 
 html {
@@ -20,6 +23,7 @@ html {
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -29,6 +33,7 @@ body {
   min-height: 100dvh;
   overflow-x: hidden;
   margin: 0;
+  padding: 0;
 }
 
 #root {
@@ -38,7 +43,37 @@ body {
   min-height: 100dvh;
 }
 
-/* Cyberpunk grid background */
+* {
+  box-sizing: border-box;
+}
+
+@supports (-webkit-touch-callout: none) {
+  :root {
+    min-height: -webkit-fill-available;
+  }
+  html, body, #root {
+    min-height: -webkit-fill-available;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  :root {
+    font-size: 14px;
+  }
+}
+
+@media screen and (min-width: 641px) and (max-width: 1024px) {
+  :root {
+    font-size: 15px;
+  }
+}
+
+@media screen and (min-width: 1025px) {
+  :root {
+    font-size: 16px;
+  }
+}
+
 .cyber-grid {
   background-image: 
     linear-gradient(rgba(8, 247, 254, 0.03) 1px, transparent 1px),
@@ -46,7 +81,6 @@ body {
   background-size: 40px 40px;
 }
 
-/* Neon text glow */
 .neon-text-pink {
   text-shadow: 0 0 10px rgba(255, 46, 99, 0.8), 0 0 20px rgba(255, 46, 99, 0.5);
 }
@@ -59,7 +93,6 @@ body {
   text-shadow: 0 0 10px rgba(247, 240, 82, 0.8), 0 0 20px rgba(247, 240, 82, 0.5);
 }
 
-/* Neon border */
 .neon-border-pink {
   border: 1px solid #FF2E63;
   box-shadow: 0 0 10px rgba(255, 46, 99, 0.5), inset 0 0 10px rgba(255, 46, 99, 0.1);
@@ -70,7 +103,6 @@ body {
   box-shadow: 0 0 10px rgba(8, 247, 254, 0.5), inset 0 0 10px rgba(8, 247, 254, 0.1);
 }
 
-/* Manga speed lines effect */
 .speed-lines {
   background: repeating-linear-gradient(
     90deg,
@@ -81,7 +113,6 @@ body {
   );
 }
 
-/* Dialogue bubble style */
 .dialogue-bubble {
   position: relative;
   background: white;
@@ -102,7 +133,6 @@ body {
   border-bottom: 0;
 }
 
-/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -121,8 +151,91 @@ body {
   background: #FF2E63;
 }
 
-/* Selection color */
+::-moz-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-moz-scrollbar-track {
+  background: #1A1A2E;
+}
+
+::-moz-scrollbar-thumb {
+  background: #2D1B4E;
+  border-radius: 4px;
+}
+
+::-moz-scrollbar-thumb:hover {
+  background: #FF2E63;
+}
+
 ::selection {
   background: rgba(255, 46, 99, 0.4);
   color: #F7F052;
+}
+
+input, textarea, select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+button {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+button:focus, input:focus, textarea:focus, select:focus {
+  outline: none;
+}
+
+button::-moz-focus-inner {
+  border: 0;
+}
+
+@media screen and (max-width: 640px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+}
+
+@media screen and (min-width: 641px) and (max-width: 1024px) {
+  .hide-on-tablet {
+    display: none !important;
+  }
+}
+
+@media screen and (min-width: 1025px) {
+  .hide-on-desktop {
+    display: none !important;
+  }
+}
+
+@media screen and (max-width: 1024px) {
+  .hide-on-mobile-tablet {
+    display: none !important;
+  }
+}
+
+@media screen and (min-width: 641px) {
+  .show-on-desktop-tablet {
+    display: flex !important;
+  }
+}
+
+@-ms-viewport {
+  width: device-width;
+}
+
+@viewport {
+  width: device-width;
+}
+
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
 }
