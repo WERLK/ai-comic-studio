@@ -2,15 +2,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User, AuthState, LoginCredentials, RegisterCredentials, PointTransaction, PointReward, PointExchangeItem, VIP_LEVELS } from '@/types';
 import {
-  registerUser,
-  loginUser,
-  updateUser,
-  deleteUser,
-  STORAGE_KEYS,
-  type PublicUser,
-  type LoginResult,
-  type RegisterResult,
-} from '@/utils/database';
+  registerUser as ghRegisterUser,
+  loginUser as ghLoginUser,
+  updateUser as ghUpdateUser,
+  checkService as ghCheckService,
+} from '@/utils/githubDatabase';
 
 // 记住登录凭据的本地 key
 const REMEMBER_KEY = 'ai_comic_remember_user_v1';
@@ -91,17 +87,7 @@ const calcLevel = (totalEarned: number): number => {
 // 后端统一存储用户账号密码和使用数据，确保多端登录数据同步
 // API 路径由 vite proxy 转发到 http://localhost:3001
 
-// 生产环境（GitHub Pages）或后端未启动时降级到 localStorage
-// 优先使用环境变量或本地存储中配置的云端后端地址
-const getCloudApiBase = (): string => {
-  try {
-    const saved = localStorage.getItem('ai_comic_api_base');
-    if (saved) return saved;
-  } catch { /* ignore */ }
-  return '/api';
-};
-
-let API_BASE = getCloudApiBase() || '/api';
+// 使用 GitHub 作为云端数据库
 let apiAvailable = false;
 let apiCheckDone = false;
 let lastCheckTime = 0;
@@ -114,22 +100,14 @@ const resetApiCheck = () => {
 };
 
 export function setApiBase(url: string) {
-  API_BASE = url;
-  try { localStorage.setItem('ai_comic_api_base', url); } catch { /* ignore */ }
-  resetApiCheck();
+  // GitHub 数据库模式忽略此设置
 }
 
 export function getApiBase(): string {
-  return API_BASE;
+  return 'github';
 }
 
 const checkApi = async (force = false): Promise<boolean> => {
-  // 如果没有配置 API 地址，直接返回 false（使用本地存储）
-  if (!API_BASE) {
-    apiAvailable = false;
-    return false;
-  }
-
   const now = Date.now();
   
   if (!force && apiCheckDone && now - lastCheckTime < CHECK_INTERVAL) {
@@ -141,69 +119,11 @@ const checkApi = async (force = false): Promise<boolean> => {
   }
   lastCheckTime = now;
   
-  let attempts = 0;
-  const maxAttempts = 3;
-  const timeout = 10000;
-  
-  while (attempts < maxAttempts) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeout);
-      
-      const res = await fetch(`${API_BASE}/health`, {
-        signal: controller.signal,
-        headers: { Accept: 'application/json' },
-        cache: 'no-cache',
-        mode: 'cors',
-      });
-      
-      clearTimeout(timer);
-      
-      // 严格校验：必须返回 200 且响应类型为 JSON
-      // 避免 GitHub Pages / 静态部署 SPA fallback 返回 HTML (index.html) 200 导致误判
-      if (!res.ok) {
-        // 如果健康检查失败，尝试用 GET 请求验证 API 是否可访问
-        const userRes = await fetch(`${API_BASE}/users`, {
-          headers: { Accept: 'application/json' },
-          cache: 'no-cache',
-          mode: 'cors',
-        });
-        
-        if (userRes.ok) {
-          const userData = await userRes.json().catch(() => null);
-          if (userData !== null && (Array.isArray(userData) || typeof userData === 'object')) {
-            apiAvailable = true;
-            return apiAvailable;
-          }
-        }
-        
-        apiAvailable = false;
-        return apiAvailable;
-      }
-      
-      const contentType = res.headers.get('content-type') || '';
-      const isJson = /application\/json/i.test(contentType);
-      if (!isJson) {
-        apiAvailable = false;
-        return apiAvailable;
-      }
-      
-      const data = await res.json().catch(() => null);
-      // 要求响应是对象形式，排除 fallback 页面巧合解析的字符串
-      apiAvailable = data !== null && typeof data === 'object';
-      return apiAvailable;
-      
-    } catch (err) {
-      // 网络错误，继续重试
-    }
-    
-    attempts++;
-    if (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
+  try {
+    apiAvailable = await ghCheckService();
+  } catch {
+    apiAvailable = false;
   }
-  
-  apiAvailable = false;
   return apiAvailable;
 };
 
@@ -468,34 +388,30 @@ export const useAuthStore = create<AuthStore>()(
         get().checkNetworkStatus();
       },
 
-      // ===== 登录：仅使用云端数据库验证 =====
+      // ===== 登录：使用 GitHub 云端数据库验证 =====
       login: async (credentials: LoginCredentials) => {
         set({ isLoading: true });
         await checkApi(true);
 
         try {
-          // 仅通过云端数据库验证
           if (!apiAvailable) {
             set({ isLoading: false });
             resetApiCheck();
             return { ok: false, code: 'NETWORK_ERROR', message: '请连接网络后再登录' };
           }
 
-          const res = await fetch(`${API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: credentials.username, password: credentials.password }),
+          const result = await ghLoginUser({
+            username: credentials.username,
+            password: credentials.password,
           });
-          const data = await res.json().catch(() => ({}));
 
-          if (!res.ok) {
-            set({ isLoading: false, serverError: data.error || '登录失败' });
-            if (res.status === 404) return { ok: false, code: 'USER_NOT_FOUND', message: data.error || '该账号尚未注册，请先注册或检查用户名是否正确' };
-            if (res.status === 401) return { ok: false, code: 'WRONG_PASSWORD', message: data.error || '密码错误，请重新输入' };
-            return { ok: false, code: 'LOGIN_FAILED', message: data.error || '登录失败' };
+          if (!result.success) {
+            set({ isLoading: false, serverError: result.error || '登录失败' });
+            const code = result.error?.includes('尚未注册') ? 'USER_NOT_FOUND' : 'WRONG_PASSWORD';
+            return { ok: false, code, message: result.error || '登录失败' };
           }
 
-          const backendUser = data.user;
+          const backendUser = result.user;
           if (!backendUser) {
             set({ isLoading: false });
             return { ok: false, code: 'LOGIN_FAILED', message: '服务器返回数据异常' };
@@ -524,7 +440,6 @@ export const useAuthStore = create<AuthStore>()(
             ...tasks,
           });
 
-          // 记住用户名（仅用于自动登录，不保存密码）
           try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
           setTimeout(() => get().syncToCloud(), 0);
           return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
@@ -535,37 +450,31 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      // ===== 注册：仅使用云端数据库保存 =====
+      // ===== 注册：使用 GitHub 云端数据库保存 =====
       register: async (credentials: RegisterCredentials) => {
         set({ isLoading: true });
         await checkApi(true);
 
         try {
-          // 仅通过云端数据库注册
           if (!apiAvailable) {
             set({ isLoading: false });
             resetApiCheck();
             return { ok: false, code: 'NETWORK_ERROR', message: '请连接网络后再注册' };
           }
 
-          const res = await fetch(`${API_BASE}/auth/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username: credentials.username,
-              email: credentials.email || '',
-              password: credentials.password,
-            }),
+          const result = await ghRegisterUser({
+            username: credentials.username,
+            email: credentials.email || '',
+            password: credentials.password,
           });
-          const data = await res.json().catch(() => ({}));
 
-          if (!res.ok) {
-            set({ isLoading: false, serverError: data.error || '注册失败' });
-            if (res.status === 409) return { ok: false, code: 'USER_EXISTS', message: data.error || '该用户名已注册，请直接登录' };
-            return { ok: false, code: 'REGISTER_FAILED', message: data.error || '注册失败' };
+          if (!result.success) {
+            set({ isLoading: false, serverError: result.error || '注册失败' });
+            const code = result.error?.includes('已注册') ? 'USER_EXISTS' : 'REGISTER_FAILED';
+            return { ok: false, code, message: result.error || '注册失败' };
           }
 
-          const backendUser = data.user;
+          const backendUser = result.user;
           if (!backendUser) {
             set({ isLoading: false });
             return { ok: false, code: 'REGISTER_FAILED', message: '服务器返回数据异常' };
@@ -594,7 +503,6 @@ export const useAuthStore = create<AuthStore>()(
             ...tasks,
           });
 
-          // 记住用户名（仅用于自动登录，不保存密码）
           try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
           setTimeout(() => get().syncToCloud(), 0);
           return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
@@ -626,15 +534,7 @@ export const useAuthStore = create<AuthStore>()(
         const currentUser = state.user;
 
         // 1) 同步到云端（尽力而为，失败不阻断）
-        if (currentUser && currentUser.id && apiAvailable) {
-          try {
-            fetch(`${API_BASE}/users/${currentUser.id}`, {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-            }).catch(() => {});
-          } catch { /* ignore */ }
-        }
-
+        // GitHub 数据库不支持直接删除账号，仅本地删除（云端数据保留由管理员清理）
         // 2) 本地删除
         if (currentUser && currentUser.id) {
           deleteUser(currentUser.id);
@@ -696,43 +596,7 @@ export const useAuthStore = create<AuthStore>()(
 
         await checkApi();
 
-        // 优先从云端拉取该用户数据（若云端可用）
-        if (apiAvailable) {
-          try {
-            const res = await fetch(`${API_BASE}/auth/user/${encodeURIComponent(remembered.username)}`, {
-              headers: { Accept: 'application/json' },
-            });
-            if (res.ok) {
-              const data = await res.json().catch(() => ({}));
-              const backendUser = data.user;
-              if (backendUser) {
-                const tasks = initTasksFromUser(backendUser);
-                const savedTransactions: PointTransaction[] = Array.isArray(backendUser.transactions) ? backendUser.transactions : [];
-                set({
-                  user: backendUser,
-                  isAuthenticated: true,
-                  isLoading: false,
-                  points: backendUser.points ?? 50,
-                  totalEarnedPoints: backendUser.totalEarnedPoints ?? 50,
-                  level: backendUser.level ?? 1,
-                  projectsCount: backendUser.projectsCount ?? 0,
-                  isVIP: !!backendUser.isVIP,
-                  vipLevel: backendUser.vipLevel ?? 0,
-                  vipPoints: backendUser.vipPoints ?? 0,
-                  vipExpireAt: backendUser.vipExpireAt ?? null,
-                  completedTasks: backendUser.completedTasks || [],
-                  visitedPages: backendUser.visitedPages || [],
-                  usedStyles: backendUser.usedStyles || [],
-                  transactions: savedTransactions,
-                  ...tasks,
-                });
-                return true;
-              }
-            }
-          } catch {
-            /* 云端失败，回退到本地 */
-          }
-        }
+        // GitHub 数据库自动登录需要密码，不直接拉取，提示用户手动登录
 
         // 本地回退：扫描本地数据库，按 username 匹配并恢复会话
         try {
@@ -797,14 +661,7 @@ export const useAuthStore = create<AuthStore>()(
           transactions: state.transactions,
         };
         try {
-          await fetch(`${API_BASE}/users/${state.user.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          
-          const projectStore = require('@/stores/projectStore').useProjectStore;
-          await projectStore.getState().syncProjectsFromServer(state.user.id);
+          ghUpdateUser(state.user.id, payload).catch(() => {});
         } catch { /* ignore */ }
       },
 
@@ -850,17 +707,13 @@ export const useAuthStore = create<AuthStore>()(
           };
           const newTransactions = [tx, ...state.transactions].slice(0, 50);
 
-          // 同步回后端账号数据库
+          // 同步到 GitHub 云端数据库
           if (state.user && state.user.id && apiAvailable) {
-            fetch(`${API_BASE}/users/${state.user.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                points: newPoints,
-                totalEarnedPoints: newTotal,
-                level: newLevel,
-                transactions: newTransactions,
-              }),
+            ghUpdateUser(state.user.id, {
+              points: newPoints,
+              totalEarnedPoints: newTotal,
+              level: newLevel,
+              transactions: newTransactions,
             }).catch(() => {});
           }
           // 同步到 localStorage 后备
@@ -901,11 +754,7 @@ export const useAuthStore = create<AuthStore>()(
           const newTransactions = [tx, ...state.transactions].slice(0, 50);
 
           if (state.user && state.user.id && apiAvailable) {
-            fetch(`${API_BASE}/users/${state.user.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ points: newPoints, transactions: newTransactions }),
-            }).catch(() => {});
+            ghUpdateUser(state.user.id, { points: newPoints, transactions: newTransactions }).catch(() => {});
           }
           if (state.user) {
             const users = readUsersLocal();
@@ -948,11 +797,7 @@ export const useAuthStore = create<AuthStore>()(
 
         set(s => {
           if (s.user && s.user.id && apiAvailable) {
-            fetch(`${API_BASE}/users/${s.user.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ completedTasks: newCompleted }),
-            }).catch(() => {});
+            ghUpdateUser(s.user.id, { completedTasks: newCompleted }).catch(() => {});
           }
           if (s.user) {
             const users = readUsersLocal();
@@ -1036,11 +881,7 @@ export const useAuthStore = create<AuthStore>()(
           const newVisited = [...state.visitedPages, page];
 
           if (state.user && state.user.id && apiAvailable) {
-            fetch(`${API_BASE}/users/${state.user.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ visitedPages: newVisited }),
-            }).catch(() => {});
+            ghUpdateUser(state.user.id, { visitedPages: newVisited }).catch(() => {});
           }
           if (state.user) {
             const users = readUsersLocal();
@@ -1073,11 +914,7 @@ export const useAuthStore = create<AuthStore>()(
           const styleCount = new Set(newStyles).size;
 
           if (state.user && state.user.id && apiAvailable) {
-            fetch(`${API_BASE}/users/${state.user.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ usedStyles: newStyles }),
-            }).catch(() => {});
+            ghUpdateUser(state.user.id, { usedStyles: newStyles }).catch(() => {});
           }
           if (state.user) {
             const users = readUsersLocal();
@@ -1124,11 +961,7 @@ export const useAuthStore = create<AuthStore>()(
           const newCount = state.projectsCount + 1;
 
           if (state.user && state.user.id && apiAvailable) {
-            fetch(`${API_BASE}/users/${state.user.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ projectsCount: newCount }),
-            }).catch(() => {});
+            ghUpdateUser(state.user.id, { projectsCount: newCount }).catch(() => {});
           }
           if (state.user) {
             const users = readUsersLocal();
@@ -1213,25 +1046,21 @@ export const useAuthStore = create<AuthStore>()(
             usedStyles: extra.usedStyles ?? importedUser.usedStyles ?? [],
           };
 
-          // 如果后端可用，同步导入数据到后端
+          // 如果云端可用，同步导入数据
           if (updatedUser.id && apiAvailable) {
-            fetch(`${API_BASE}/users/${updatedUser.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                points: updatedUser.points,
-                totalEarnedPoints: updatedUser.totalEarnedPoints,
-                level: updatedUser.level,
-                projectsCount: updatedUser.projectsCount,
-                isVIP: updatedUser.isVIP,
-                vipLevel: updatedUser.vipLevel,
-                vipPoints: updatedUser.vipPoints,
-                vipExpireAt: updatedUser.vipExpireAt,
-                completedTasks: updatedUser.completedTasks,
-                visitedPages: updatedUser.visitedPages,
-                usedStyles: updatedUser.usedStyles,
-                transactions: extra.transactions,
-              }),
+            ghUpdateUser(updatedUser.id, {
+              points: updatedUser.points,
+              totalEarnedPoints: updatedUser.totalEarnedPoints,
+              level: updatedUser.level,
+              projectsCount: updatedUser.projectsCount,
+              isVIP: updatedUser.isVIP,
+              vipLevel: updatedUser.vipLevel,
+              vipPoints: updatedUser.vipPoints,
+              vipExpireAt: updatedUser.vipExpireAt,
+              completedTasks: updatedUser.completedTasks,
+              visitedPages: updatedUser.visitedPages,
+              usedStyles: updatedUser.usedStyles,
+              transactions: extra.transactions,
             }).catch(() => {});
           }
 

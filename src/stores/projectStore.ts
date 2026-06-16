@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Project, Frame, GenerationPrompt, Character, Scene, Dialogue } from '@/types';
 import { voiceActors, getVoiceById } from '@/data/voiceActors';
 import { generateImage, getAIConfig } from '@/services/aiService';
-import { getApiBase } from '@/stores/authStore';
+import { syncUserProjects, fetchUserProjects, deleteUserProject } from '@/utils/githubDatabase';
 
 const STORAGE_KEY = 'manga-studio-projects-v2';
 
@@ -43,44 +43,16 @@ function getCurrentUserId(): string | undefined {
 
 async function syncProjectsToServer(userId: string, projects: Project[]): Promise<void> {
   try {
-    const base = getApiBase();
-    if (!base) return;
-    
-    for (const project of projects) {
-      if (!project.id.startsWith('cloud-')) {
-        await fetch(`${base}/projects`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...project, userId }),
-        });
-      } else {
-        await fetch(`${base}/projects/${project.id.replace('cloud-', '')}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(project),
-        });
-      }
-    }
+    await syncUserProjects(userId, projects);
   } catch { /* ignore */ }
 }
 
 async function fetchProjectsFromServer(userId: string): Promise<Project[]> {
   try {
-    const base = getApiBase();
-    if (!base) return [];
-    
-    const res = await fetch(`${base}/projects/user/${userId}`);
-    if (!res.ok) return [];
-    
-    const data = await res.json();
-    if (data.projects && Array.isArray(data.projects)) {
-      return data.projects.map((p: any) => ({
-        ...p,
-        id: `cloud-${p.id}`,
-      }));
-    }
-  } catch { /* ignore */ }
-  return [];
+    return await fetchUserProjects(userId);
+  } catch {
+    return [];
+  }
 }
 
 // ============ 角色名池 ============
@@ -462,14 +434,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const updated = [...get().projects, newProject];
     set({ projects: updated, currentProject: newProject });
     saveToStorage(updated);
-    
+
     if (isApiAvailable()) {
       const userId = getCurrentUserId();
       if (userId) {
         syncProjectsToServer(userId, [newProject]);
       }
     }
-    
     return newProject;
   },
 
@@ -482,7 +453,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (get().currentProject?.id === id) {
       set({ currentProject: updated.find((p) => p.id === id) || null });
     }
-    
+
     if (isApiAvailable()) {
       const userId = getCurrentUserId();
       const project = updated.find(p => p.id === id);
@@ -499,16 +470,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (get().currentProject?.id === id) {
       set({ currentProject: null });
     }
-    
+
     if (isApiAvailable()) {
-      try {
-        const base = getApiBase();
-        if (base) {
-          fetch(`${base}/projects/${id.replace('cloud-', '')}`, {
-            method: 'DELETE',
-          });
-        }
-      } catch { /* ignore */ }
+      deleteUserProject(id).catch(() => {});
     }
   },
 

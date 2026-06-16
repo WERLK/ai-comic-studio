@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, Lock, User, Mail, Loader2, Eye, EyeOff, Download, Upload, Smartphone } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
-import { registerUser, loginUser, checkAutoLogin, saveLastUserId } from '@/utils/simpleAuth';
+import { checkAutoLogin, saveLastUserId } from '@/utils/simpleAuth';
 
 export function Login() {
   const navigate = useNavigate();
-  const { isLoading, exportUserData, importUserData } = useAuthStore();
+  const { isLoading, login, register, exportUserData, importUserData } = useAuthStore();
   const [showRegister, setShowRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -17,11 +17,10 @@ export function Login() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 自动登录检测
+  // 自动登录检测（本地缓存）
   useEffect(() => {
     const autoUser = checkAutoLogin();
     if (autoUser) {
-      // 自动登录
       useAuthStore.setState({
         user: autoUser,
         isAuthenticated: true,
@@ -53,37 +52,19 @@ export function Login() {
     }
 
     try {
-      // 调用注册/登录 API
+      // 使用 GitHub 云端数据库
       const result = showRegister
-        ? await registerUser(username, password, email)
-        : await loginUser(username, password);
+        ? await register({ username, email, password })
+        : await login({ username, password });
 
-      if (result.success && result.user) {
-        // 保存最后登录的用户ID（用于自动登录）
-        saveLastUserId(result.user.id);
-
-        // 更新 store
-        useAuthStore.setState({
-          user: result.user,
-          isAuthenticated: true,
-          isLoading: false,
-          points: result.user.points ?? 50,
-          totalEarnedPoints: result.user.totalEarnedPoints ?? 50,
-          level: result.user.level ?? 1,
-          projectsCount: result.user.projectsCount ?? 0,
-          isVIP: !!result.user.isVIP,
-          vipLevel: result.user.vipLevel ?? 0,
-          vipPoints: result.user.vipPoints ?? 0,
-          vipExpireAt: result.user.vipExpireAt ?? null,
-          completedTasks: result.user.completedTasks || [],
-          visitedPages: result.user.visitedPages || [],
-          usedStyles: result.user.usedStyles || [],
-          transactions: result.user.transactions || [],
-        });
-
+      if (result.ok) {
+        const user = useAuthStore.getState().user;
+        if (user) {
+          saveLastUserId(user.id);
+        }
         navigate('/');
       } else {
-        setError(result.error || (showRegister ? '注册失败' : '登录失败'));
+        setError(result.message || (showRegister ? '注册失败' : '登录失败'));
       }
     } catch (err: any) {
       setError(err?.message || (showRegister ? '注册失败' : '登录失败'));
