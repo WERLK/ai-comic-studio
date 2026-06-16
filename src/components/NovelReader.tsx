@@ -563,11 +563,11 @@ ${aiGenRequirements}
   );
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-none">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col bg-cyber-dark2 border border-cyber-purple/30 rounded-2xl shadow-2xl"
+        className="w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col bg-cyber-dark2 border border-cyber-purple/30 rounded-2xl shadow-2xl pointer-events-auto relative"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-cyber-purple/20 bg-cyber-dark/50">
@@ -580,7 +580,14 @@ ${aiGenRequirements}
               <p className="text-[10px] text-gray-500">上传本地文件 或 搜索公开书目</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-gray-500 hover:text-white transition-colors">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="relative z-50 p-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+            style={{ minWidth: '44px', minHeight: '44px' }}
+          >
             <X className="w-5 h-5" />
           </button>
         </div>

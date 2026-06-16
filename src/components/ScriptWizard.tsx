@@ -97,6 +97,7 @@ export function ScriptWizard({ onClose, onComplete }: ScriptWizardProps) {
   const [generatedNovel, setGeneratedNovel] = useState<GeneratedNovel | null>(null);
   const [isGeneratingNovel, setIsGeneratingNovel] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [showNovelReader, setShowNovelReader] = useState(false);
 
   // 预设提示词模板
   const promptPresets = [
@@ -787,22 +788,25 @@ ${characters[1]?.name || '角色B'}："${generateDialogue('response', scriptType
                       variant="secondary"
                       size="sm"
                       className="w-full"
+                      onClick={() => setShowNovelReader(true)}
                     >
                       <Upload className="w-4 h-4 mr-2" />
                       上传小说文件
                     </Button>
                   </div>
 
-                  {/* NovelReader 弹窗 */}
-                  <NovelReader
-                    onImport={(content, meta) => {
-                      setImportedNovelContent(content);
-                      setImportedNovelMeta({ title: meta.title, author: meta.author });
-                      setGeneratedNovel(null);
-                      setSelectedPreset(null);
-                    }}
-                    onClose={() => {}}
-                  />
+                  {showNovelReader && (
+                    <NovelReader
+                      onImport={(content, meta) => {
+                        setImportedNovelContent(content);
+                        setImportedNovelMeta({ title: meta.title, author: meta.author });
+                        setGeneratedNovel(null);
+                        setSelectedPreset(null);
+                        setShowNovelReader(false);
+                      }}
+                      onClose={() => setShowNovelReader(false)}
+                    />
+                  )}
                 </div>
               )}
 
