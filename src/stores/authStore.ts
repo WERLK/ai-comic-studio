@@ -98,7 +98,11 @@ const getCloudApiBase = (): string => {
     const saved = localStorage.getItem('ai_comic_api_base');
     if (saved) return saved;
   } catch { /* ignore */ }
-  return '';
+  // 生产环境默认禁用后端检查，使用本地存储
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return ''; // 非本地环境，返回空字符串表示不使用后端
+  }
+  return '/api';
 };
 
 let API_BASE = getCloudApiBase() || '/api';
@@ -124,6 +128,12 @@ export function getApiBase(): string {
 }
 
 const checkApi = async (force = false): Promise<boolean> => {
+  // 如果没有配置 API 地址，直接返回 false（使用本地存储）
+  if (!API_BASE) {
+    apiAvailable = false;
+    return false;
+  }
+
   const now = Date.now();
   
   if (!force && apiCheckDone && now - lastCheckTime < CHECK_INTERVAL) {

@@ -93,7 +93,7 @@ function AppContent() {
             </div>
           </div>
 
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <VerticalClock />
             <button
               onClick={refreshNetworkStatus}

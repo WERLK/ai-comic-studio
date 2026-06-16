@@ -631,7 +631,7 @@ export function Studio() {
           </div>
 
           {/* 动态时间显示 */}
-          <div className="hidden lg:flex items-center">
+          <div className="flex items-center">
             <VerticalClock />
           </div>
 
