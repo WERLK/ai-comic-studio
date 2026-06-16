@@ -4,6 +4,15 @@ import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
   {
+    version: '1.27.2',
+    date: '2026-06-16',
+    features: [
+      '修复小说导入弹窗关闭按钮无法点击的问题',
+      '增强弹窗交互体验，优化点击区域和样式',
+      '修复 pointer events 确保事件正确触发'
+    ]
+  },
+  {
     version: '1.27.0',
     date: '2026-06-16',
     features: [
