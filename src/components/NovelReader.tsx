@@ -640,28 +640,7 @@ ${aiGenRequirements}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* 方式1：本地上传 */}
-                    <button
-                      onClick={() => setStep('upload')}
-                      className="p-5 rounded-xl border border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-pink/40 hover:bg-cyber-pink/5 transition-all text-left group"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyber-pink to-rose-500 flex items-center justify-center mb-3">
-                        <Upload className="w-6 h-6 text-white" />
-                      </div>
-                      <h4 className="text-white font-medium mb-1 group-hover:text-cyber-pink transition-colors">本地上传</h4>
-                      <p className="text-xs text-gray-500 mb-2">上传您自己的小说文件</p>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {['.txt', '.md', '.epub', '.docx'].map(ext => (
-                          <span key={ext} className="px-2 py-0.5 bg-cyber-purple/10 rounded text-[10px] text-gray-500">{ext}</span>
-                        ))}
-                      </div>
-                      <div className="mt-3 text-[10px] text-cyber-blue flex items-center gap-1">
-                        <Star className="w-3 h-3" />
-                        推荐：完全合规，无版权风险
-                      </div>
-                    </button>
-
-                    {/* 方式3：AI 生成 */}
+                    {/* 方式1：AI 生成 */}
                     <button
                       onClick={() => setStep('ai-gen')}
                       className="p-5 rounded-xl border border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-yellow/40 hover:bg-cyber-yellow/5 transition-all text-left group sm:col-span-2"
@@ -683,6 +662,27 @@ ${aiGenRequirements}
                             根据核心要求自动生成完整大纲与章节
                           </div>
                         </div>
+                      </div>
+                    </button>
+
+                    {/* 方式2：本地上传 */}
+                    <button
+                      onClick={() => setStep('upload')}
+                      className="p-5 rounded-xl border border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-pink/40 hover:bg-cyber-pink/5 transition-all text-left group"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyber-pink to-rose-500 flex items-center justify-center mb-3">
+                        <Upload className="w-6 h-6 text-white" />
+                      </div>
+                      <h4 className="text-white font-medium mb-1 group-hover:text-cyber-pink transition-colors">本地上传</h4>
+                      <p className="text-xs text-gray-500 mb-2">上传您自己的小说文件</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {['.txt', '.md', '.epub', '.docx'].map(ext => (
+                          <span key={ext} className="px-2 py-0.5 bg-cyber-purple/10 rounded text-[10px] text-gray-500">{ext}</span>
+                        ))}
+                      </div>
+                      <div className="mt-3 text-[10px] text-cyber-blue flex items-center gap-1">
+                        <Star className="w-3 h-3" />
+                        推荐：完全合规，无版权风险
                       </div>
                     </button>
                   </div>
