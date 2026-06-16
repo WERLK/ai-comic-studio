@@ -701,7 +701,7 @@ export const useAuthStore = create<AuthStore>()(
         const state = get();
         if (!state.user) return '';
         return JSON.stringify({
-          version: '1.24.0',
+          version: '1.25.0',
           exportedAt: new Date().toISOString(),
           user: state.user,
           extra: {
