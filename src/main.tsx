@@ -1,28 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './index.css'
-import { CURRENT_VERSION } from './config/version'
-
-// 版本检测：如果检测到新版本则强制刷新
-const versionKey = 'app_version_cache';
-const cachedVersion = localStorage.getItem(versionKey);
-
-if (cachedVersion && cachedVersion !== CURRENT_VERSION) {
-  // 版本不一致，清除缓存并强制刷新
-  localStorage.removeItem(versionKey);
-  // 清除所有可能的缓存键
-  for (let i = localStorage.length - 1; i >= 0; i--) {
-    const key = localStorage.key(i);
-    if (key && key !== versionKey && !key.startsWith('ai_comic_')) {
-      // 保留用户数据，只清除缓存相关的
-    }
-  }
-  localStorage.setItem(versionKey, CURRENT_VERSION);
-  // 强制刷新，绕过缓存
-  window.location.reload(true);
-} else if (!cachedVersion) {
-  localStorage.setItem(versionKey, CURRENT_VERSION);
-}
 
 try {
   const rootElement = document.getElementById('root')
@@ -35,9 +13,10 @@ try {
   const rootElement = document.getElementById('root')
   if (rootElement) {
     rootElement.innerHTML = `
-      <div style="padding: 20px; color: #FF2E63;">
-        <h2>App Render Error</h2>
-        <pre>${error}</pre>
+      <div style="padding: 40px 20px; color: #fff; background: #1a1a2e; min-height: 100vh; font-family: system-ui, -apple-system, sans-serif;">
+        <h2 style="color: #ff6b9d;">启动失败</h2>
+        <p style="color: #aaa;">请刷新页面重试。如果问题持续，请清除浏览器缓存。</p>
+        <pre style="background: #000; padding: 12px; border-radius: 8px; overflow-x: auto; color: #8fd; font-size: 12px;">${error}</pre>
       </div>
     `
   }

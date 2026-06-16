@@ -6,46 +6,15 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>AI 漫剧工作室 v1.25.0</title>
-    <script>
-      // 版本检测：在 HTML 层面立即执行，绕过 JS 缓存
-      // 针对微信/QQ浏览器等缓存顽固的浏览器
-      (function() {
-        var CURRENT_VERSION = '1.25.0';
-        var versionKey = '__ai_comic_version';
-        var buildTimestamp = '';
-
-        try {
-          var cachedVersion = localStorage.getItem(versionKey);
-          if (cachedVersion && cachedVersion !== CURRENT_VERSION) {
-            // 检测到新版本，清除缓存并强制刷新
-            localStorage.removeItem(versionKey);
-            // 清除所有 ai_comic_ 前缀的缓存
-            for (var i = localStorage.length - 1; i >= 0; i--) {
-              var key = localStorage.key(i);
-              if (key && key.startsWith('ai_comic_')) {
-                localStorage.removeItem(key);
-              }
-            }
-            // 使用 location.replace + random query 避免缓存
-            var sep = window.location.href.indexOf('?') >= 0 ? '&' : '?';
-            var newUrl = window.location.href.split('#')[0] + sep + 'v=' + CURRENT_VERSION + (window.location.hash || '');
-            window.location.replace(newUrl);
-            return;
-          }
-          localStorage.setItem(versionKey, CURRENT_VERSION);
-        } catch(e) {
-          // localStorage 不可用，跳过版本检测
-        }
-      })();
-    </script>
-    <link rel="modulepreload" crossorigin href="./assets/vendor-BRrTMImX-ChERX8gN.js">
-    <link rel="modulepreload" crossorigin href="./assets/animation-2RzG6zvP-eKXD-3J4.js">
-    <link rel="modulepreload" crossorigin href="./assets/icons-DVrnUsM8-CXtRVoEf.js">
-    <script type="module" crossorigin src="./assets/index-DttHxGlu.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DnGCOrMr.css">
+    <title>AI 漫剧工作室</title>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="margin: 0; background: #1a1a2e;">
+    <div id="root">
+      <div style="padding: 40px 20px; color: #fff; text-align: center; font-family: system-ui, -apple-system, sans-serif;">
+        <h1 style="font-size: 18px; color: #a78bfa;">AI 漫剧工作室</h1>
+        <p style="color: #888; font-size: 13px; margin-top: 12px;">加载中...</p>
+      </div>
+    </div>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
