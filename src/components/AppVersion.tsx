@@ -4,6 +4,16 @@ import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
   {
+    version: '1.27.0',
+    date: '2026-06-16',
+    features: [
+      'AI 智能生成小说功能：支持 8 种类型、12 个发表平台、4 种篇幅',
+      '详细设定工具箱：视角、文风模式、年代背景、题材分类、金手指、主角背景',
+      '随机示例功能：点击填充完整模板',
+      '公版书直接生成：选中公版书自动全选章节，跳过选择步骤'
+    ]
+  },
+  {
     version: '1.26.0',
     date: '2026-06-16',
     features: [
