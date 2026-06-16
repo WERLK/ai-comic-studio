@@ -4,6 +4,18 @@ import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
   {
+    version: '1.25.0',
+    date: '2026-06-16',
+    features: [
+      '功能中心页面重构：整合所有次要功能入口到统一页面',
+      '多端同步升级：GitHub 云端存储用户数据，真实同步不是导出导入',
+      'AI API 配置扩展：新增多个国内可访问的 AI API 平台',
+      '短剧推广达人中心扩展：新增更多短剧推广平台和发布流程',
+      '简化首页顶部导航：移除拥挤元素，提升用户体验',
+      '版本号更新机制优化'
+    ]
+  },
+  {
     version: '1.16.0',
     date: '2026-06-15',
     features: [
