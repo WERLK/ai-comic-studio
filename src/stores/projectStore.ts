@@ -23,35 +23,13 @@ function saveToStorage(projects: Project[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
 }
 
-function isApiAvailable(): boolean {
-  try {
-    const authStore = require('@/stores/authStore').useAuthStore;
-    return authStore.getState().apiAvailable;
-  } catch {
-    return false;
-  }
-}
-
+// 从 authStore 获取当前用户ID
 function getCurrentUserId(): string | undefined {
   try {
-    const authStore = require('@/stores/authStore').useAuthStore;
-    return authStore.getState().user?.id;
+    const { useAuthStore } = require('@/stores/authStore');
+    return useAuthStore?.getState?.()?.user?.id;
   } catch {
     return undefined;
-  }
-}
-
-async function syncProjectsToServer(userId: string, projects: Project[]): Promise<void> {
-  try {
-    await syncUserProjects(userId, projects);
-  } catch { /* ignore */ }
-}
-
-async function fetchProjectsFromServer(userId: string): Promise<Project[]> {
-  try {
-    return await fetchUserProjects(userId);
-  } catch {
-    return [];
   }
 }
 
@@ -435,11 +413,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({ projects: updated, currentProject: newProject });
     saveToStorage(updated);
 
-    if (isApiAvailable()) {
-      const userId = getCurrentUserId();
-      if (userId) {
-        syncProjectsToServer(userId, [newProject]);
-      }
+    // 同步到 GitHub 云端
+    const userId = getCurrentUserId();
+    if (userId) {
+      syncUserProjects(userId, [newProject]).catch(() => {});
     }
     return newProject;
   },
@@ -454,12 +431,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       set({ currentProject: updated.find((p) => p.id === id) || null });
     }
 
-    if (isApiAvailable()) {
-      const userId = getCurrentUserId();
-      const project = updated.find(p => p.id === id);
-      if (userId && project) {
-        syncProjectsToServer(userId, [project]);
-      }
+    // 同步到 GitHub 云端
+    const userId = getCurrentUserId();
+    const project = updated.find(p => p.id === id);
+    if (userId && project) {
+      syncUserProjects(userId, [project]).catch(() => {});
     }
   },
 
@@ -471,9 +447,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       set({ currentProject: null });
     }
 
-    if (isApiAvailable()) {
-      deleteUserProject(id).catch(() => {});
-    }
+    // 从 GitHub 云端删除
+    deleteUserProject(id).catch(() => {});
   },
 
   setCurrentProject: (id) => {
@@ -482,16 +457,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     } else {
       const project = get().projects.find((p) => p.id === id);
       set({ currentProject: project || null });
-    }
-  },
-
-  syncProjectsFromServer: async (userId: string) => {
-    const serverProjects = await fetchProjectsFromServer(userId);
-    if (serverProjects.length > 0) {
-      const localProjects = get().projects.filter(p => !p.id.startsWith('cloud-'));
-      const merged = [...localProjects, ...serverProjects];
-      set({ projects: merged });
-      saveToStorage(merged);
     }
   },
 

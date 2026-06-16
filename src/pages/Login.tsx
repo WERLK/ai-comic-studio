@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, Lock, User, Mail, Loader2, Eye, EyeOff, Download, Upload, Smartphone } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 import { AppVersion } from '@/components/AppVersion';
-import { checkAutoLogin, saveLastUserId } from '@/utils/simpleAuth';
 
 export function Login() {
   const navigate = useNavigate();
-  const { isLoading, login, register, exportUserData, importUserData } = useAuthStore();
+  const { isLoading, isAuthenticated, login, register, exportUserData, importUserData } = useAuthStore();
   const [showRegister, setShowRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -17,30 +16,12 @@ export function Login() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 自动登录检测（本地缓存）
+  // 如果已经登录（通过 zustand persist 恢复），直接跳转
   useEffect(() => {
-    const autoUser = checkAutoLogin();
-    if (autoUser) {
-      useAuthStore.setState({
-        user: autoUser,
-        isAuthenticated: true,
-        isLoading: false,
-        points: autoUser.points ?? 50,
-        totalEarnedPoints: autoUser.totalEarnedPoints ?? 50,
-        level: autoUser.level ?? 1,
-        projectsCount: autoUser.projectsCount ?? 0,
-        isVIP: !!autoUser.isVIP,
-        vipLevel: autoUser.vipLevel ?? 0,
-        vipPoints: autoUser.vipPoints ?? 0,
-        vipExpireAt: autoUser.vipExpireAt ?? null,
-        completedTasks: autoUser.completedTasks || [],
-        visitedPages: autoUser.visitedPages || [],
-        usedStyles: autoUser.usedStyles || [],
-        transactions: autoUser.transactions || [],
-      });
+    if (isAuthenticated) {
       navigate('/');
     }
-  }, [navigate]);
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,16 +33,12 @@ export function Login() {
     }
 
     try {
-      // 使用 GitHub 云端数据库
+      // 通过 GitHub 云端数据库验证/注册
       const result = showRegister
         ? await register({ username, email, password })
         : await login({ username, password });
 
       if (result.ok) {
-        const user = useAuthStore.getState().user;
-        if (user) {
-          saveLastUserId(user.id);
-        }
         navigate('/');
       } else {
         setError(result.message || (showRegister ? '注册失败' : '登录失败'));
@@ -243,7 +220,7 @@ export function Login() {
               <p className="text-sm font-medium text-gray-300">数据说明</p>
             </div>
             <p className="text-xs text-gray-500 leading-relaxed mb-4">
-              用户数据保存在浏览器本地，注册后自动保存。如需跨设备同步，请使用导出/导入功能。
+              用户数据保存在云端数据库，注册后自动保存到云端，在任何设备登录同一账号都可同步数据。
             </p>
             <div className="flex gap-2">
               <button
