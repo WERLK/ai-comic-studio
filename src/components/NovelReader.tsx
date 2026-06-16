@@ -84,6 +84,13 @@ interface LicenseInfo {
 
 const LICENSE_OPTIONS: LicenseInfo[] = [
   {
+    type: 'ai-generated',
+    label: 'AI 智能创作',
+    color: 'yellow',
+    icon: '✨',
+    desc: '这部小说由 AI 根据您的要求创作，您拥有使用和改编的权利',
+  },
+  {
     type: 'user-owned',
     label: '我原创的作品',
     color: 'green',
@@ -377,7 +384,13 @@ ${aiGenRequirements}
 
       const title = `AI创作 - ${aiGenRequirements.substring(0, 30).replace(/\n/g, ' ')}`;
       setAiGenResult({ content: generatedContent, title, author: 'AI 创作' });
-      setAiGenSuccess(true);
+      // 设置上传内容和元数据，供版权声明步骤使用
+      setUploadedContent(generatedContent);
+      setUploadedMeta({ title, author: 'AI 创作' });
+      // 自动选择 AI 生成版权
+      setSelectedLicense('ai-generated');
+      // 自动跳转到版权声明步骤
+      setStep('select-license');
     } catch (e) {
       alert('AI 生成失败：' + (e as Error).message);
     } finally {
@@ -537,7 +550,17 @@ ${aiGenRequirements}
 
       <div className="flex gap-3">
         <button
-          onClick={() => setStep('mode')}
+          onClick={() => {
+            if (uploadedMeta.author === 'AI 创作') {
+              setStep('ai-gen');
+            } else if (uploadedContent) {
+              setStep('upload');
+            } else if (selectedNovel) {
+              setStep('search');
+            } else {
+              setStep('ai-gen');
+            }
+          }}
           className="flex-1 py-3 border border-cyber-purple/20 rounded-xl text-gray-400 hover:text-white hover:border-cyber-purple/40 transition-all text-sm"
         >
           <ChevronLeft className="w-4 h-4 inline mr-1" />
@@ -603,13 +626,16 @@ ${aiGenRequirements}
               { key: 'preview', label: '预览' },
             ].map((s, i) => (
               <div key={s.key} className="flex items-center flex-shrink-0">
-                <div className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
-                  step === s.key ? 'bg-cyber-pink/20 text-cyber-pink border border-cyber-pink/30' :
-                  (s.key === 'select-license' && step !== 'ai-gen' && step !== 'mode') ? 'bg-green-500/10 text-green-400' :
-                  'text-gray-600'
-                }`}>
+                <button
+                  onClick={() => setStep(s.key as any)}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                    step === s.key
+                      ? 'bg-cyber-pink/20 text-cyber-pink border border-cyber-pink/30'
+                      : 'text-gray-600 hover:text-gray-400 hover:bg-cyber-purple/10'
+                  }`}
+                >
                   {i + 1}. {s.label}
-                </div>
+                </button>
                 {i < 4 && <ChevronRight className="w-3 h-3 text-gray-600 mx-0.5 flex-shrink-0" />}
               </div>
             ))}
@@ -970,17 +996,11 @@ ${aiGenRequirements}
                   )}
 
                   {/* 操作按钮 */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setStep('mode')}
-                      className="flex-1 py-3 bg-cyber-dark/60 border border-cyber-purple/15 rounded-xl text-xs text-gray-500 hover:text-white"
-                    >
-                      返回
-                    </button>
+                  <div className="space-y-3">
                     <button
                       onClick={handleAiGenerate}
                       disabled={isAiGenerating || !aiGenType || !aiGenRequirements.trim()}
-                      className="flex-[2] py-3 bg-gradient-to-r from-cyber-yellow to-orange-500 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm text-white font-medium flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-gradient-to-r from-cyber-yellow to-orange-500 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm text-white font-medium flex items-center justify-center gap-2"
                     >
                       {isAiGenerating ? (
                         <>
@@ -990,40 +1010,25 @@ ${aiGenRequirements}
                       ) : (
                         <>
                           <Sparkles className="w-4 h-4" />
-                          开始创作
+                          开始创作并导入
                         </>
                       )}
                     </button>
-                  </div>
-
-                  {/* AI 生成成功确认 */}
-                  {aiGenSuccess && aiGenResult && (
-                    <div className="bg-cyber-green/5 border border-cyber-green/20 rounded-xl p-4 space-y-3">
-                      <div className="flex items-center gap-2 text-cyber-green">
-                        <Check className="w-5 h-5" />
-                        <span className="text-sm font-medium">AI 创作完成！</span>
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        <p>标题：{aiGenResult.title}</p>
-                        <p className="mt-1">内容长度：{aiGenResult.content.length} 字符</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => { setAiGenSuccess(false); setAiGenResult(null); }}
-                          className="flex-1 py-2 bg-cyber-dark/60 border border-cyber-purple/15 rounded-lg text-xs text-gray-500 hover:text-white"
-                        >
-                          重新创作
-                        </button>
-                        <button
-                          onClick={handleConfirmAiGen}
-                          className="flex-[2] py-2 bg-gradient-to-r from-cyber-green to-emerald-500 hover:opacity-90 rounded-lg text-sm text-white font-medium flex items-center justify-center gap-2"
-                        >
-                          <Check className="w-4 h-4" />
-                          确认导入
-                        </button>
-                      </div>
+                    <div className="flex gap-2 text-[10px] text-gray-500">
+                      <button
+                        onClick={() => setStep('upload')}
+                        className="flex-1 py-2 bg-cyber-dark/60 border border-cyber-purple/15 rounded-lg hover:text-white hover:border-cyber-purple/30 transition-all"
+                      >
+                        📁 本地上传
+                      </button>
+                      <button
+                        onClick={() => setStep('search')}
+                        className="flex-1 py-2 bg-cyber-dark/60 border border-cyber-purple/15 rounded-lg hover:text-white hover:border-cyber-purple/30 transition-all"
+                      >
+                        🔍 搜索书目
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
