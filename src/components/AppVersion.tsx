@@ -4,6 +4,16 @@ import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
   {
+    version: '1.27.3',
+    date: '2026-06-16',
+    features: [
+      'AI 智能生成小说作为导入第一步：填写提示词后自动跳转版权声明',
+      '步骤导航重新编排：AI生成 → 本地上传 → 搜索导入 → 版权声明',
+      'AI生成内容自动设置版权类型，返回按钮根据来源智能跳转',
+      '版权选项新增 AI 智能创作类型，导入流程完全闭环'
+    ]
+  },
+  {
     version: '1.27.2',
     date: '2026-06-16',
     features: [
