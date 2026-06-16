@@ -6,6 +6,7 @@ import {
   loginUser as ghLoginUser,
   updateUser as ghUpdateUser,
   checkService as ghCheckService,
+  fetchUserFullData as ghFetchUserFullData,
 } from '@/utils/githubDatabase';
 
 // 记住登录凭据的本地 key
@@ -66,6 +67,9 @@ interface AuthStore extends AuthState {
   autoLogin: () => Promise<boolean>;
   deleteAccount: () => void;
   syncToCloud: () => void;
+  startCloudSync: () => void;                   // 启动定时云端同步
+  stopCloudSync: () => void;                    // 停止定时云端同步
+  pullFromCloud: () => Promise<boolean>;        // 从云端拉取最新数据
   // ===== 网络状态管理 =====
   checkNetworkStatus: () => Promise<boolean>;  // 检查网络状态
   refreshNetworkStatus: () => void;            // 刷新网络状态
@@ -440,8 +444,38 @@ export const useAuthStore = create<AuthStore>()(
             ...tasks,
           });
 
+          // ===== 多端同步：从云端拉取项目数据 =====
+          if (result.projects && result.projects.length > 0) {
+            try {
+              const projectStore = (await import('@/stores/projectStore')).useProjectStore;
+              const localProjects = projectStore.getState().projects;
+              // 合并云端项目和本地项目（云端优先）
+              const cloudMap = new Map(result.projects.map((p: any) => [p.id, p]));
+              const localMap = new Map(localProjects.map((p: any) => [p.id, p]));
+              // 本地项目补充到云端
+              for (const [id, p] of localMap) {
+                if (!cloudMap.has(id)) cloudMap.set(id, p);
+              }
+              const mergedProjects = Array.from(cloudMap.values());
+              projectStore.setState({ projects: mergedProjects });
+              // 保存到本地存储
+              try {
+                localStorage.setItem('manga-studio-projects-v2', JSON.stringify(mergedProjects));
+              } catch { /* ignore */ }
+              // 同步回云端（如果有本地新增的项目）
+              const newLocalProjects = mergedProjects.filter((p: any) =>
+                !result.projects!.some((cp: any) => cp.id === p.id)
+              );
+              if (newLocalProjects.length > 0) {
+                const { syncUserProjects } = await import('@/utils/githubDatabase');
+                await syncUserProjects(backendUser.id, newLocalProjects);
+              }
+            } catch { /* ignore */ }
+          }
+
           try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
-          setTimeout(() => get().syncToCloud(), 0);
+          // 启动定时云端同步
+          get().startCloudSync();
           return { ok: true, code: 'LOGIN_OK', message: '登录成功' };
         } catch (err: any) {
           set({ isLoading: false, serverError: err?.message || '网络错误' });
@@ -504,7 +538,8 @@ export const useAuthStore = create<AuthStore>()(
           });
 
           try { localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: credentials.username })); } catch { /* ignore */ }
-          setTimeout(() => get().syncToCloud(), 0);
+          // 启动定时云端同步
+          get().startCloudSync();
           return { ok: true, code: 'REGISTER_OK', message: '注册成功' };
         } catch (err: any) {
           set({ isLoading: false, serverError: err?.message || '网络错误' });
@@ -514,6 +549,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: () => {
+        get().stopCloudSync();
         try { localStorage.removeItem(REMEMBER_KEY); } catch { /* ignore */ }
         set({
           user: null,
@@ -663,6 +699,78 @@ export const useAuthStore = create<AuthStore>()(
         try {
           ghUpdateUser(state.user.id, payload).catch(() => {});
         } catch { /* ignore */ }
+      },
+
+      // ===== 定时云端同步 =====
+      _cloudSyncTimer: null as any,
+      startCloudSync: () => {
+        const state = get();
+        if (!state.user || !state.user.id) return;
+        // 每 30 秒同步一次
+        const timer = setInterval(() => {
+          get().pullFromCloud();
+        }, 30000);
+        (get() as any)._cloudSyncTimer = timer;
+      },
+      stopCloudSync: () => {
+        const timer = (get() as any)._cloudSyncTimer;
+        if (timer) {
+          clearInterval(timer);
+          (get() as any)._cloudSyncTimer = null;
+        }
+      },
+
+      // ===== 从云端拉取最新数据 =====
+      pullFromCloud: async () => {
+        const state = get();
+        if (!state.user || !state.user.id) return false;
+        if (!apiAvailable) return false;
+        try {
+          const data = await ghFetchUserFullData(state.user.id);
+          if (data.error || !data.user) return false;
+
+          const cloudUser = data.user;
+          const cloudProjects = data.projects || [];
+
+          // 更新用户数据（云端优先）
+          set({
+            points: cloudUser.points ?? state.points,
+            totalEarnedPoints: cloudUser.totalEarnedPoints ?? state.totalEarnedPoints,
+            level: cloudUser.level ?? state.level,
+            projectsCount: cloudUser.projectsCount ?? state.projectsCount,
+            isVIP: !!cloudUser.isVIP,
+            vipLevel: cloudUser.vipLevel ?? state.vipLevel,
+            vipPoints: cloudUser.vipPoints ?? state.vipPoints,
+            vipExpireAt: cloudUser.vipExpireAt ?? state.vipExpireAt,
+            completedTasks: cloudUser.completedTasks || state.completedTasks,
+            visitedPages: cloudUser.visitedPages || state.visitedPages,
+            usedStyles: cloudUser.usedStyles || state.usedStyles,
+            transactions: Array.isArray(cloudUser.transactions) ? cloudUser.transactions : state.transactions,
+          });
+
+          // 更新项目数据
+          if (cloudProjects.length > 0) {
+            try {
+              const projectStore = (await import('@/stores/projectStore')).useProjectStore;
+              const localProjects = projectStore.getState().projects;
+              const cloudMap = new Map(cloudProjects.map((p: any) => [p.id, p]));
+              const localMap = new Map(localProjects.map((p: any) => [p.id, p]));
+              // 本地项目补充到云端
+              for (const [id, p] of localMap) {
+                if (!cloudMap.has(id)) cloudMap.set(id, p);
+              }
+              const mergedProjects = Array.from(cloudMap.values());
+              projectStore.setState({ projects: mergedProjects });
+              try {
+                localStorage.setItem('manga-studio-projects-v2', JSON.stringify(mergedProjects));
+              } catch { /* ignore */ }
+            } catch { /* ignore */ }
+          }
+
+          return true;
+        } catch {
+          return false;
+        }
       },
 
       clearAllData: () => {

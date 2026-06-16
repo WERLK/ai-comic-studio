@@ -75,10 +75,40 @@ const simpleHash = (s: string): string => {
   return 'h_' + Math.abs(hash).toString(36) + '_' + s.length;
 };
 
+// ===== 带重试的 fetch =====
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3
+): Promise<Response> {
+  let lastError: any;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const res = await fetch(url, options);
+      // 409 Conflict = SHA 过期，需要重试
+      if (res.status === 409 && i < maxRetries - 1) {
+        await delay(500 * Math.pow(2, i)); // 指数退避
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastError = err;
+      if (i < maxRetries - 1) {
+        await delay(500 * Math.pow(2, i));
+      }
+    }
+  }
+  throw lastError;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // GitHub Contents API 读取 db.json
 async function readDBFromGitHub(): Promise<{ db: CloudDB; sha: string }> {
   try {
-    const res = await fetch(
+    const res = await fetchWithRetry(
       `${API_BASE}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DB_FILE_PATH}`,
       {
         headers: {
@@ -105,7 +135,7 @@ async function readDBFromGitHub(): Promise<{ db: CloudDB; sha: string }> {
   }
 }
 
-// GitHub Contents API 写入 db.json
+// GitHub Contents API 写入 db.json（带重试）
 async function writeDBToGitHub(db: CloudDB, sha: string): Promise<boolean> {
   try {
     const content = btoa(unescape(encodeURIComponent(JSON.stringify(db, null, 2))));
@@ -115,7 +145,7 @@ async function writeDBToGitHub(db: CloudDB, sha: string): Promise<boolean> {
     };
     if (sha) body.sha = sha;
 
-    const res = await fetch(
+    const res = await fetchWithRetry(
       `${API_BASE}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DB_FILE_PATH}`,
       {
         method: 'PUT',
@@ -186,7 +216,7 @@ export async function checkService(): Promise<boolean> {
   }
 }
 
-// 注册
+// ===== 注册 =====
 export async function registerUser(params: {
   username: string;
   email?: string;
@@ -253,11 +283,11 @@ export async function registerUser(params: {
   return { success: true, user: rest };
 }
 
-// 登录
+// ===== 登录（返回云端最新完整数据） =====
 export async function loginUser(params: {
   username: string;
   password: string;
-}): Promise<{ success: boolean; user?: any; error?: string }> {
+}): Promise<{ success: boolean; user?: any; projects?: any[]; error?: string }> {
   const username = params.username?.trim();
   const password = params.password;
 
@@ -289,11 +319,30 @@ export async function loginUser(params: {
 
   await safeWriteDB(db);
 
+  // 拉取该用户的所有项目
+  const userProjects = db.projects.filter((p) => p.userId === match.id);
+
   const { passwordHash, ...rest } = match;
-  return { success: true, user: rest };
+  return { success: true, user: rest, projects: userProjects };
 }
 
-// 更新用户数据
+// ===== 获取用户完整数据（用于多端同步） =====
+export async function fetchUserFullData(userId: string): Promise<{
+  user?: any;
+  projects?: any[];
+  error?: string;
+}> {
+  const { db } = await readDBFromGitHub();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) {
+    return { error: '用户不存在' };
+  }
+  const { passwordHash, ...rest } = user;
+  const projects = db.projects.filter((p) => p.userId === userId);
+  return { user: rest, projects };
+}
+
+// ===== 更新用户数据 =====
 export async function updateUser(userId: string, updates: any): Promise<{ success: boolean; user?: any; error?: string }> {
   const { db } = await readDBFromGitHub();
   const idx = db.users.findIndex((u) => u.id === userId);
@@ -307,7 +356,7 @@ export async function updateUser(userId: string, updates: any): Promise<{ succes
   return { success: true, user: rest };
 }
 
-// 同步项目（增量）
+// ===== 同步项目（增量） =====
 export async function syncUserProjects(userId: string, projects: any[]): Promise<{ success: boolean; projects?: any[]; error?: string }> {
   const { db } = await readDBFromGitHub();
   const myRemote = db.projects.filter((p) => p.userId === userId);
@@ -324,13 +373,13 @@ export async function syncUserProjects(userId: string, projects: any[]): Promise
   return { success: true, projects: newProjects };
 }
 
-// 拉取该用户的所有项目
+// ===== 拉取该用户的所有项目 =====
 export async function fetchUserProjects(userId: string): Promise<any[]> {
   const { db } = await readDBFromGitHub();
   return db.projects.filter((p) => p.userId === userId);
 }
 
-// 删除项目
+// ===== 删除项目 =====
 export async function deleteUserProject(projectId: string): Promise<{ success: boolean; error?: string }> {
   const { db } = await readDBFromGitHub();
   db.projects = db.projects.filter((p) => p.id !== projectId);
@@ -339,7 +388,7 @@ export async function deleteUserProject(projectId: string): Promise<{ success: b
   return { success: true };
 }
 
-// 获取完整数据库（用于调试/导入）
+// ===== 获取完整数据库（用于调试/导入） =====
 export async function fetchFullDB(): Promise<CloudDB> {
   const { db } = await readDBFromGitHub();
   return db;
