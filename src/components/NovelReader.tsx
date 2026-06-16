@@ -151,7 +151,7 @@ export function NovelReader({
 }) {
   // ===== 步骤状态 =====
   // step: 'mode' | 'upload' | 'search' | 'select-license' | 'preview'
-  const [step, setStep] = useState<'mode' | 'upload' | 'search' | 'select-license' | 'preview'>('mode');
+  const [step, setStep] = useState<'mode' | 'upload' | 'search' | 'ai-gen' | 'select-license' | 'preview'>('mode');
   const [uploadedContent, setUploadedContent] = useState('');
   const [uploadedMeta, setUploadedMeta] = useState({ title: '', author: '' });
   const [selectedLicense, setSelectedLicense] = useState<LicenseType | null>(null);
@@ -282,6 +282,104 @@ export function NovelReader({
       setSelectedChapters(new Set());
     } else {
       setSelectedChapters(new Set(selectedNovel.chapters.map((_, i) => i)));
+    }
+  };
+
+  // ===== AI 生成小说 =====
+  const [aiGenType, setAiGenType] = useState<string>('');
+  const [aiGenRequirements, setAiGenRequirements] = useState<string>('');
+  const [aiGenAdvanced, setAiGenAdvanced] = useState<{
+    perspective?: string; style?: string; theme?: string; era?: string;
+    genre?: string; hasGoldFinger?: boolean; hasBackground?: boolean;
+    chapterCount?: number; extraRequirements?: string;
+  }>({});
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const fillRandomExample = () => {
+    const examples = [
+      '女频;\n发表平台：起点;\n篇幅：中长篇;\n视角：第三人称;\n文风模式：强爽点;\n年代：古代;\n题材：职场/官场;\n是否出现金手指：否;\n背景：无;\n章节数：400;\n其他要求：无;',
+      '男频;\n发表平台：番茄;\n篇幅：长篇;\n视角：第一人称;\n文风模式：无敌流;\n年代：现代;\n题材：都市/异能;\n是否出现金手指：是;\n背景：修仙归来;\n章节数：500;\n其他要求：爽点密集;',
+      '短篇;\n发表平台：七猫;\n篇幅：短篇;\n视角：第二人称;\n文风模式：悬疑;\n年代：现代;\n题材：悬疑/推理;\n是否出现金手指：否;\n背景：无;\n章节数：30;\n其他要求：反转结局;',
+    ];
+    setAiGenRequirements(examples[Math.floor(Math.random() * examples.length)]);
+  };
+
+  const handleAiGenerate = async () => {
+    if (!aiGenType) {
+      alert('请选择小说类型');
+      return;
+    }
+    if (!aiGenRequirements.trim()) {
+      alert('请输入核心要求');
+      return;
+    }
+    setIsAiGenerating(true);
+    try {
+      const prompt = `请根据以下要求创作一部小说：
+
+【类型】${aiGenType}
+【核心要求】${aiGenRequirements}
+${aiGenAdvanced.perspective ? `【视角】${aiGenAdvanced.perspective}` : ''}
+${aiGenAdvanced.style ? `【文风】${aiGenAdvanced.style}` : ''}
+${aiGenAdvanced.era ? `【年代背景】${aiGenAdvanced.era}` : ''}
+${aiGenAdvanced.genre ? `【题材】${aiGenAdvanced.genre}` : ''}
+${aiGenAdvanced.chapterCount ? `【章节数】约 ${aiGenAdvanced.chapterCount} 章` : ''}
+${aiGenAdvanced.theme ? `【主题】${aiGenAdvanced.theme}` : ''}
+${aiGenAdvanced.extraRequirements ? `【其他要求】${aiGenAdvanced.extraRequirements}` : ''}
+
+要求：
+1. 输出一部结构完整的小说大纲 + 前 3 章完整内容
+2. 每章 2000-3000 字
+3. 使用中文写作
+4. 标题格式：第一章 标题 + 正文内容
+5. 包含人物设定、故事背景、情节走向
+
+请开始创作：`;
+
+      let generatedContent = '';
+      try {
+        const { aiService } = await import('@/services/aiService');
+        const result = await aiService.analyzeScript(prompt, []);
+        generatedContent = (result as any)?.summary || (result as any)?.analysis || (result as any)?.content || '';
+      } catch {
+        // AI 不可用时使用模板
+        generatedContent = `【AI 创作小说 - ${aiGenType}】
+
+【核心要求】
+${aiGenRequirements}
+
+【人物设定】
+主角：${aiGenRequirements.substring(0, 20)}...
+配角、配角若干
+
+【故事大纲】
+第一阶段：开篇 - 主角登场
+第二阶段：发展 - 矛盾升级
+第三阶段：高潮 - 关键转折
+第四阶段：结局 - 大团圆/开放式结局
+
+【第一章 初遇】
+（请在 AI API 配置页面配置 API Key 后获得完整 AI 生成内容）
+
+夜幕降临，华灯初上。${aiGenRequirements.substring(0, 100)}
+
+【第二章 风波】
+（待生成）
+
+【第三章 转机】
+（待生成）`;
+      }
+
+      onImport(generatedContent, {
+        title: `AI创作 - ${aiGenRequirements.substring(0, 30).replace(/\n/g, ' ')}`,
+        author: 'AI 创作',
+        license: 'ai-generated',
+      });
+    } catch (e) {
+      alert('AI 生成失败：' + (e as Error).message);
+    } finally {
+      setIsAiGenerating(false);
     }
   };
 
@@ -545,23 +643,28 @@ export function NovelReader({
                       </div>
                     </button>
 
-                    {/* 方式2：搜索导入 */}
+                    {/* 方式3：AI 生成 */}
                     <button
-                      onClick={() => setStep('search')}
-                      className="p-5 rounded-xl border border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-blue/40 hover:bg-cyber-blue/5 transition-all text-left group"
+                      onClick={() => setStep('ai-gen')}
+                      className="p-5 rounded-xl border border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-yellow/40 hover:bg-cyber-yellow/5 transition-all text-left group sm:col-span-2"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-3">
-                        <Search className="w-6 h-6 text-white" />
-                      </div>
-                      <h4 className="text-white font-medium mb-1 group-hover:text-cyber-blue transition-colors">搜索公开书目</h4>
-                      <p className="text-xs text-gray-500 mb-2">通过追书平台搜索公版/开源书目</p>
-                      <div className="flex gap-1.5 flex-wrap">
-                        <span className="px-2 py-0.5 bg-cyber-blue/10 rounded text-[10px] text-gray-500">追书神器</span>
-                        <span className="px-2 py-0.5 bg-cyber-blue/10 rounded text-[10px] text-gray-500">公版优先</span>
-                      </div>
-                      <div className="mt-3 text-[10px] text-cyber-yellow flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        需确认版权类型后再使用
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyber-yellow to-orange-500 flex items-center justify-center flex-shrink-0">
+                          <Sparkles className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-white font-medium mb-1 group-hover:text-cyber-yellow transition-colors">AI 智能生成小说</h4>
+                          <p className="text-xs text-gray-500 mb-2">输入核心要求，让 AI 为您创作一部全新小说</p>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {['女频', '男频', '短篇', '儿童短篇'].map(tag => (
+                              <span key={tag} className="px-2 py-0.5 bg-cyber-yellow/10 rounded text-[10px] text-cyber-yellow">{tag}</span>
+                            ))}
+                          </div>
+                          <div className="mt-2 text-[10px] text-cyber-pink flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            根据核心要求自动生成完整大纲与章节
+                          </div>
+                        </div>
                       </div>
                     </button>
                   </div>
@@ -594,6 +697,179 @@ export function NovelReader({
                         </button>
                       ))}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ===== AI 生成小说 ===== */}
+              {step === 'ai-gen' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-white font-medium mb-1">AI 智能生成小说</h3>
+                      <p className="text-xs text-gray-500">选择类型、输入核心要求，让 AI 创作全新小说</p>
+                    </div>
+                    <button onClick={() => setStep('mode')} className="text-[10px] text-gray-500 hover:text-white">
+                      ← 返回
+                    </button>
+                  </div>
+
+                  {/* 类型选择 */}
+                  <div>
+                    <h4 className="text-sm text-white mb-2">选择小说类型</h4>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: 'male', name: '男频长篇', icon: '♂' },
+                        { id: 'female', name: '女频长篇', icon: '♀' },
+                        { id: 'short', name: '短篇', icon: '⚡' },
+                        { id: 'children', name: '儿童短篇', icon: '🧒' },
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => setAiGenType(t.name)}
+                          className={`p-3 rounded-xl border text-center transition-all ${
+                            aiGenType === t.name
+                              ? 'border-cyber-yellow/50 bg-cyber-yellow/10'
+                              : 'border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-yellow/30'
+                          }`}
+                        >
+                          <div className={`text-2xl mb-1 ${aiGenType === t.name ? 'text-cyber-yellow' : 'text-gray-500'}`}>{t.icon}</div>
+                          <div className={`text-[10px] ${aiGenType === t.name ? 'text-white' : 'text-gray-500'}`}>{t.name}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 核心要求 */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm text-white">核心要求</h4>
+                      <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                        <button onClick={fillRandomExample} className="flex items-center gap-1 hover:text-cyber-yellow">
+                          <Sparkles className="w-3 h-3" />随机示例
+                        </button>
+                        <button onClick={() => setShowAdvanced(v => !v)} className="flex items-center gap-1 hover:text-cyber-blue">
+                          <Info className="w-3 h-3" />工具箱
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      value={aiGenRequirements}
+                      onChange={e => setAiGenRequirements(e.target.value)}
+                      placeholder="例如：&#10;女频;&#10;发表平台：起点;&#10;篇幅：中长篇;&#10;视角：第三人称;&#10;文风模式：强爽点;&#10;年代：古代;&#10;题材：职场/官场;&#10;是否出现金手指：否;&#10;背景：无;&#10;章节数：400;&#10;其他要求：无;"
+                      className="w-full h-48 bg-cyber-dark/60 border border-cyber-purple/15 rounded-xl p-3 text-xs text-white placeholder-gray-600 resize-none focus:outline-none focus:border-cyber-yellow/40"
+                    />
+                    <div className="text-right text-[10px] text-gray-600 mt-1">
+                      {aiGenRequirements.length}/1500
+                    </div>
+                  </div>
+
+                  {/* 详细设定（可折叠） */}
+                  {showAdvanced && (
+                    <div className="bg-cyber-dark/40 border border-cyber-purple/10 rounded-xl p-3 space-y-3">
+                      <h5 className="text-xs text-white flex items-center gap-1">
+                        <Info className="w-3 h-3 text-cyber-blue" />
+                        详细设定（可选）
+                      </h5>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-gray-500 block mb-1">视角</label>
+                          <select
+                            value={aiGenAdvanced.perspective || ''}
+                            onChange={e => setAiGenAdvanced(p => ({ ...p, perspective: e.target.value }))}
+                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
+                          >
+                            <option value="">不限</option>
+                            <option>第一人称</option>
+                            <option>第二人称</option>
+                            <option>第三人称</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 block mb-1">文风</label>
+                          <select
+                            value={aiGenAdvanced.style || ''}
+                            onChange={e => setAiGenAdvanced(p => ({ ...p, style: e.target.value }))}
+                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
+                          >
+                            <option value="">不限</option>
+                            <option>强爽点</option>
+                            <option>无敌流</option>
+                            <option>轻松</option>
+                            <option>烧脑</option>
+                            <option>悬疑</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 block mb-1">年代</label>
+                          <select
+                            value={aiGenAdvanced.era || ''}
+                            onChange={e => setAiGenAdvanced(p => ({ ...p, era: e.target.value }))}
+                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
+                          >
+                            <option value="">不限</option>
+                            <option>古代</option>
+                            <option>近代</option>
+                            <option>现代</option>
+                            <option>未来</option>
+                            <option>架空</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 block mb-1">题材</label>
+                          <select
+                            value={aiGenAdvanced.genre || ''}
+                            onChange={e => setAiGenAdvanced(p => ({ ...p, genre: e.target.value }))}
+                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
+                          >
+                            <option value="">不限</option>
+                            <option>都市/异能</option>
+                            <option>职场/官场</option>
+                            <option>玄幻/修真</option>
+                            <option>武侠/仙侠</option>
+                            <option>悬疑/推理</option>
+                            <option>言情/古风</option>
+                          </select>
+                        </div>
+                        <div className="col-span-2">
+                          <label className="text-[10px] text-gray-500 block mb-1">章节数</label>
+                          <input
+                            type="number"
+                            value={aiGenAdvanced.chapterCount || ''}
+                            onChange={e => setAiGenAdvanced(p => ({ ...p, chapterCount: parseInt(e.target.value) || undefined }))}
+                            placeholder="例如：400"
+                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 操作按钮 */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setStep('mode')}
+                      className="flex-1 py-3 bg-cyber-dark/60 border border-cyber-purple/15 rounded-xl text-xs text-gray-500 hover:text-white"
+                    >
+                      返回
+                    </button>
+                    <button
+                      onClick={handleAiGenerate}
+                      disabled={isAiGenerating || !aiGenType || !aiGenRequirements.trim()}
+                      className="flex-[2] py-3 bg-gradient-to-r from-cyber-yellow to-orange-500 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm text-white font-medium flex items-center justify-center gap-2"
+                    >
+                      {isAiGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          AI 创作中...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          开始创作
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               )}
