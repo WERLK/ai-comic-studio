@@ -311,9 +311,9 @@ export function Settings() {
 
         {/* AI 服务 */}
         <SettingsGroup title="AI 服务">
-          <SettingItem icon={Sparkles} label="API 配置">
+          <SettingItem icon={Sparkles} label="AI 平台配置">
             <button
-              onClick={() => navigate('/api-config')}
+              onClick={() => navigate('/ai-config')}
               className="px-4 py-2 bg-cyber-purple/15 hover:bg-cyber-purple/25 border border-cyber-purple/40 text-cyber-purple text-xs font-medium rounded-xl transition-colors"
             >
               配置 →
