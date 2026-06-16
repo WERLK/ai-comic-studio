@@ -35,6 +35,8 @@ interface AuthStore extends AuthState {
   levelRewards: PointReward[];
   exchangeItems: PointExchangeItem[];
   serverError?: string;
+  isOnline: boolean;
+  apiAvailable: boolean;
   login: (credentials: LoginCredentials) => Promise<{ ok: boolean; code?: string; message?: string }>;
   register: (credentials: RegisterCredentials) => Promise<{ ok: boolean; code?: string; message?: string }>;
   logout: () => void;
@@ -58,6 +60,8 @@ interface AuthStore extends AuthState {
   autoLogin: () => Promise<boolean>;
   deleteAccount: () => void;
   clearAllData: () => void;
+  checkNetworkStatus: () => void;
+  refreshNetworkStatus: () => void;
 }
 
 const getTodayKey = () => new Date().toISOString().split('T')[0];
@@ -291,6 +295,8 @@ export const useAuthStore = create<AuthStore>()(
       levelRewards: makeLevelTasks(1, 0),
       exchangeItems: makeExchangeItems(),
       serverError: undefined,
+      isOnline: navigator.onLine,
+      apiAvailable: false,
 
       // ===== 登录：从 GitHub 云端验证，本地仅做缓存 =====
       login: async (credentials: LoginCredentials) => {
@@ -835,6 +841,21 @@ export const useAuthStore = create<AuthStore>()(
         const next = (state.vipLevel || 0) + 1;
         if (next >= VIP_LEVELS.length) return null;
         return VIP_LEVELS[next];
+      },
+
+      checkNetworkStatus: () => {
+        set({ isOnline: navigator.onLine });
+        if (navigator.onLine) {
+          fetch('https://api.github.com/repos/WERLK/ai-comic-studio')
+            .then(() => set({ apiAvailable: true }))
+            .catch(() => set({ apiAvailable: false }));
+        } else {
+          set({ apiAvailable: false });
+        }
+      },
+
+      refreshNetworkStatus: () => {
+        get().checkNetworkStatus();
       },
     }),
     {

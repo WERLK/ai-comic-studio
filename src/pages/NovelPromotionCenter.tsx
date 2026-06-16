@@ -57,9 +57,8 @@ export function NovelPromotionCenter() {
       <div className="sticky top-0 z-30 bg-cyber-bg/90 backdrop-blur-xl border-b border-cyber-purple/20">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
           <button
-            onClick={() => navigate(-1)}
-            className="p-2 rounded-xl hover:bg-cyber-purple/20 transition-colors flex-shrink-0"
-          >
+            onClick={() => navigate('/')}
+            className="p-2 rounded-xl hover:bg-cyber-purple/20 transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div className="flex-1 min-w-0">

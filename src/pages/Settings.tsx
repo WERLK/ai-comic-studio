@@ -201,7 +201,7 @@ export function Settings() {
       {/* Header */}
       <header className="h-14 bg-cyber-dark2/80 backdrop-blur-xl border-b border-cyber-purple/20 px-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 text-gray-400 hover:text-white transition-colors">
+          <button onClick={() => navigate('/')} className="p-2 text-gray-400 hover:text-white transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="font-display font-medium text-white text-sm md:text-base">设置</h1>
