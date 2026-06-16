@@ -295,6 +295,8 @@ export function NovelReader({
   }>({});
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [aiGenSuccess, setAiGenSuccess] = useState(false);
+  const [aiGenResult, setAiGenResult] = useState<{ content: string; title: string; author: string } | null>(null);
 
   const fillRandomExample = () => {
     const examples = [
@@ -373,15 +375,23 @@ ${aiGenRequirements}
 （待生成）`;
       }
 
-      onImport(generatedContent, {
-        title: `AI创作 - ${aiGenRequirements.substring(0, 30).replace(/\n/g, ' ')}`,
-        author: 'AI 创作',
-        license: 'ai-generated',
-      });
+      const title = `AI创作 - ${aiGenRequirements.substring(0, 30).replace(/\n/g, ' ')}`;
+      setAiGenResult({ content: generatedContent, title, author: 'AI 创作' });
+      setAiGenSuccess(true);
     } catch (e) {
       alert('AI 生成失败：' + (e as Error).message);
     } finally {
       setIsAiGenerating(false);
+    }
+  };
+
+  const handleConfirmAiGen = () => {
+    if (aiGenResult) {
+      onImport(aiGenResult.content, {
+        title: aiGenResult.title,
+        author: aiGenResult.author,
+        license: 'ai-generated',
+      });
     }
   };
 
@@ -577,18 +587,24 @@ ${aiGenRequirements}
 
         {/* 步骤导航 */}
         <div className="px-6 py-3 border-b border-cyber-purple/10 bg-cyber-dark/30">
-          <div className="flex items-center gap-1 text-xs">
-            {['mode', 'upload', 'search', 'select-license', 'preview'].map((s, i) => (
-              <div key={s} className="flex items-center">
+          <div className="flex items-center gap-1 text-xs overflow-x-auto">
+            {[
+              { key: 'mode', label: '导入方式' },
+              { key: 'upload', label: '本地上传' },
+              { key: 'search', label: '搜索导入' },
+              { key: 'ai-gen', label: 'AI生成' },
+              { key: 'select-license', label: '版权声明' },
+              { key: 'preview', label: '预览' },
+            ].map((s, i) => (
+              <div key={s.key} className="flex items-center flex-shrink-0">
                 <div className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
-                  step === s ? 'bg-cyber-pink/20 text-cyber-pink border border-cyber-pink/30' :
-                  (s === 'upload' && step === 'select-license') || (s === 'search' && step === 'select-license') ||
-                  (s === 'select-license' && step !== 'mode') ? 'bg-green-500/10 text-green-400' :
+                  step === s.key ? 'bg-cyber-pink/20 text-cyber-pink border border-cyber-pink/30' :
+                  (s.key === 'select-license' && step !== 'mode' && step !== 'ai-gen') ? 'bg-green-500/10 text-green-400' :
                   'text-gray-600'
                 }`}>
-                  {i + 1}. {s === 'mode' ? '导入方式' : s === 'upload' ? '本地上传' : s === 'search' ? '搜索导入' : s === 'select-license' ? '版权声明' : '预览'}
+                  {i + 1}. {s.label}
                 </div>
-                {i < 4 && <ChevronRight className="w-3 h-3 text-gray-600 mx-0.5" />}
+                {i < 5 && <ChevronRight className="w-3 h-3 text-gray-600 mx-0.5 flex-shrink-0" />}
               </div>
             ))}
           </div>
@@ -973,6 +989,35 @@ ${aiGenRequirements}
                       )}
                     </button>
                   </div>
+
+                  {/* AI 生成成功确认 */}
+                  {aiGenSuccess && aiGenResult && (
+                    <div className="bg-cyber-green/5 border border-cyber-green/20 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-cyber-green">
+                        <Check className="w-5 h-5" />
+                        <span className="text-sm font-medium">AI 创作完成！</span>
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        <p>标题：{aiGenResult.title}</p>
+                        <p className="mt-1">内容长度：{aiGenResult.content.length} 字符</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setAiGenSuccess(false); setAiGenResult(null); }}
+                          className="flex-1 py-2 bg-cyber-dark/60 border border-cyber-purple/15 rounded-lg text-xs text-gray-500 hover:text-white"
+                        >
+                          重新创作
+                        </button>
+                        <button
+                          onClick={handleConfirmAiGen}
+                          className="flex-[2] py-2 bg-gradient-to-r from-cyber-green to-emerald-500 hover:opacity-90 rounded-lg text-sm text-white font-medium flex items-center justify-center gap-2"
+                        >
+                          <Check className="w-4 h-4" />
+                          确认导入
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
