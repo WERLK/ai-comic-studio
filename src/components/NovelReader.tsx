@@ -298,9 +298,11 @@ export function NovelReader({
 
   const fillRandomExample = () => {
     const examples = [
-      '女频;\n发表平台：起点;\n篇幅：中长篇;\n视角：第三人称;\n文风模式：强爽点;\n年代：古代;\n题材：职场/官场;\n是否出现金手指：否;\n背景：无;\n章节数：400;\n其他要求：无;',
-      '男频;\n发表平台：番茄;\n篇幅：长篇;\n视角：第一人称;\n文风模式：无敌流;\n年代：现代;\n题材：都市/异能;\n是否出现金手指：是;\n背景：修仙归来;\n章节数：500;\n其他要求：爽点密集;',
-      '短篇;\n发表平台：七猫;\n篇幅：短篇;\n视角：第二人称;\n文风模式：悬疑;\n年代：现代;\n题材：悬疑/推理;\n是否出现金手指：否;\n背景：无;\n章节数：30;\n其他要求：反转结局;',
+      `女频长篇;\n发表平台：起点中文;\n篇幅：长篇 (30万字+);\n视角：第三人称;\n文风模式：强爽点;\n年代背景：现代;\n题材分类：都市/异能;\n金手指：否;\n主角背景：否（普通人/草根崛起）;\n章节数：500;\n其他要求：女主独立自主，大女主文，复仇情节`,
+      `男频长篇;\n发表平台：番茄小说;\n篇幅：长篇 (30万字+);\n视角：第三人称;\n文风模式：升级流;\n年代背景：异世/架空;\n题材分类：玄幻/修真;\n金手指：是;\n主角背景：否（普通人/草根崛起）;\n章节数：800;\n其他要求：热血爽文，节奏快`,
+      `纯爱;\n发表平台：晋江文学;\n篇幅：中篇 (10-30万字);\n视角：第三人称;\n文风模式：甜文;\n年代背景：现代;\n题材分类：言情/恋爱;\n金手指：否;\n主角背景：是（豪门/世家/权贵）;\n章节数：200;\n其他要求：双洁，HE`,
+      `衍生;\n发表平台：晋江文学;\n篇幅：短篇 (10万字以下);\n视角：第二人称;\n文风模式：轻松日常;\n年代背景：现代;\n题材分类：轻小说/同人;\n金手指：是;\n主角背景：否（普通人/草根崛起）;\n章节数：50;\n其他要求：综漫，系统`,
+      `儿童短篇;\n发表平台：七猫小说;\n篇幅：微短篇 (3万字以下);\n视角：第三人称;\n文风模式：轻松日常;\n年代背景：现代;\n题材分类：言情/恋爱;\n金手指：否;\n主角背景：否（普通人/草根崛起）;\n章节数：20;\n其他要求：寓教于乐，适合8-12岁`,
     ];
     setAiGenRequirements(examples[Math.floor(Math.random() * examples.length)]);
   };
@@ -719,10 +721,14 @@ ${aiGenRequirements}
                     <h4 className="text-sm text-white mb-2">选择小说类型</h4>
                     <div className="grid grid-cols-4 gap-2">
                       {[
-                        { id: 'male', name: '男频长篇', icon: '♂' },
-                        { id: 'female', name: '女频长篇', icon: '♀' },
-                        { id: 'short', name: '短篇', icon: '⚡' },
-                        { id: 'children', name: '儿童短篇', icon: '🧒' },
+                        { id: 'male_long', name: '男频长篇', icon: '♂', color: 'from-blue-500 to-blue-600' },
+                        { id: 'male_short', name: '男频短篇', icon: '♂', color: 'from-blue-400 to-cyan-500' },
+                        { id: 'female_long', name: '女频长篇', icon: '♀', color: 'from-pink-500 to-rose-500' },
+                        { id: 'female_short', name: '女频短篇', icon: '♀', color: 'from-pink-400 to-fuchsia-500' },
+                        { id: 'pure_love', name: '纯爱', icon: '💕', color: 'from-purple-500 to-violet-500' },
+                        { id: 'derivative', name: '衍生', icon: '🔄', color: 'from-indigo-500 to-blue-500' },
+                        { id: 'children', name: '儿童短篇', icon: '🧒', color: 'from-green-500 to-emerald-500' },
+                        { id: 'short', name: '其他短篇', icon: '⚡', color: 'from-orange-500 to-amber-500' },
                       ].map(t => (
                         <button
                           key={t.id}
@@ -735,6 +741,67 @@ ${aiGenRequirements}
                         >
                           <div className={`text-2xl mb-1 ${aiGenType === t.name ? 'text-cyber-yellow' : 'text-gray-500'}`}>{t.icon}</div>
                           <div className={`text-[10px] ${aiGenType === t.name ? 'text-white' : 'text-gray-500'}`}>{t.name}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 发表平台 */}
+                  <div>
+                    <h4 className="text-sm text-white mb-2">目标发表平台</h4>
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { id: 'qidian', name: '起点中文' },
+                        { id: 'tomato', name: '番茄小说' },
+                        { id: 'qimao', name: '七猫小说' },
+                        { id: 'feilu', name: '飞卢小说' },
+                        { id: 'jinjiang', name: '晋江文学' },
+                        { id: 'qqread', name: 'QQ阅读' },
+                        { id: 'zhangyue', name: '掌阅' },
+                        { id: 'migu', name: '咪咕阅读' },
+                        { id: 'shuqi', name: '书旗小说' },
+                        { id: 'chuangshi', name: '创世中文' },
+                        { id: 'zongheng', name: '纵横中文' },
+                        { id: 'ihu', name: '爱奇艺文学' },
+                      ].map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            const current = aiGenRequirements;
+                            const platformLine = `发表平台：${p.name}`;
+                            if (current.includes('发表平台：')) {
+                              setAiGenRequirements(current.replace(/发表平台：[^\n;]+;?/, platformLine + ';'));
+                            } else {
+                              setAiGenRequirements(current ? `${platformLine};\n${current}` : platformLine);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-cyber-dark/60 border border-cyber-purple/15 hover:border-cyber-blue/40 rounded-lg text-[10px] text-gray-400 hover:text-white transition-all"
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 篇幅选择 */}
+                  <div>
+                    <h4 className="text-sm text-white mb-2">篇幅要求</h4>
+                    <div className="flex gap-2">
+                      {['长篇 (30万字+)', '中篇 (10-30万字)', '短篇 (10万字以下)', '微短篇 (3万字以下)'].map(p => (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            const current = aiGenRequirements;
+                            const lengthLine = `篇幅：${p}`;
+                            if (current.includes('篇幅：')) {
+                              setAiGenRequirements(current.replace(/篇幅：[^\n;]+;?/, lengthLine + ';'));
+                            } else {
+                              setAiGenRequirements(current ? `${lengthLine};\n${current}` : lengthLine);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-cyber-dark/60 border border-cyber-purple/15 hover:border-cyber-pink/40 rounded-lg text-[10px] text-gray-400 hover:text-white transition-all"
+                        >
+                          {p}
                         </button>
                       ))}
                     </div>
@@ -786,37 +853,43 @@ ${aiGenRequirements}
                           </select>
                         </div>
                         <div>
-                          <label className="text-[10px] text-gray-500 block mb-1">文风</label>
+                          <label className="text-[10px] text-gray-500 block mb-1">文风模式</label>
                           <select
                             value={aiGenAdvanced.style || ''}
                             onChange={e => setAiGenAdvanced(p => ({ ...p, style: e.target.value }))}
                             className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
                           >
                             <option value="">不限</option>
-                            <option>强爽点</option>
+                            <option>升级流</option>
                             <option>无敌流</option>
-                            <option>轻松</option>
-                            <option>烧脑</option>
-                            <option>悬疑</option>
+                            <option>强爽点</option>
+                            <option>轻松日常</option>
+                            <option>烧脑悬疑</option>
+                            <option>暗黑流</option>
+                            <option>甜文</option>
+                            <option>虐文</option>
                           </select>
                         </div>
                         <div>
-                          <label className="text-[10px] text-gray-500 block mb-1">年代</label>
+                          <label className="text-[10px] text-gray-500 block mb-1">年代背景</label>
                           <select
                             value={aiGenAdvanced.era || ''}
                             onChange={e => setAiGenAdvanced(p => ({ ...p, era: e.target.value }))}
                             className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
                           >
                             <option value="">不限</option>
-                            <option>古代</option>
-                            <option>近代</option>
+                            <option>上古/先秦</option>
+                            <option>秦汉</option>
+                            <option>唐宋</option>
+                            <option>明清</option>
+                            <option>近代/民国</option>
                             <option>现代</option>
-                            <option>未来</option>
-                            <option>架空</option>
+                            <option>未来/星际</option>
+                            <option>异世/架空</option>
                           </select>
                         </div>
                         <div>
-                          <label className="text-[10px] text-gray-500 block mb-1">题材</label>
+                          <label className="text-[10px] text-gray-500 block mb-1">题材分类</label>
                           <select
                             value={aiGenAdvanced.genre || ''}
                             onChange={e => setAiGenAdvanced(p => ({ ...p, genre: e.target.value }))}
@@ -828,11 +901,40 @@ ${aiGenRequirements}
                             <option>玄幻/修真</option>
                             <option>武侠/仙侠</option>
                             <option>悬疑/推理</option>
-                            <option>言情/古风</option>
+                            <option>言情/恋爱</option>
+                            <option>古风/宅斗</option>
+                            <option>星际/科幻</option>
+                            <option>游戏/竞技</option>
+                            <option>历史/军事</option>
+                            <option>轻小说/同人</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 block mb-1">金手指</label>
+                          <select
+                            value={aiGenAdvanced.hasGoldFinger === undefined ? '' : aiGenAdvanced.hasGoldFinger ? '是' : '否'}
+                            onChange={e => setAiGenAdvanced(p => ({ ...p, hasGoldFinger: e.target.value === '是' ? true : e.target.value === '否' ? false : undefined }))}
+                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
+                          >
+                            <option value="">不限</option>
+                            <option>是</option>
+                            <option>否</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 block mb-1">主角背景</label>
+                          <select
+                            value={aiGenAdvanced.hasBackground === undefined ? '' : aiGenAdvanced.hasBackground ? '是' : '否'}
+                            onChange={e => setAiGenAdvanced(p => ({ ...p, hasBackground: e.target.value === '是' ? true : e.target.value === '否' ? false : undefined }))}
+                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
+                          >
+                            <option value="">不限</option>
+                            <option>是（豪门/世家/权贵）</option>
+                            <option>否（普通人/草根崛起）</option>
                           </select>
                         </div>
                         <div className="col-span-2">
-                          <label className="text-[10px] text-gray-500 block mb-1">章节数</label>
+                          <label className="text-[10px] text-gray-500 block mb-1">章节数（约）</label>
                           <input
                             type="number"
                             value={aiGenAdvanced.chapterCount || ''}
