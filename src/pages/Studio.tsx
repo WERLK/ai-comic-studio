@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2,
   Volume2, ChevronRight, ChevronLeft, Users, Image, Video,
-  Play, Settings2, ArrowRight, Plus, Edit3, Trash, Mic, Star
+  Play, Settings2, BookOpen, ArrowRight, Plus, Edit3, Trash, Mic, Star
 } from 'lucide-react';
 import { useProjectStore, useAuthStore } from '@/stores';
 import { VIP_LEVELS } from '@/types';
