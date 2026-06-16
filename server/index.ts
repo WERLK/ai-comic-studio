@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 
 const DB_DIR = path.join(__dirname, 'db');
 const DB_PATH = path.join(DB_DIR, 'users.json');
+const PROJECTS_DB_PATH = path.join(DB_DIR, 'projects.json');
 const PORT = process.env.PORT || 3001;
 
 if (!fs.existsSync(DB_DIR)) {
@@ -17,6 +18,9 @@ if (!fs.existsSync(DB_DIR)) {
 }
 if (!fs.existsSync(DB_PATH)) {
   fs.writeFileSync(DB_PATH, '[]', 'utf-8');
+}
+if (!fs.existsSync(PROJECTS_DB_PATH)) {
+  fs.writeFileSync(PROJECTS_DB_PATH, '[]', 'utf-8');
 }
 
 const hashPassword = (password: string): string =>
@@ -41,6 +45,21 @@ interface StoredUser {
   transactions?: Array<{ id: string; type: 'earn' | 'spend'; amount: number; description: string; createdAt: string }>;
 }
 
+interface StoredProject {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  coverImage: string;
+  status: 'draft' | 'completed';
+  createdAt: string;
+  updatedAt: string;
+  frames: any[];
+  characters: any[];
+  scenes: any[];
+  dialogues: any[];
+}
+
 const readDB = (): StoredUser[] => {
   try {
     const raw = fs.readFileSync(DB_PATH, 'utf-8');
@@ -53,6 +72,20 @@ const readDB = (): StoredUser[] => {
 
 const writeDB = (users: StoredUser[]) => {
   fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2), 'utf-8');
+};
+
+const readProjectsDB = (): StoredProject[] => {
+  try {
+    const raw = fs.readFileSync(PROJECTS_DB_PATH, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeProjectsDB = (projects: StoredProject[]) => {
+  fs.writeFileSync(PROJECTS_DB_PATH, JSON.stringify(projects, null, 2), 'utf-8');
 };
 
 const stripPassword = (u: StoredUser) => {
@@ -289,6 +322,96 @@ app.patch('/api/users/:id', (req: Request, res: Response) => {
   users[idx] = merged;
   writeDB(users);
   res.json({ user: stripPassword(merged) });
+});
+
+app.get('/api/projects/user/:userId', (req: Request, res: Response) => {
+  const projects = readProjectsDB();
+  const userProjects = projects.filter(p => p.userId === req.params.userId);
+  res.json({ projects: userProjects });
+});
+
+app.get('/api/projects/:id', (req: Request, res: Response) => {
+  const projects = readProjectsDB();
+  const project = projects.find(p => p.id === req.params.id);
+  if (!project) {
+    res.status(404).json({ error: '项目不存在' });
+    return;
+  }
+  res.json({ project });
+});
+
+app.post('/api/projects', (req: Request, res: Response) => {
+  const body = req.body || {};
+  const userId = body.userId;
+  const title = body.title || '未命名项目';
+  
+  if (!userId) {
+    res.status(400).json({ error: 'userId 不能为空' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const newProject: StoredProject = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+    userId,
+    title,
+    description: body.description || '',
+    coverImage: body.coverImage || '',
+    status: body.status || 'draft',
+    createdAt: now,
+    updatedAt: now,
+    frames: body.frames || [],
+    characters: body.characters || [],
+    scenes: body.scenes || [],
+    dialogues: body.dialogues || [],
+  };
+
+  const projects = readProjectsDB();
+  writeProjectsDB([...projects, newProject]);
+  res.json({ project: newProject });
+});
+
+app.patch('/api/projects/:id', (req: Request, res: Response) => {
+  const projects = readProjectsDB();
+  const idx = projects.findIndex(p => p.id === req.params.id);
+  if (idx < 0) {
+    res.status(404).json({ error: '项目不存在' });
+    return;
+  }
+
+  const body = req.body || {};
+  const prev = projects[idx];
+
+  const merged: StoredProject = {
+    ...prev,
+    updatedAt: new Date().toISOString(),
+    ...(body.title !== undefined ? { title: body.title } : {}),
+    ...(body.description !== undefined ? { description: body.description } : {}),
+    ...(body.coverImage !== undefined ? { coverImage: body.coverImage } : {}),
+    ...(body.status !== undefined ? { status: body.status } : {}),
+    ...(body.frames !== undefined ? { frames: body.frames } : {}),
+    ...(body.characters !== undefined ? { characters: body.characters } : {}),
+    ...(body.scenes !== undefined ? { scenes: body.scenes } : {}),
+    ...(body.dialogues !== undefined ? { dialogues: body.dialogues } : {}),
+  };
+
+  projects[idx] = merged;
+  writeProjectsDB(projects);
+  res.json({ project: merged });
+});
+
+app.delete('/api/projects/:id', (req: Request, res: Response) => {
+  const projects = readProjectsDB();
+  const idx = projects.findIndex(p => p.id === req.params.id);
+  if (idx < 0) {
+    res.status(404).json({ error: '项目不存在' });
+    return;
+  }
+
+  const deleted = projects[idx];
+  projects.splice(idx, 1);
+  writeProjectsDB(projects);
+  res.json({ project: deleted });
 });
 
 app.listen(PORT, () => {

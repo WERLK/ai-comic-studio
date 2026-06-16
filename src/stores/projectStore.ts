@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Project, Frame, GenerationPrompt, Character, Scene, Dialogue } from '@/types';
 import { voiceActors, getVoiceById } from '@/data/voiceActors';
 import { generateImage, getAIConfig } from '@/services/aiService';
+import { getApiBase } from '@/stores/authStore';
 
 const STORAGE_KEY = 'manga-studio-projects-v2';
 
@@ -20,6 +21,66 @@ function loadFromStorage(): Project[] {
 
 function saveToStorage(projects: Project[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+}
+
+function isApiAvailable(): boolean {
+  try {
+    const authStore = require('@/stores/authStore').useAuthStore;
+    return authStore.getState().apiAvailable;
+  } catch {
+    return false;
+  }
+}
+
+function getCurrentUserId(): string | undefined {
+  try {
+    const authStore = require('@/stores/authStore').useAuthStore;
+    return authStore.getState().user?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+async function syncProjectsToServer(userId: string, projects: Project[]): Promise<void> {
+  try {
+    const base = getApiBase();
+    if (!base) return;
+    
+    for (const project of projects) {
+      if (!project.id.startsWith('cloud-')) {
+        await fetch(`${base}/projects`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...project, userId }),
+        });
+      } else {
+        await fetch(`${base}/projects/${project.id.replace('cloud-', '')}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(project),
+        });
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+async function fetchProjectsFromServer(userId: string): Promise<Project[]> {
+  try {
+    const base = getApiBase();
+    if (!base) return [];
+    
+    const res = await fetch(`${base}/projects/user/${userId}`);
+    if (!res.ok) return [];
+    
+    const data = await res.json();
+    if (data.projects && Array.isArray(data.projects)) {
+      return data.projects.map((p: any) => ({
+        ...p,
+        id: `cloud-${p.id}`,
+      }));
+    }
+  } catch { /* ignore */ }
+  return [];
 }
 
 // ============ 角色名池 ============
@@ -388,15 +449,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   isGenerating: false,
   generationProgress: 0,
 
-  createProject: (title, sourceContent, sourceType) => {
+  createProject: (title: string) => {
     const newProject: Project = {
       id: generateId(),
       title,
-      sourceContent,
-      sourceType,
-      characters: [],
-      scenes: [],
-      frames: [],
+      description: '',
+      coverImage: '',
       status: 'draft',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -404,6 +462,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const updated = [...get().projects, newProject];
     set({ projects: updated, currentProject: newProject });
     saveToStorage(updated);
+    
+    if (isApiAvailable()) {
+      const userId = getCurrentUserId();
+      if (userId) {
+        syncProjectsToServer(userId, [newProject]);
+      }
+    }
+    
     return newProject;
   },
 
@@ -416,6 +482,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (get().currentProject?.id === id) {
       set({ currentProject: updated.find((p) => p.id === id) || null });
     }
+    
+    if (isApiAvailable()) {
+      const userId = getCurrentUserId();
+      const project = updated.find(p => p.id === id);
+      if (userId && project) {
+        syncProjectsToServer(userId, [project]);
+      }
+    }
   },
 
   deleteProject: (id) => {
@@ -425,6 +499,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (get().currentProject?.id === id) {
       set({ currentProject: null });
     }
+    
+    if (isApiAvailable()) {
+      try {
+        const base = getApiBase();
+        if (base) {
+          fetch(`${base}/projects/${id.replace('cloud-', '')}`, {
+            method: 'DELETE',
+          });
+        }
+      } catch { /* ignore */ }
+    }
   },
 
   setCurrentProject: (id) => {
@@ -433,6 +518,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     } else {
       const project = get().projects.find((p) => p.id === id);
       set({ currentProject: project || null });
+    }
+  },
+
+  syncProjectsFromServer: async (userId: string) => {
+    const serverProjects = await fetchProjectsFromServer(userId);
+    if (serverProjects.length > 0) {
+      const localProjects = get().projects.filter(p => !p.id.startsWith('cloud-'));
+      const merged = [...localProjects, ...serverProjects];
+      set({ projects: merged });
+      saveToStorage(merged);
     }
   },
 

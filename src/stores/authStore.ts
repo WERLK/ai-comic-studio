@@ -98,10 +98,6 @@ const getCloudApiBase = (): string => {
     const saved = localStorage.getItem('ai_comic_api_base');
     if (saved) return saved;
   } catch { /* ignore */ }
-  // 生产环境默认禁用后端检查，使用本地存储
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return ''; // 非本地环境，返回空字符串表示不使用后端
-  }
   return '/api';
 };
 
@@ -782,7 +778,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       // ===== 同步当前用户数据到云端 =====
-      syncToCloud: () => {
+      syncToCloud: async () => {
         const state = get();
         if (!state.user || !state.user.id) return;
         if (!apiAvailable) return;
@@ -801,11 +797,14 @@ export const useAuthStore = create<AuthStore>()(
           transactions: state.transactions,
         };
         try {
-          fetch(`${API_BASE}/users/${state.user.id}`, {
+          await fetch(`${API_BASE}/users/${state.user.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
-          }).catch(() => {});
+          });
+          
+          const projectStore = require('@/stores/projectStore').useProjectStore;
+          await projectStore.getState().syncProjectsFromServer(state.user.id);
         } catch { /* ignore */ }
       },
 
