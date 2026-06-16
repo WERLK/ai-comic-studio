@@ -151,7 +151,7 @@ export function NovelReader({
 }) {
   // ===== 步骤状态 =====
   // step: 'mode' | 'upload' | 'search' | 'select-license' | 'preview'
-  const [step, setStep] = useState<'mode' | 'upload' | 'search' | 'ai-gen' | 'select-license' | 'preview'>('mode');
+  const [step, setStep] = useState<'mode' | 'upload' | 'search' | 'ai-gen' | 'select-license' | 'preview'>('ai-gen');
   const [uploadedContent, setUploadedContent] = useState('');
   const [uploadedMeta, setUploadedMeta] = useState({ title: '', author: '' });
   const [selectedLicense, setSelectedLicense] = useState<LicenseType | null>(null);
@@ -596,22 +596,21 @@ ${aiGenRequirements}
         <div className="px-6 py-3 border-b border-cyber-purple/10 bg-cyber-dark/30">
           <div className="flex items-center gap-1 text-xs overflow-x-auto">
             {[
-              { key: 'mode', label: '导入方式' },
+              { key: 'ai-gen', label: 'AI生成' },
               { key: 'upload', label: '本地上传' },
               { key: 'search', label: '搜索导入' },
-              { key: 'ai-gen', label: 'AI生成' },
               { key: 'select-license', label: '版权声明' },
               { key: 'preview', label: '预览' },
             ].map((s, i) => (
               <div key={s.key} className="flex items-center flex-shrink-0">
                 <div className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
                   step === s.key ? 'bg-cyber-pink/20 text-cyber-pink border border-cyber-pink/30' :
-                  (s.key === 'select-license' && step !== 'mode' && step !== 'ai-gen') ? 'bg-green-500/10 text-green-400' :
+                  (s.key === 'select-license' && step !== 'ai-gen' && step !== 'mode') ? 'bg-green-500/10 text-green-400' :
                   'text-gray-600'
                 }`}>
                   {i + 1}. {s.label}
                 </div>
-                {i < 5 && <ChevronRight className="w-3 h-3 text-gray-600 mx-0.5 flex-shrink-0" />}
+                {i < 4 && <ChevronRight className="w-3 h-3 text-gray-600 mx-0.5 flex-shrink-0" />}
               </div>
             ))}
           </div>
@@ -735,7 +734,7 @@ ${aiGenRequirements}
                       <p className="text-xs text-gray-500">选择类型、输入核心要求，让 AI 创作全新小说</p>
                     </div>
                     <button onClick={() => setStep('mode')} className="text-[10px] text-gray-500 hover:text-white">
-                      ← 返回
+                      更多方式
                     </button>
                   </div>
 
