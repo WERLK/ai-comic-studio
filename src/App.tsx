@@ -1,9 +1,8 @@
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores';
-import { Sparkles, Coins, LogOut, User, Menu, X, Bell, Settings2, Wifi, WifiOff, Database } from 'lucide-react';
+import { Sparkles, Coins, LogOut, User, Menu, X, Bell, Settings2, Wrench, Database } from 'lucide-react';
 import { useState, lazy, Suspense, useEffect } from 'react';
 import { AppVersion } from '@/components/AppVersion';
-import { VerticalClock } from '@/components/VerticalClock';
 import { getBrowserFixClass } from '@/utils/browserDetector';
 
 const Studio = lazy(() => import('@/pages/Studio').then(m => ({ default: m.Studio })));
@@ -22,6 +21,7 @@ const CloudDatabaseConfig = lazy(() => import('@/pages/CloudDatabaseConfig').the
 const VIPCenter = lazy(() => import('@/pages/VIPCenter').then(m => ({ default: m.VIPCenter })));
 const NovelPromotionCenter = lazy(() => import('@/pages/NovelPromotionCenter').then(m => ({ default: m.NovelPromotionCenter })));
 const AIConfigPage = lazy(() => import('@/pages/AIConfigPage').then(m => ({ default: m.AIConfigPage })));
+const ToolsPage = lazy(() => import('@/pages/ToolsPage').then(m => ({ default: m.ToolsPage })));
 
 function PageLoader() {
   return (
@@ -40,7 +40,6 @@ function AppContent() {
   const { user, isAuthenticated, logout, points, autoLogin, apiAvailable, isOnline, checkNetworkStatus, refreshNetworkStatus } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [browserFixClass, setBrowserFixClass] = useState('');
-
   useEffect(() => {
     autoLogin();
     setBrowserFixClass(getBrowserFixClass());
@@ -94,25 +93,15 @@ function AppContent() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <VerticalClock />
-            <button
-              onClick={refreshNetworkStatus}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all ${
-                apiAvailable 
-                  ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20' 
-                  : isOnline 
-                    ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20'
-                    : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
-              }`}
-              title={apiAvailable ? '服务器已连接' : isOnline ? '网络在线，服务器未连接' : '网络离线'}
-            >
-              {apiAvailable ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-              <span className="text-xs">{apiAvailable ? '在线' : isOnline ? '离线' : '无网络'}</span>
-            </button>
-          </div>
-
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/tools')}
+              className="p-2 rounded-lg bg-black/30 border border-gray-600/30 hover:border-indigo-500/50 hover:bg-black/50 transition-all"
+              title="功能中心"
+            >
+              <Wrench className="w-5 h-5 text-gray-400 hover:text-white" />
+            </button>
+
             <button
               onClick={() => navigate('/notifications')}
               className="relative p-2 rounded-lg bg-black/30 border border-gray-600/30 hover:border-indigo-500/50 hover:bg-black/50 transition-all"
@@ -128,19 +117,9 @@ function AppContent() {
               <Settings2 className="w-5 h-5 text-gray-400 hover:text-white" />
             </button>
 
-            {isAuthenticated && (
-              <button
-                onClick={() => navigate('/points')}
-                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30 hover:border-yellow-500/50 hover:bg-yellow-500/15 transition-all"
-              >
-                <Coins className="w-4 h-4 text-yellow-400" />
-                <span className="font-bold text-yellow-400 text-sm">{points}</span>
-              </button>
-            )}
-
             <div className="hidden md:block">
               {isAuthenticated ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 pl-2 border-l border-gray-700/30">
                   <button
                     onClick={() => navigate('/profile')}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/30 border border-gray-600/30 hover:border-indigo-500/50 hover:bg-black/50 transition-all"
@@ -160,7 +139,7 @@ function AppContent() {
               ) : (
                 <button
                   onClick={() => navigate('/login')}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 transition-all duration-300"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 transition-all duration-300 ml-2"
                 >
                   登录
                 </button>
@@ -178,31 +157,27 @@ function AppContent() {
 
         {isMenuOpen && (
           <div className="md:hidden mt-3 pt-3 border-t border-gray-700/30 bg-black/50 backdrop-blur-xl rounded-b-xl overflow-hidden">
-            <div className="px-3 py-3">
-              <VerticalClock />
-            </div>
-            {isAuthenticated && (
-              <div className="px-3 py-2">
-                <button
-                  onClick={() => navigate('/points')}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 hover:border-yellow-500/50 hover:bg-yellow-500/15 transition-all"
-                >
-                  <Coins className="w-5 h-5 text-yellow-400" />
-                  <span className="font-bold text-yellow-400">{points} 积分</span>
-                </button>
-              </div>
-            )}
             {isAuthenticated ? (
               <div className="space-y-1 px-3 py-2">
-                <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-black/30">
+                <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-black/30 mb-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
                     <User className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <p className="text-white font-medium">{user?.username}</p>
-                    <p className="text-xs text-gray-500">已登录</p>
+                    <p className="text-xs text-gray-500">已登录 · {points} 积分</p>
                   </div>
                 </div>
+                <button
+                  onClick={() => {
+                    navigate('/tools');
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-black/30 transition-all flex items-center gap-3"
+                >
+                  <Wrench className="w-5 h-5" />
+                  功能中心
+                </button>
                 <button
                   onClick={() => {
                     navigate('/profile');
@@ -212,16 +187,6 @@ function AppContent() {
                 >
                   <User className="w-5 h-5" />
                   个人中心
-                </button>
-                <button
-                  onClick={() => {
-                    navigate('/points');
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-black/30 transition-all flex items-center gap-3"
-                >
-                  <Coins className="w-5 h-5 text-yellow-400" />
-                  积分中心
                 </button>
                 <button
                   onClick={() => {
@@ -242,16 +207,6 @@ function AppContent() {
                 >
                   <Settings2 className="w-5 h-5" />
                   设置
-                </button>
-                <button
-                  onClick={() => {
-                    navigate('/cloud-database');
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-black/30 transition-all flex items-center gap-3"
-                >
-                  <Database className="w-5 h-5" />
-                  云端数据库
                 </button>
                 <button
                   onClick={() => {
@@ -285,6 +240,7 @@ function AppContent() {
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Studio />} />
+            <Route path="/tools" element={<ToolsPage />} />
             <Route path="/generator/:projectId" element={<Generator />} />
             <Route path="/preview/:projectId" element={<Preview />} />
             <Route path="/login" element={<Login />} />

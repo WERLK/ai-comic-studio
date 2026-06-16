@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Upload, FileText, Wand2, Film, Trash2, Check, Loader2,
   Volume2, ChevronRight, ChevronLeft, Users, Image, Video,
-  Play, Settings2, BookOpen, ArrowRight, Plus, Edit3, Trash, Mic, Star
+  Play, Settings2, ArrowRight, Plus, Edit3, Trash, Mic, Star
 } from 'lucide-react';
 import { useProjectStore, useAuthStore } from '@/stores';
 import { VIP_LEVELS } from '@/types';
@@ -23,7 +23,6 @@ import { AppVersion } from '@/components/AppVersion';
 import { analyzeScript, type AnalysisResult } from '@/services/aiService';
 import type { SceneStyle, Character, Frame } from '@/types';
 import { ScriptWizard } from '@/components/ScriptWizard';
-import { VerticalClock } from '@/components/VerticalClock';
 
 // ========== 工具函数 ==========
 
@@ -600,7 +599,7 @@ export function Studio() {
           </div>
 
           {/* 步骤指示器 */}
-          <div className="flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-1">
             {steps.map((step, idx) => {
               const Icon = step.icon;
               const isActive = currentStep === step.id;
@@ -620,7 +619,7 @@ export function Studio() {
                     }`}
                   >
                     {isDone ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
-                    <span className="hidden sm:inline">{step.label}</span>
+                    <span>{step.label}</span>
                   </button>
                   {idx < steps.length - 1 && (
                     <ChevronRight className="w-3 h-3 text-gray-600 mx-1" />
@@ -630,21 +629,9 @@ export function Studio() {
             })}
           </div>
 
-          {/* 动态时间显示 */}
-          <div className="flex items-center">
-            <VerticalClock />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/novel-promotion')}
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-gray-600/30 hover:border-indigo-500/50 rounded-lg text-xs text-gray-300 hover:text-white transition-all flex items-center gap-1.5"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span className="hidden sm:inline">小说推广</span>
-              <span className="sm:hidden">推广</span>
-            </button>
-            <AppVersion />
+          {/* 移动端步骤指示 */}
+          <div className="flex items-center gap-2 md:hidden">
+            <span className="text-xs text-gray-400">步骤 {currentStep}/4</span>
           </div>
         </div>
       </header>
