@@ -4,6 +4,14 @@ import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
   {
+    version: '1.26.0',
+    date: '2026-06-16',
+    features: [
+      '功能中心黑屏问题修复：确保所有功能页面正常渲染和加载',
+      '版本号统一更新机制优化'
+    ]
+  },
+  {
     version: '1.25.0',
     date: '2026-06-16',
     features: [
