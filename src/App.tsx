@@ -21,6 +21,7 @@ const ApiConfig = lazy(() => import('@/pages/ApiConfig').then(m => ({ default: m
 const CloudDatabaseConfig = lazy(() => import('@/pages/CloudDatabaseConfig').then(m => ({ default: m.CloudDatabaseConfig })));
 const VIPCenter = lazy(() => import('@/pages/VIPCenter').then(m => ({ default: m.VIPCenter })));
 const NovelPromotionCenter = lazy(() => import('@/pages/NovelPromotionCenter').then(m => ({ default: m.NovelPromotionCenter })));
+const AIConfigPage = lazy(() => import('@/pages/AIConfigPage').then(m => ({ default: m.AIConfigPage })));
 
 function PageLoader() {
   return (
@@ -298,6 +299,7 @@ function AppContent() {
             <Route path="/cloud-database" element={<CloudDatabaseConfig />} />
             <Route path="/vip" element={<VIPCenter />} />
             <Route path="/novel-promotion" element={<NovelPromotionCenter />} />
+            <Route path="/ai-config" element={<AIConfigPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
