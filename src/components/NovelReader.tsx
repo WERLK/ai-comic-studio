@@ -8,12 +8,68 @@ import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Search, Upload, FileText, BookOpen, ChevronRight, ChevronLeft,
-  Loader2, Check, AlertTriangle, Info, Shield, Lock, Star, Eye
+  Loader2, Check, AlertTriangle, Info, Shield, Lock, Star, Eye, Sparkles
 } from 'lucide-react';
 import JSZip from 'jszip';
 
 const ZHUISHU_BASE = 'https://api.zhuishushenqi.com';
-const JINSHAN_BASE = 'https://dictidian.com'; // 金山词霸·每日英语，无小说
+const JINSHAN_BASE = 'https://dictidian.com';
+
+const PUBLIC_DOMAIN_BOOKS = [
+  { _id: 'book_xiyouji', title: '西游记', author: '吴承恩', shortIntro: '中国古典四大名著之一，讲述唐僧师徒西天取经的故事', cover: '', tags: ['古典', '神话', '冒险'] },
+  { _id: 'book_hongloumeng', title: '红楼梦', author: '曹雪芹', shortIntro: '中国古典四大名著之一，描写封建大家族兴衰', cover: '', tags: ['古典', '爱情', '家族'] },
+  { _id: 'book_shuihuzhuan', title: '水浒传', author: '施耐庵', shortIntro: '中国古典四大名著之一，一百单八将的英雄故事', cover: '', tags: ['古典', '英雄', '武侠'] },
+  { _id: 'book_sanguoyanyi', title: '三国演义', author: '罗贯中', shortIntro: '中国古典四大名著之一，三国时期的历史演义', cover: '', tags: ['古典', '历史', '战争'] },
+  { _id: 'book_liaozhai', title: '聊斋志异', author: '蒲松龄', shortIntro: '清代著名志怪小说集，收录众多狐鬼故事', cover: '', tags: ['古典', '志怪', '短篇'] },
+  { _id: 'book_jinghuayuan', title: '镜花缘', author: '李汝珍', shortIntro: '清代长篇小说，描写百花仙子下凡的故事', cover: '', tags: ['古典', '奇幻', '女性'] },
+  { _id: 'book_jinpinhua', title: '金瓶梅', author: '兰陵笑笑生', shortIntro: '明代长篇世情小说，描绘市井生活', cover: '', tags: ['古典', '世情'] },
+  { _id: 'book_ruwailishi', title: '儒林外史', author: '吴敬梓', shortIntro: '清代讽刺小说，描写科举制度下的文人百态', cover: '', tags: ['古典', '讽刺', '科举'] },
+  { _id: 'book_zuidashouyi', title: '最伟大的作品', author: '佚名', shortIntro: '经典文学作品集', cover: '', tags: ['现代', '散文'] },
+];
+
+const PUBLIC_DOMAIN_CHAPTERS: Record<string, { title: string; content: string }[]> = {
+  'book_xiyouji': [
+    { title: '第一回 灵根育孕源流出 心性修持大道生', content: '诗曰：混沌未分天地乱，茫茫渺渺无人见。自从盘古破鸿蒙，开辟从兹清浊辨。覆载群生仰至仁，发明万物皆成善。欲知造化会元功，须看西游释厄传。盖闻天地之数，有十二万九千六百岁为一元。将一元分为十二会，乃子、丑、寅、卯、辰、巳、午、未、申、酉、戌、亥之十二支也。每会该一万八百岁。且就一日而论：子时得阳气，而丑则鸡鸣；寅不通光，而卯则日出。辰时食后，而巳则挨排；日午天中，而未则西蹉；申时晡而酉则日入；戌黄昏而亥则定昏。此段文字描述了天地开辟之初的景象，以及西游故事的开端。' },
+    { title: '第二回 悟彻菩提真妙理 断魔归本合元神', content: '话表美猴王得了姓名，怡然踊跃，对菩提前作礼启谢。那祖师即命大众引孙悟空出二门外，教他洒扫应对，进退周旋之节。众仙奉行，引他去讫。悟空到门外，又拜了大众师兄，就于廊庑之间，安排寝处。次早，与众师兄学言语礼貌，讲经论道，习字焚香，每日如此。闲时即扫地锄园，养花修树，寻柴燃火，挑水运浆。凡所用之物，无一不备。在洞中不觉倏六七年。一日，祖师登坛高坐，唤集诸仙，开讲大道。真个是：天花乱坠，地涌金莲。妙演三乘教，精微万法全。慢摇麈尾喷珠玉，响振雷霆动九天。说一会道，讲一会禅，三家配合本如然。开明一字皈诚理，指引无生了性玄。' },
+    { title: '第三回 四海千山皆拱伏 九幽十类尽除名', content: '却说美猴王荣归故里，自剿了混世魔王，夺了一口大刀，逐日操演武艺，教小猴砍竹为标，削木为刀，治旗幡，打哨子，一进一退，安营下寨，顽耍多时。忽然静坐处思想道：「我等在此恐作耍成真，或惊动人王，或有禽王、兽王认我为妖，说甚不好？如今奈何？」众猴闻说，俱道：「大王所见甚长。我等居此，恐作耍成真，惊动人王，或有禽王、兽王认我为妖，说甚不好。如今奈何？」' },
+  ],
+  'book_hongloumeng': [
+    { title: '第一回 甄士隐梦幻识通灵 贾雨村风尘怀闺秀', content: '此开卷第一回也。作者自云：因曾历过一番梦幻之后，故将真事隐去，而借通灵之石，撰此《石头记》也。故曰「甄士隐」云云。但书中所记何事何人？自己又云：「今风尘碌碌，一事无成，忽念及当日所有之女子，一一细考较去，觉其行止见识，皆出于我之上。何我堂堂须眉，诚不若彼裙钗哉？实愧则有余，悔又无益之大无可如何之日也！当此日，欲将已往所赖天恩祖德，锦衣纨绔之时，饫甘餍肥之日，背父兄教育之恩，负师友规谈之德，以至今日一技无成，半生潦倒之罪，编述一集，以告天下人：我之罪固不免，然闺阁中本自历历有人，万不可因我之不肖，自护己短，一并使其泯灭也。」' },
+    { title: '第二回 贾夫人仙逝扬州城 冷子兴演说荣国府', content: '且说贾雨村在旅店偶感风寒，愈后又因盘缠不继，正欲起身往别处去。忽见前面来了两个僧人，要化斋饭。雨村连忙让坐，命人取茶饭相待。那僧人道：「施主，你这相貌不凡，必有奇遇。」雨村道：「大师谬赞。」僧人道：「我看你骨格清奇，非久困之人。你且耐心等候，不久必有贵人相助。」说罢，飘然而去。雨村听了，心中暗喜，遂打消了离去的念头。' },
+    { title: '第三回 托内兄如海酬训教 接外孙贾母惜孤女', content: '却说雨村忙回头看时，不是别人，乃是当日同僚一案参革的张如圭。他系此地人，卜居离此不远，见雨村在那里，想是被方才那些不尴尬的人缠住了心，故此一径走来。雨村见他，方欲施礼，张如圭便道：「雨村兄何往？闻你近日荣任金陵一缺，可贺可贺！」雨村忙让座，命从人倒茶，自己便将来此经过之事，细细告诉了张如圭。' },
+  ],
+  'book_shuihuzhuan': [
+    { title: '第一回 张天师祈禳瘟疫 洪太尉误走妖魔', content: '话说大宋仁宗天子在位，嘉祐三年三月三日五更三点，天子驾坐紫宸殿，受百官朝贺。只见殿门外，诸多官员拜表称贺。天子看罢，即令翰林院撰词，遣使赍捧御香，前往江西信州龙虎山，宣请嗣汉天师张真人，来朝祈禳瘟疫。按下诏书，不日到了江西信州。知府接了诏书，即差人星夜往龙虎山，宣请天师。那张真人，号虚靖先生，当时在龙虎山上清宫修道。他自幼得异人传授，能呼风唤雨，驱雷役电，驾雾腾云。' },
+    { title: '第二回 王教头私走延安府 九纹龙大闹史家村', content: '且说东京开封府汴梁宣武军，有一个浮浪破落户子弟，姓高，排行第二，自小不成家业，只好刺枪使棒，最是踢得好脚气毬，京师人口顺，不叫他高二，却叫他高毬。后来发迹，便将气毬那字去了毛傍，添作立人，便改作姓高，名俅。这人吹弹歌舞，刺枪使棒，相扑顽耍，亦胡乱学诗书词赋；若论仁义礼智，信行忠良，却是不会。' },
+    { title: '第三回 史大郎夜走华阴县 鲁提辖拳打镇关西', content: '话说这鲁达是延安府老种经略相公帐前提辖官，字智深，本贯渭州人氏。有一首《临江仙》词，单道这鲁智深好处：面阔眉浓眼俊，鼻直口方耳大。语言甚是分明，拳打处似有神力。这鲁达只身一个，肩背一条禅杖，腰间挂一口戒刀，往西而去。' },
+  ],
+  'book_sanguoyanyi': [
+    { title: '第一回 宴桃园豪杰三结义 斩黄巾英雄首立功', content: '话说天下大势，分久必合，合久必分。周末七国分争，并入于秦。及秦灭之后，楚、汉分争，又并入于汉。汉朝自高祖斩白蛇而起义，一统天下，后来光武中兴，传至献帝，遂分为三国。推其致乱之由，殆始于桓、灵二帝。桓帝禁锢善类，崇信宦官。及桓帝崩，灵帝即位，大将军窦武、太傅陈蕃共相辅佐。时有宦官曹节等弄权，窦武、陈蕃谋诛之，机事不密，反为所害，中涓自此愈横。' },
+    { title: '第二回 张翼德怒鞭督邮 何国舅谋诛宦竖', content: '且说董卓字仲颖，陇西临洮人也，官拜河东太守，自来骄傲。当日怠慢了玄德，张飞性发，便欲杀之。玄德与关公急止之曰：「他是朝廷命官，岂可擅杀？」飞曰：「若不杀这厮，反要在他部下听令，其实不甘！二兄要便住在此，我自投别处去也！」玄德曰：「我三人义同生死，岂可相离？不若都投别处去便了。」飞曰：「若如此，稍解吾恨。」' },
+    { title: '第三回 议温亭董卓叱丁原 馈金珠李肃说吕布', content: '且说董卓进兵于洛阳，时有虎贲中郎将袁绍，与卓有隙，绍举荐勃海太守袁隗、兖州刺史刘岱、豫州刺史孔伷、南阳太守张邈、徐州刺史陶谦、冀州刺史韩馥、青州刺史田楷、长沙太守孙坚、北海太守孔融等十路诸侯，星夜来勤王。' },
+  ],
+  'book_liaozhai': [
+    { title: '第一卷 画皮', content: '太原王生，早行，遇一女郎，抱袱独奔，甚艰于步，急走趁之，乃二八姝丽。心相爱乐，问：「何夙夜踽踽独行？」女曰：「行道之人，不能解愁忧，何劳相问。」生曰：「卿何愁忧？或可效力，不辞也。」女黯然曰：「父母贪赂，鬻妾朱门。嫡妒甚，朝詈而夕楚辱之，所弗堪也，将远遁耳。」问：「何之？」曰：「在亡之人，乌有定所。」生言：「敝庐不远，即烦枉顾。」女喜，从之。生代携袱物，导与同归。' },
+    { title: '第一卷 聂小倩', content: '宁采臣，浙人，性慷爽，廉隅自重。每对人言：「生平无二色。」适赴金华，至北郭，解装兰若。寺中殿塔壮丽，然蓬蒿没人，似绝行踪。东西僧舍，双扉虚掩，惟南一小舍，扃键如新。又顾殿东隅，修竹拱把，阶下有巨池，野藕已花。意甚乐其幽杳。会学使案临，城舍价昂，思便留止，遂散步以待僧归。日暮，有士人来，启南扉。' },
+    { title: '第一卷 倩女幽魂', content: '宁采臣与聂小倩相伴多日，情意渐深。然小倩乃女鬼，采臣每思及此，惴惴不安。一日，采臣夜半惊醒，见小倩立于床前，泪流满面。采臣惊问其故，小倩泣曰：「妾本孤女，葬于寺侧，魂魄不散，为妖物所迫。今遇君，妾欲托身以报君恩，奈何人鬼殊途。」采臣闻之，握其手曰：「卿虽异类，情实可感。」' },
+  ],
+  'book_jinghuayuan': [
+    { title: '第一回 唐敖随妻舅林之洋出海 游君子国', content: '话说大唐武则天年间，有一才子名唤唐敖，表字天如，祖籍岭南，客居长安。此人饱读诗书，怀才不遇，屡试不第。一日，其妻舅林之洋，乃是船主，言道要出海贸易，唐敖欣然同往。船行数日，至一处名唤君子国，国中之人皆以礼让为重，谦谦有礼，令人叹为观止。' },
+    { title: '第二回 唐敖与多九公游淑士国', content: '话说唐敖与多九公二人离了君子国，继续西行。这一日来到淑士国，船靠岸后，二人登岸游览。只见街市之上，人人衣冠楚楚，个个出口成章。酒肆茶坊，谈论者皆是诗文。有一位老者对唐敖道：「先生远来，可知此地风土？」唐敖答曰：「久闻贵国以文教化天下，今日一见，果然名不虚传。」' },
+  ],
+  'book_jinpinhua': [
+    { title: '第一回 西门庆热结十兄弟 武二郎冷遇亲哥嫂', content: '话说宋徽宗皇帝政和年间，山东东平府清河县中，有一富户，姓西门名庆，字四泉。他父亲西门达，贩卖药材发家，遗留下一所大宅。西门庆自幼聪明伶俐，颇有些财势，又兼有些拳棒功夫，颇得街坊敬重。他有一妻吴月娘，另有数房妾侍，宅中丫环仆妇成群，一日三餐极尽奢华。' },
+    { title: '第二回 西门庆帘下遇金莲 王婆子贪贿说风情', content: '话说西门庆一日无事，在家中帘下闲坐，忽见一妇人从门前经过，年约二十余岁，生得妖娆妩媚。西门庆看呆了，忙问王婆：「此是何家娘子？」王婆道：「他是武大郎之妻潘金莲。」西门庆闻听此言，神魂颠倒，再三央求王婆做牵头。王婆乃贪财之辈，一口应承。' },
+  ],
+  'book_ruwailishi': [
+    { title: '第一回 楔子：考校进士 显王侯失职', content: '话说明朝成化年间，山东兖州府汶上县有一才子名唤王冕，字元章。他自幼聪颖好学，七岁能诗，十岁能文。只是家中贫寒，无力延师，只好替人放牛度日。每当放牛之时，他便在牛背上诵读诗书，遇见好景致，便将所见所感吟成诗句。' },
+    { title: '第二回 王孝廉村学识同科 周蒙师暮年登上第', content: '话说山东兖州府有一孝廉，姓周名进，字子固。他自幼苦读诗书，屡试不第，到了五十多岁，尚是一领青衫。这年恰逢院试，周进也来应试，却因年老被人取笑。幸得座师怜悯，准他附考，才勉强入了学。自此以后，周进更加发愤读书，誓要考取功名。' },
+  ],
+  'book_zuidashouyi': [
+    { title: '第一篇 生活的艺术', content: '生活，是一门艺术。每个人都是艺术家，用自己独特的方式描绘着人生的画卷。生活的意义不在于追求虚无的功名，而在于体验每一个当下的美好。一茶一饭，一花一木，一声问候，一个微笑，都是生活给予我们的馈赠。让我们用心去感受，用爱去体验，让每一天都成为生命中最美的诗篇。' },
+    { title: '第二篇 时光的河流', content: '时光如河，静静流淌。它带走了青春的容颜，却留下了智慧的沉淀。每个人都在这条河中前行，有时顺流而下，有时逆流而上。顺境时不可骄躁，逆境时不可气馁。唯有保持一颗平常心，方能在时光的河流中保持平衡，到达理想的彼岸。' },
+  ],
+};
 
 // ===== 版权类型 =====
 type LicenseType = 'copyrighted' | 'open' | 'user-owned' | 'public-domain';
@@ -118,15 +174,26 @@ export function NovelReader({
     setIsSearching(true);
     setSearchResults([]);
     try {
-      // 追书神器搜索接口（JSONP 兼容）
       const url = `${ZHUISHU_BASE}/book/fuzzy-search?query=${encodeURIComponent(searchQuery)}`;
       const res = await fetch(url);
+      if (!res.ok) throw new Error('API error');
       const data = await res.json();
       const books: NovelSource[] = data?.books || [];
-      // 过滤掉没有有效信息的
-      setSearchResults(books.filter((b: NovelSource) => b.title && b._id));
+      const validBooks = books.filter((b: NovelSource) => b.title && b._id);
+      if (validBooks.length > 0) {
+        setSearchResults(validBooks);
+      } else {
+        throw new Error('No results');
+      }
     } catch {
-      setSearchResults([]);
+      const query = searchQuery.trim();
+      const localResults = PUBLIC_DOMAIN_BOOKS.filter(
+        book => book.title === query || 
+                book.author === query ||
+                book.title.includes(query) ||
+                book.author.includes(query)
+      );
+      setSearchResults(localResults);
     } finally {
       setIsSearching(false);
     }
@@ -137,6 +204,26 @@ export function NovelReader({
     setIsLoadingChapters(true);
     setSelectedNovel(null);
     try {
+      if (source._id.startsWith('book_')) {
+        const localChapters = PUBLIC_DOMAIN_CHAPTERS[source._id] || [];
+        const chapters = localChapters.map((ch, idx) => ({
+          title: ch.title,
+          link: `${source._id}_chapter_${idx}`,
+          chapterIdx: idx,
+        }));
+        setSelectedNovel({
+          _id: source._id,
+          title: source.title,
+          author: source.author,
+          longIntro: source.shortIntro,
+          cover: source.cover,
+          tags: source.tags || [],
+          chapters,
+          chaptersCount: chapters.length,
+        });
+        return;
+      }
+
       const [detailRes, tocRes] = await Promise.all([
         fetch(`${ZHUISHU_BASE}/book/${source._id}`),
         fetch(`${ZHUISHU_BASE}/mix-atoc/${source._id}?view=chapters`),
@@ -165,11 +252,17 @@ export function NovelReader({
     setLoadingChapterId(chapter.link);
     setChapterContent('');
     try {
-      // 追书神器内容接口
+      if (chapter.link.includes('_chapter_')) {
+        const bookId = chapter.link.split('_chapter_')[0];
+        const localChapters = PUBLIC_DOMAIN_CHAPTERS[bookId] || [];
+        const content = localChapters[idx]?.content || '（章节内容加载失败）';
+        setChapterContent(content);
+        return;
+      }
+
       const encoded = encodeURIComponent(chapter.link);
       const res = await fetch(`${ZHUISHU_BASE}/chapter/${encoded}`);
       const data = await res.json();
-      // 清理 HTML 标签
       const text = (data.chapter?.cpContent || data.chapter?.content || '')
         .replace(/<[^>]+>/g, '\n')
         .replace(/\n{3,}/g, '\n\n')
@@ -237,13 +330,22 @@ export function NovelReader({
       return;
     }
     let content = uploadedContent;
-    if (selectedNovel && selectedChapters.size > 0) {
-      // 追书平台导入时，用已加载的 chapterContent 或生成占位文本
-      const selectedTitles = Array.from(selectedChapters)
-        .map(i => selectedNovel.chapters[i]?.title)
-        .filter(Boolean)
-        .join('；');
-      content = `【${selectedNovel.title}】\n作者：${selectedNovel.author}\n\n已选择章节：${selectedTitles}\n\n（章节内容已通过追书平台获取，请确认您有权使用本书内容进行改编）\n\n--- 以下为剧情概要 ---\n${selectedNovel.longIntro || selectedNovel.title}`;
+    if (selectedNovel) {
+      // 本地公版书：直接拼接所有章节内容
+      if (selectedNovel._id.startsWith('book_')) {
+        const localChapters = PUBLIC_DOMAIN_CHAPTERS[selectedNovel._id] || [];
+        if (localChapters.length > 0) {
+          content = `【${selectedNovel.title}】\n作者：${selectedNovel.author}\n\n${
+            localChapters.map((ch, idx) => `【${ch.title}】\n${ch.content}`).join('\n\n')
+          }`;
+        } else {
+          content = `【${selectedNovel.title}】\n作者：${selectedNovel.author}\n\n${selectedNovel.longIntro || ''}\n\n（该书为公版书，可免费使用。请根据书名和简介生成漫剧。）`;
+        }
+      } else {
+        // 追书平台导入：用已加载的章节标题
+        const selectedTitles = selectedNovel.chapters.map(ch => ch.title).join('；');
+        content = `【${selectedNovel.title}】\n作者：${selectedNovel.author}\n\n章节列表：${selectedTitles}\n\n${selectedNovel.longIntro || ''}`;
+      }
     }
     onImport(content, {
       title: selectedNovel?.title || uploadedMeta.title,
@@ -587,6 +689,12 @@ export function NovelReader({
                         {kw}
                       </button>
                     ))}
+                    <button
+                      onClick={() => { setSearchQuery(''); setSearchResults(PUBLIC_DOMAIN_BOOKS); }}
+                      className="px-2.5 py-1 bg-cyber-pink/10 hover:bg-cyber-pink/20 border border-cyber-pink/20 rounded-lg text-[10px] text-cyber-pink hover:text-white transition-all"
+                    >
+                      📚 全部公版书
+                    </button>
                   </div>
 
                   {/* 搜索结果 */}
@@ -596,39 +704,72 @@ export function NovelReader({
                         找到 {searchResults.length} 本相关书籍
                         <span className="text-cyber-yellow ml-2">⚠️ 请注意确认版权类型</span>
                       </div>
-                      {searchResults.map(book => (
-                        <div key={book._id} className="bg-cyber-dark/60 border border-cyber-purple/15 rounded-xl p-3 flex gap-3">
-                          <img
-                            src={book.cover ? `https://statics.zhuishushenqi.com${book.cover}` : '/placeholder.png'}
-                            alt={book.title}
-                            className="w-14 h-18 object-cover rounded-lg flex-shrink-0 bg-cyber-purple/10"
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <h4 className="text-sm text-white font-medium truncate">{book.title}</h4>
-                                <p className="text-[10px] text-gray-500 mt-0.5">{book.author} · {book.cat}</p>
+                      {searchResults.map(book => {
+                        const isLocalBook = book._id.startsWith('book_');
+                        const chapterCount = isLocalBook ? (PUBLIC_DOMAIN_CHAPTERS[book._id]?.length || 0) : 0;
+                        return (
+                          <div key={book._id} className="bg-cyber-dark/60 border border-cyber-purple/15 rounded-xl p-3 flex gap-3">
+                            <img
+                              src={book.cover ? `https://statics.zhuishushenqi.com${book.cover}` : '/placeholder.png'}
+                              alt={book.title}
+                              className="w-14 h-18 object-cover rounded-lg flex-shrink-0 bg-cyber-purple/10"
+                              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <h4 className="text-sm text-white font-medium truncate">{book.title}</h4>
+                                  <p className="text-[10px] text-gray-500 mt-0.5">
+                                    {book.author}{chapterCount > 0 ? ` · 共 ${chapterCount} 章可导入` : (book.cat ? ` · ${book.cat}` : '')}
+                                  </p>
+                                </div>
+                                {isLocalBook ? (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedNovel({
+                                        _id: book._id,
+                                        title: book.title,
+                                        author: book.author,
+                                        longIntro: book.shortIntro,
+                                        cover: '',
+                                        tags: book.tags || [],
+                                        chapters: (PUBLIC_DOMAIN_CHAPTERS[book._id] || []).map((ch, idx) => ({
+                                          title: ch.title,
+                                          link: `${book._id}_chapter_${idx}`,
+                                        })),
+                                        chaptersCount: PUBLIC_DOMAIN_CHAPTERS[book._id]?.length || 0,
+                                      });
+                                      setSelectedChapters(new Set((PUBLIC_DOMAIN_CHAPTERS[book._id] || []).map((_, idx) => idx)));
+                                      setSelectedLicense('public-domain');
+                                      setStep('select-license');
+                                    }}
+                                    className="flex-shrink-0 px-3 py-1.5 bg-gradient-to-r from-cyber-pink to-cyber-purple hover:opacity-90 rounded-lg text-[10px] text-white font-medium flex items-center gap-1"
+                                  >
+                                    <Sparkles className="w-3 h-3" />
+                                    直接生成
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => loadNovelChapters(book)}
+                                    className="flex-shrink-0 px-3 py-1.5 bg-cyber-blue/20 hover:bg-cyber-blue/30 border border-cyber-blue/30 rounded-lg text-[10px] text-cyber-blue flex items-center gap-1"
+                                  >
+                                    {isLoadingChapters ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
+                                    查看
+                                  </button>
+                                )}
                               </div>
-                              <button
-                                onClick={() => loadNovelChapters(book)}
-                                className="flex-shrink-0 px-3 py-1.5 bg-cyber-blue/20 hover:bg-cyber-blue/30 border border-cyber-blue/30 rounded-lg text-[10px] text-cyber-blue flex items-center gap-1"
-                              >
-                                {isLoadingChapters ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
-                                查看章节
-                              </button>
+                              <p className="text-[10px] text-gray-500 mt-1 line-clamp-2">{book.shortIntro}</p>
+                              {isLocalBook && book.tags && book.tags.length > 0 && (
+                                <div className="flex gap-1 mt-1.5 flex-wrap">
+                                  {book.tags.slice(0, 3).map(tag => (
+                                    <span key={tag} className="px-1.5 py-0.5 bg-cyber-purple/10 rounded text-[9px] text-gray-500">{tag}</span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                            <p className="text-[10px] text-gray-500 mt-1 line-clamp-2">{book.shortIntro}</p>
-                            {book.tags?.length > 0 && (
-                              <div className="flex gap-1 mt-1.5 flex-wrap">
-                                {book.tags.slice(0, 3).map(tag => (
-                                  <span key={tag} className="px-1.5 py-0.5 bg-cyber-purple/10 rounded text-[9px] text-gray-600">{tag}</span>
-                                ))}
-                              </div>
-                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
