@@ -9,8 +9,8 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: all
-      pages: all
+      contents: read
+      pages: write
       id-token: write
     steps:
       - name: Checkout
