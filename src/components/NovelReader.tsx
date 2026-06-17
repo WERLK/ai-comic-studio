@@ -410,32 +410,59 @@ export function NovelReader({
       const categoryLabel = CATEGORY_NAMES[aiGenCategory] || '男频长篇';
       const sceneCount = parseInt(aiConfig.outputSceneCount) || 6;
 
-      const prompt = `请根据以下要求创作一部小说/分镜脚本：
+      const prompt = `请根据以下要求创作分镜脚本，严格按照以下格式输出：
 
 【类型】${categoryLabel}
-【核心要求】${aiGenRequirements}
-【语言】${aiConfig.language}
-【发表平台】${aiConfig.platform || '未指定'}
-【视角】${aiConfig.perspective}
-【文风模式】${aiConfig.writingStyle}
-【年代】${aiConfig.era || '未指定'}
-【题材】${aiConfig.genre || '未指定'}
-【金手指】${aiConfig.hasGoldFinger}
-【金手指类型】${aiConfig.goldFingerType || '未指定'}
-【标题结构】${aiConfig.titleStructure || '未指定'}
-【风格】${aiConfig.style || '未指定'}
-【视频风格】${aiConfig.videoStyle}
-【分镜数】约 ${sceneCount} 个分镜
-【章节数】约 ${aiConfig.chapterCount} 章
+${aiGenRequirements}
 
-要求：
-1. 输出一部结构完整的故事大纲 + 分镜脚本（按视频风格适配）
-2. 每个分镜包含：场景描述、人物对白、画面镜头
-3. 适配「${aiConfig.videoStyle}」的视觉表现风格
-4. 使用中文写作
-5. 包含人物设定、故事背景、情节走向、关键转折点
+请按以下格式生成 ${sceneCount} 个分镜（${aiConfig.videoStyle}）：
 
-请开始创作：`;
+【视觉风格】${aiConfig.videoStyle === '漫剧风格' ? '彩色漫画分镜，黑白/彩色混合，漫画气泡对话' : aiConfig.videoStyle === '真人短剧' ? '实景拍摄，自然光效，电影级调色' : aiConfig.videoStyle === '动漫风格' ? '2D 日式动漫 / 3D CG 动漫，动画级运镜' : aiConfig.videoStyle === '国风潮' ? '水墨/工笔国风，传统服饰，古典建筑' : aiConfig.videoStyle === '电商广告' ? '产品特写，干净明亮背景，快节奏剪辑' : '标准视频分镜风格'}
+
+【人物设定】
+主角：基于核心要求创作，描述外貌、性格、能力
+配角：根据剧情需要设定，描述与主角的关系
+
+【故事大纲】
+第一阶段（开篇）：主角登场，介绍背景
+第二阶段（发展）：矛盾冲突升级
+第三阶段（高潮）：关键转折，大冲突
+第四阶段（结局）：解决/升华/开放式结局
+
+${aiConfig.videoStyle === '漫剧风格' ? `【分镜 1】
+▸ 场景：（具体描述这一镜发生的地点、环境、时间）
+▸ 画面：（特写/中景/全景/远景等镜头语言）
+▸ 对白：（角色对话内容）
+▸ 特效：（速度线/集中线/音效框/拟声词等漫画特效）` : ''}
+
+${aiConfig.videoStyle === '真人短剧' ? `【分镜 1】
+▸ 场景：（具体描述这一镜发生的地点、环境、时间）
+▸ 镜头：（近景/中景/远景/特写/跟拍等电影镜头语言）
+▸ 对白：（角色对话内容）
+▸ 氛围：（紧张/温馨/悬疑/热血等情绪基调）` : ''}
+
+${aiConfig.videoStyle === '动漫风格' ? `【分镜 1】
+▸ 场景：（具体描述这一镜发生的地点、环境、时间）
+▸ 运镜：（推/拉/摇/移/跟/升降等动画镜头语言）
+▸ 对白：（角色对话内容）
+▸ 特效：（粒子/光影/慢动作/能量波等动画特效）` : ''}
+
+${aiConfig.videoStyle === '国风潮' ? `【分镜 1】
+▸ 场景：（具体描述这一镜发生的地点、环境、时间）
+▸ 元素：（山水/庭院/宫殿/江湖/楼台等中国传统元素）
+▸ 对白：（角色对话内容，可用古风语气）
+▸ 韵味：（诗意留白/气势磅礴/意境悠远等审美追求）` : ''}
+
+${aiConfig.videoStyle === '电商广告' ? `【分镜 1】
+▸ 卖点：（本镜头要传达的产品核心卖点）
+▸ 镜头：（产品特写/使用场景/效果对比/B-roll素材等）
+▸ 文案：（本镜头的广告语/Slogan/行动号召）
+▸ BGM：（欢快/动感/温馨/悬疑等音乐风格建议）` : ''}
+
+【分镜 2】
+（按上述格式继续...）
+
+请按格式生成完整的 ${sceneCount} 个分镜内容，确保每个分镜都有具体的场景描述和画面/镜头语言。`;
 
       let generatedContent = '';
       try {
@@ -443,90 +470,78 @@ export function NovelReader({
         const result = await aiService.analyzeScript(prompt, []);
         generatedContent = (result as any)?.summary || (result as any)?.analysis || (result as any)?.content || '';
       } catch {
-        // 针对不同视频风格生成不同结构的模板内容
+        // 针对不同视频风格生成对应格式的模板内容
         const videoStyle = aiConfig.videoStyle || '漫剧风格';
-        let sceneIntro = '';
-        let scenesOutput: string[] = [];
+        let sceneFields = '';
 
         if (videoStyle === '漫剧风格') {
-          sceneIntro = '【视觉风格】彩色漫画分镜，黑白/彩色混合，漫画气泡对话';
-          for (let i = 1; i <= sceneCount; i++) {
-            scenesOutput.push(`【分镜 ${i}】
+          sceneFields = `【分镜 1】
 ▸ 场景：（请根据剧情填充）
 ▸ 画面：特写/中景/全景
 ▸ 对白：「...」
-▸ 特效：速度线/集中线/音效框`);
-          }
+▸ 特效：速度线/集中线/音效框`;
         } else if (videoStyle === '真人短剧') {
-          sceneIntro = '【视觉风格】实景拍摄，自然光效，电影级调色';
-          for (let i = 1; i <= sceneCount; i++) {
-            scenesOutput.push(`【分镜 ${i}】
+          sceneFields = `【分镜 1】
 ▸ 场景：（请根据剧情填充）
 ▸ 镜头：近景/中景/远景/特写
 ▸ 对白：「...」
-▸ 氛围：紧张/温馨/悬疑/热血`);
-          }
+▸ 氛围：紧张/温馨/悬疑/热血`;
         } else if (videoStyle === '动漫风格') {
-          sceneIntro = '【视觉风格】2D 日式动漫 / 3D CG 动漫，动画级运镜';
-          for (let i = 1; i <= sceneCount; i++) {
-            scenesOutput.push(`【分镜 ${i}】
+          sceneFields = `【分镜 1】
 ▸ 场景：（请根据剧情填充）
 ▸ 运镜：推/拉/摇/移/跟
 ▸ 对白：「...」
-▸ 特效：粒子/光影/慢动作`);
-          }
+▸ 特效：粒子/光影/慢动作`;
         } else if (videoStyle === '国风潮') {
-          sceneIntro = '【视觉风格】水墨/工笔国风，传统服饰，古典建筑';
-          for (let i = 1; i <= sceneCount; i++) {
-            scenesOutput.push(`【分镜 ${i}】
+          sceneFields = `【分镜 1】
 ▸ 场景：（请根据剧情填充）
 ▸ 元素：山水/庭院/宫殿/江湖
 ▸ 对白：「...」
-▸ 韵味：诗意留白/气势磅礴`);
-          }
+▸ 韵味：诗意留白/气势磅礴`;
         } else if (videoStyle === '电商广告') {
-          sceneIntro = '【视觉风格】产品特写，干净明亮背景，快节奏剪辑';
-          for (let i = 1; i <= sceneCount; i++) {
-            scenesOutput.push(`【分镜 ${i}】
+          sceneFields = `【分镜 1】
 ▸ 卖点：（请填充产品卖点）
 ▸ 镜头：产品特写/使用场景/效果对比
 ▸ 文案：Slogan/广告语
-▸ BGM：欢快/动感/温馨`);
-          }
+▸ BGM：欢快/动感/温馨`;
         } else {
-          sceneIntro = '【视觉风格】标准视频分镜';
-          for (let i = 1; i <= sceneCount; i++) {
-            scenesOutput.push(`【分镜 ${i}】
+          sceneFields = `【分镜 1】
 ▸ 场景：（请根据剧情填充）
 ▸ 画面：（请描述画面）
-▸ 对白：「...」`);
-          }
+▸ 对白：「...」`;
         }
 
-        generatedContent = `【AI 创作 - ${categoryLabel} · ${videoStyle}】
+        // 生成所有分镜
+        let allScenes = sceneFields;
+        for (let i = 2; i <= sceneCount; i++) {
+          allScenes += '\n\n' + sceneFields.replace('【分镜 1】', `【分镜 ${i}】`);
+        }
 
-【核心要求】
+        const visualStyleDesc = videoStyle === '漫剧风格' ? '彩色漫画分镜，黑白/彩色混合，漫画气泡对话'
+          : videoStyle === '真人短剧' ? '实景拍摄，自然光效，电影级调色'
+          : videoStyle === '动漫风格' ? '2D 日式动漫 / 3D CG 动漫，动画级运镜'
+          : videoStyle === '国风潮' ? '水墨/工笔国风，传统服饰，古典建筑'
+          : videoStyle === '电商广告' ? '产品特写，干净明亮背景，快节奏剪辑'
+          : '标准视频分镜风格';
+
+        generatedContent = `【类型】${categoryLabel}
 ${aiGenRequirements}
 
+【视觉风格】${visualStyleDesc}
+
 【人物设定】
-主角：${aiGenRequirements.substring(0, 20)}...
-配角若干
+主角：基于核心要求创作，描述外貌、性格、能力
+配角：根据剧情需要设定，描述与主角的关系
 
 【故事大纲】
-第一阶段：开篇 - 主角登场
-第二阶段：发展 - 矛盾升级
-第三阶段：高潮 - 关键转折
-第四阶段：结局 - 反转/升华/开放式
+第一阶段（开篇）：主角登场，介绍背景
+第二阶段（发展）：矛盾冲突升级
+第三阶段（高潮）：关键转折，大冲突
+第四阶段（结局）：解决/升华/开放式结局
 
-${sceneIntro}
+${allScenes}
 
-【分镜脚本】
-${scenesOutput.join('\n\n')}
-
-（请在 AI API 配置页面配置 API Key 后获得完整 AI 生成内容）
-
-【补充正文】
-夜幕降临，华灯初上。${aiGenRequirements.substring(0, 100)}...`;
+（请在 AI API 配置页面配置 API Key 后获得完整 AI 生成内容）`;
       }
 
       const title = `AI创作 - ${aiGenRequirements.substring(0, 30).replace(/\n/g, ' ')}`;
