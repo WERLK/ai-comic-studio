@@ -79,7 +79,7 @@ function FeatureCard({
   );
 }
 
-export default function ToolsPage() {
+export function ToolsPage() {
   const navigate = useNavigate();
   const { isAuthenticated, user, points, apiAvailable, isOnline, logout } = useAuthStore();
 

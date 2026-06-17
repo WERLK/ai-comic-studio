@@ -72,7 +72,7 @@ const PUBLIC_DOMAIN_CHAPTERS: Record<string, { title: string; content: string }[
 };
 
 // ===== 版权类型 =====
-type LicenseType = 'copyrighted' | 'open' | 'user-owned' | 'public-domain';
+type LicenseType = 'copyrighted' | 'open' | 'user-owned' | 'public-domain' | 'ai-generated';
 
 interface LicenseInfo {
   type: LicenseType;
@@ -293,31 +293,111 @@ export function NovelReader({
   };
 
   // ===== AI 生成小说 =====
-  const [aiGenType, setAiGenType] = useState<string>('');
-  const [aiGenRequirements, setAiGenRequirements] = useState<string>('');
-  const [aiGenAdvanced, setAiGenAdvanced] = useState<{
-    perspective?: string; style?: string; theme?: string; era?: string;
-    genre?: string; hasGoldFinger?: boolean; hasBackground?: boolean;
-    chapterCount?: number; extraRequirements?: string;
-  }>({});
+  const CATEGORY_NAMES: Record<string, string> = {
+    male_long: '男频长篇',
+    female_long: '女频长篇',
+    short: '短篇',
+    children_short: '儿童短篇',
+  };
+
+  const DEFAULT_AI_CONFIG = {
+    language: '中文',
+    platform: '',
+    perspective: '第三人称',
+    writingMode: '预设文风',
+    writingStyle: '强爽点',
+    era: '',
+    genre: '',
+    hasGoldFinger: '是',
+    goldFingerType: '',
+    titleStructure: '',
+    style: '',
+    background: '无',
+    chapterCount: '400',
+    extraRequirements: '无',
+    videoStyle: '漫剧风格',
+    outputSceneCount: '6',
+  };
+
+  const [aiGenCategory, setAiGenCategory] = useState<string>('male_long');
+  const [aiConfig, setAiConfig] = useState<typeof DEFAULT_AI_CONFIG>(DEFAULT_AI_CONFIG);
+
+  // 纯函数：根据 category + config 生成核心要求文本
+  const buildRequirementsText = (category: string, config: typeof DEFAULT_AI_CONFIG): string => {
+    const lines: string[] = [];
+    lines.push(`${CATEGORY_NAMES[category] || '男频长篇'};`);
+    if (config.platform) lines.push(`发表平台：${config.platform};`);
+    if (config.perspective) lines.push(`视角：${config.perspective};`);
+    if (config.writingStyle) lines.push(`文风模式：${config.writingStyle};`);
+    if (config.era) lines.push(`年代：${config.era};`);
+    if (config.genre) lines.push(`题材：${config.genre};`);
+    if (config.hasGoldFinger) lines.push(`是否出现金手指：${config.hasGoldFinger};`);
+    if (config.goldFingerType) lines.push(`金手指类型：${config.goldFingerType};`);
+    if (config.background) lines.push(`背景：${config.background};`);
+    if (config.chapterCount) lines.push(`章节数：${config.chapterCount};`);
+    if (config.videoStyle) lines.push(`视频风格：${config.videoStyle};`);
+    if (config.outputSceneCount) lines.push(`分镜数：${config.outputSceneCount};`);
+    if (config.extraRequirements && config.extraRequirements !== '无') {
+      lines.push(`其他要求：${config.extraRequirements};`);
+    }
+    return lines.join('\n');
+  };
+
+  // 初始核心要求文本 = 默认 category + 默认 config
+  const [aiGenRequirements, setAiGenRequirements] = useState<string>(
+    buildRequirementsText('male_long', DEFAULT_AI_CONFIG)
+  );
   const [isAiGenerating, setIsAiGenerating] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [aiGenSuccess, setAiGenSuccess] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(true);
   const [aiGenResult, setAiGenResult] = useState<{ content: string; title: string; author: string } | null>(null);
 
+  // 更新单个配置项：同步更新 config + 同步计算 requirements 文本
+  const updateAiConfig = (key: keyof typeof aiConfig, value: string) => {
+    const nextConfig = { ...aiConfig, [key]: value };
+    setAiConfig(nextConfig);
+    setAiGenRequirements(buildRequirementsText(aiGenCategory, nextConfig));
+  };
+
+  // 切换类别：同步更新 category + 同步计算 requirements 文本
+  const switchAiGenCategory = (cat: string) => {
+    setAiGenCategory(cat);
+    setAiGenRequirements(buildRequirementsText(cat, aiConfig));
+  };
+
+  // 随机示例：一次性更新 category + config + requirements
   const fillRandomExample = () => {
+    const videoStyles = ['漫剧风格', '真人短剧', '动漫风格', '国风潮', '电商广告'];
     const examples = [
-      `女频长篇;\n发表平台：起点中文;\n篇幅：长篇 (30万字+);\n视角：第三人称;\n文风模式：强爽点;\n年代背景：现代;\n题材分类：都市/异能;\n金手指：否;\n主角背景：否（普通人/草根崛起）;\n章节数：500;\n其他要求：女主独立自主，大女主文，复仇情节`,
-      `男频长篇;\n发表平台：番茄小说;\n篇幅：长篇 (30万字+);\n视角：第三人称;\n文风模式：升级流;\n年代背景：异世/架空;\n题材分类：玄幻/修真;\n金手指：是;\n主角背景：否（普通人/草根崛起）;\n章节数：800;\n其他要求：热血爽文，节奏快`,
-      `纯爱;\n发表平台：晋江文学;\n篇幅：中篇 (10-30万字);\n视角：第三人称;\n文风模式：甜文;\n年代背景：现代;\n题材分类：言情/恋爱;\n金手指：否;\n主角背景：是（豪门/世家/权贵）;\n章节数：200;\n其他要求：双洁，HE`,
-      `衍生;\n发表平台：晋江文学;\n篇幅：短篇 (10万字以下);\n视角：第二人称;\n文风模式：轻松日常;\n年代背景：现代;\n题材分类：轻小说/同人;\n金手指：是;\n主角背景：否（普通人/草根崛起）;\n章节数：50;\n其他要求：综漫，系统`,
-      `儿童短篇;\n发表平台：七猫小说;\n篇幅：微短篇 (3万字以下);\n视角：第三人称;\n文风模式：轻松日常;\n年代背景：现代;\n题材分类：言情/恋爱;\n金手指：否;\n主角背景：否（普通人/草根崛起）;\n章节数：20;\n其他要求：寓教于乐，适合8-12岁`,
+      { category: 'male_long' as const, platform: '飞卢', perspective: '第三人称', writingStyle: '知乎短文', era: '未来', genre: '仙侠', gf: '是', bg: '无', chapters: '400', extra: '无' },
+      { category: 'female_long' as const, platform: '起点中文', perspective: '第三人称', writingStyle: '强爽点', era: '现代', genre: '都市/异能', gf: '否', bg: '无', chapters: '500', extra: '女主独立自主' },
+      { category: 'short' as const, platform: '番茄小说', perspective: '第一人称', writingStyle: '强悬疑', era: '现代', genre: '都市', gf: '否', bg: '无', chapters: '100', extra: '快节奏' },
+      { category: 'male_long' as const, platform: '番茄', perspective: '第三人称', writingStyle: '经典作品', era: '玄幻', genre: '玄幻', gf: '是', bg: '异世大陆', chapters: '800', extra: '热血高燃' },
+      { category: 'children_short' as const, platform: '七猫', perspective: '第三人称', writingStyle: '儿童故事', era: '现代', genre: '校园', gf: '否', bg: '温馨', chapters: '30', extra: '寓教于乐，适合 8-12 岁' },
     ];
-    setAiGenRequirements(examples[Math.floor(Math.random() * examples.length)]);
+    const ex = examples[Math.floor(Math.random() * examples.length)];
+    const randomVideoStyle = videoStyles[Math.floor(Math.random() * videoStyles.length)];
+    const randomScenes = String([4, 6, 8, 12][Math.floor(Math.random() * 4)]);
+    const nextConfig = {
+      ...DEFAULT_AI_CONFIG,
+      platform: ex.platform,
+      perspective: ex.perspective,
+      writingStyle: ex.writingStyle,
+      era: ex.era,
+      genre: ex.genre,
+      hasGoldFinger: ex.gf,
+      background: ex.bg,
+      chapterCount: ex.chapters,
+      extraRequirements: ex.extra,
+      videoStyle: randomVideoStyle,
+      outputSceneCount: randomScenes,
+    };
+    setAiGenCategory(ex.category);
+    setAiConfig(nextConfig);
+    setAiGenRequirements(buildRequirementsText(ex.category, nextConfig));
   };
 
   const handleAiGenerate = async () => {
-    if (!aiGenType) {
+    if (!aiGenCategory) {
       alert('请选择小说类型');
       return;
     }
@@ -327,24 +407,33 @@ export function NovelReader({
     }
     setIsAiGenerating(true);
     try {
-      const prompt = `请根据以下要求创作一部小说：
+      const categoryLabel = CATEGORY_NAMES[aiGenCategory] || '男频长篇';
+      const sceneCount = parseInt(aiConfig.outputSceneCount) || 6;
 
-【类型】${aiGenType}
+      const prompt = `请根据以下要求创作一部小说/分镜脚本：
+
+【类型】${categoryLabel}
 【核心要求】${aiGenRequirements}
-${aiGenAdvanced.perspective ? `【视角】${aiGenAdvanced.perspective}` : ''}
-${aiGenAdvanced.style ? `【文风】${aiGenAdvanced.style}` : ''}
-${aiGenAdvanced.era ? `【年代背景】${aiGenAdvanced.era}` : ''}
-${aiGenAdvanced.genre ? `【题材】${aiGenAdvanced.genre}` : ''}
-${aiGenAdvanced.chapterCount ? `【章节数】约 ${aiGenAdvanced.chapterCount} 章` : ''}
-${aiGenAdvanced.theme ? `【主题】${aiGenAdvanced.theme}` : ''}
-${aiGenAdvanced.extraRequirements ? `【其他要求】${aiGenAdvanced.extraRequirements}` : ''}
+【语言】${aiConfig.language}
+【发表平台】${aiConfig.platform || '未指定'}
+【视角】${aiConfig.perspective}
+【文风模式】${aiConfig.writingStyle}
+【年代】${aiConfig.era || '未指定'}
+【题材】${aiConfig.genre || '未指定'}
+【金手指】${aiConfig.hasGoldFinger}
+【金手指类型】${aiConfig.goldFingerType || '未指定'}
+【标题结构】${aiConfig.titleStructure || '未指定'}
+【风格】${aiConfig.style || '未指定'}
+【视频风格】${aiConfig.videoStyle}
+【分镜数】约 ${sceneCount} 个分镜
+【章节数】约 ${aiConfig.chapterCount} 章
 
 要求：
-1. 输出一部结构完整的小说大纲 + 前 3 章完整内容
-2. 每章 2000-3000 字
-3. 使用中文写作
-4. 标题格式：第一章 标题 + 正文内容
-5. 包含人物设定、故事背景、情节走向
+1. 输出一部结构完整的故事大纲 + 分镜脚本（按视频风格适配）
+2. 每个分镜包含：场景描述、人物对白、画面镜头
+3. 适配「${aiConfig.videoStyle}」的视觉表现风格
+4. 使用中文写作
+5. 包含人物设定、故事背景、情节走向、关键转折点
 
 请开始创作：`;
 
@@ -354,42 +443,97 @@ ${aiGenAdvanced.extraRequirements ? `【其他要求】${aiGenAdvanced.extraRequ
         const result = await aiService.analyzeScript(prompt, []);
         generatedContent = (result as any)?.summary || (result as any)?.analysis || (result as any)?.content || '';
       } catch {
-        // AI 不可用时使用模板
-        generatedContent = `【AI 创作小说 - ${aiGenType}】
+        // 针对不同视频风格生成不同结构的模板内容
+        const videoStyle = aiConfig.videoStyle || '漫剧风格';
+        let sceneIntro = '';
+        let scenesOutput: string[] = [];
+
+        if (videoStyle === '漫剧风格') {
+          sceneIntro = '【视觉风格】彩色漫画分镜，黑白/彩色混合，漫画气泡对话';
+          for (let i = 1; i <= sceneCount; i++) {
+            scenesOutput.push(`【分镜 ${i}】
+▸ 场景：（请根据剧情填充）
+▸ 画面：特写/中景/全景
+▸ 对白：「...」
+▸ 特效：速度线/集中线/音效框`);
+          }
+        } else if (videoStyle === '真人短剧') {
+          sceneIntro = '【视觉风格】实景拍摄，自然光效，电影级调色';
+          for (let i = 1; i <= sceneCount; i++) {
+            scenesOutput.push(`【分镜 ${i}】
+▸ 场景：（请根据剧情填充）
+▸ 镜头：近景/中景/远景/特写
+▸ 对白：「...」
+▸ 氛围：紧张/温馨/悬疑/热血`);
+          }
+        } else if (videoStyle === '动漫风格') {
+          sceneIntro = '【视觉风格】2D 日式动漫 / 3D CG 动漫，动画级运镜';
+          for (let i = 1; i <= sceneCount; i++) {
+            scenesOutput.push(`【分镜 ${i}】
+▸ 场景：（请根据剧情填充）
+▸ 运镜：推/拉/摇/移/跟
+▸ 对白：「...」
+▸ 特效：粒子/光影/慢动作`);
+          }
+        } else if (videoStyle === '国风潮') {
+          sceneIntro = '【视觉风格】水墨/工笔国风，传统服饰，古典建筑';
+          for (let i = 1; i <= sceneCount; i++) {
+            scenesOutput.push(`【分镜 ${i}】
+▸ 场景：（请根据剧情填充）
+▸ 元素：山水/庭院/宫殿/江湖
+▸ 对白：「...」
+▸ 韵味：诗意留白/气势磅礴`);
+          }
+        } else if (videoStyle === '电商广告') {
+          sceneIntro = '【视觉风格】产品特写，干净明亮背景，快节奏剪辑';
+          for (let i = 1; i <= sceneCount; i++) {
+            scenesOutput.push(`【分镜 ${i}】
+▸ 卖点：（请填充产品卖点）
+▸ 镜头：产品特写/使用场景/效果对比
+▸ 文案：Slogan/广告语
+▸ BGM：欢快/动感/温馨`);
+          }
+        } else {
+          sceneIntro = '【视觉风格】标准视频分镜';
+          for (let i = 1; i <= sceneCount; i++) {
+            scenesOutput.push(`【分镜 ${i}】
+▸ 场景：（请根据剧情填充）
+▸ 画面：（请描述画面）
+▸ 对白：「...」`);
+          }
+        }
+
+        generatedContent = `【AI 创作 - ${categoryLabel} · ${videoStyle}】
 
 【核心要求】
 ${aiGenRequirements}
 
 【人物设定】
 主角：${aiGenRequirements.substring(0, 20)}...
-配角、配角若干
+配角若干
 
 【故事大纲】
 第一阶段：开篇 - 主角登场
 第二阶段：发展 - 矛盾升级
 第三阶段：高潮 - 关键转折
-第四阶段：结局 - 大团圆/开放式结局
+第四阶段：结局 - 反转/升华/开放式
 
-【第一章 初遇】
+${sceneIntro}
+
+【分镜脚本】
+${scenesOutput.join('\n\n')}
+
 （请在 AI API 配置页面配置 API Key 后获得完整 AI 生成内容）
 
-夜幕降临，华灯初上。${aiGenRequirements.substring(0, 100)}
-
-【第二章 风波】
-（待生成）
-
-【第三章 转机】
-（待生成）`;
+【补充正文】
+夜幕降临，华灯初上。${aiGenRequirements.substring(0, 100)}...`;
       }
 
       const title = `AI创作 - ${aiGenRequirements.substring(0, 30).replace(/\n/g, ' ')}`;
       setAiGenResult({ content: generatedContent, title, author: 'AI 创作' });
-      // 设置上传内容和元数据，供版权声明步骤使用
       setUploadedContent(generatedContent);
       setUploadedMeta({ title, author: 'AI 创作' });
-      // 自动选择 AI 生成版权
       setSelectedLicense('ai-generated');
-      // 自动跳转到版权声明步骤
       setStep('select-license');
     } catch (e) {
       alert('AI 生成失败：' + (e as Error).message);
@@ -754,116 +898,47 @@ ${aiGenRequirements}
               {/* ===== AI 生成小说 ===== */}
               {step === 'ai-gen' && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-white font-medium mb-1">AI 智能生成小说</h3>
-                      <p className="text-xs text-gray-500">选择类型、输入核心要求，让 AI 创作全新小说</p>
-                    </div>
-                    <button onClick={() => setStep('mode')} className="text-[10px] text-gray-500 hover:text-white">
-                      更多方式
-                    </button>
+                  {/* 顶部类型选择 - 4个大卡片 */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { id: 'male_long', name: '男频长篇', icon: '♂' },
+                      { id: 'female_long', name: '女频长篇', icon: '♀' },
+                      { id: 'short', name: '短篇', icon: '⚡' },
+                      { id: 'children_short', name: '儿童短篇', icon: '🧒' },
+                    ].map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => switchAiGenCategory(t.id)}
+                        className={`p-3 rounded-2xl text-center transition-all ${
+                          aiGenCategory === t.id
+                            ? 'bg-gradient-to-br from-cyan-500 to-cyber-purple text-white shadow-lg shadow-cyber-purple/20'
+                            : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                        }`}
+                      >
+                        <div className={`text-2xl mb-1 ${aiGenCategory === t.id ? 'text-white' : ''}`}>{t.icon}</div>
+                        <div className={`text-[11px] font-medium ${aiGenCategory === t.id ? 'text-white' : ''}`}>{t.name}</div>
+                      </button>
+                    ))}
                   </div>
 
-                  {/* 类型选择 */}
-                  <div>
-                    <h4 className="text-sm text-white mb-2">选择小说类型</h4>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[
-                        { id: 'male_long', name: '男频长篇', icon: '♂', color: 'from-blue-500 to-blue-600' },
-                        { id: 'male_short', name: '男频短篇', icon: '♂', color: 'from-blue-400 to-cyan-500' },
-                        { id: 'female_long', name: '女频长篇', icon: '♀', color: 'from-pink-500 to-rose-500' },
-                        { id: 'female_short', name: '女频短篇', icon: '♀', color: 'from-pink-400 to-fuchsia-500' },
-                        { id: 'pure_love', name: '纯爱', icon: '💕', color: 'from-purple-500 to-violet-500' },
-                        { id: 'derivative', name: '衍生', icon: '🔄', color: 'from-indigo-500 to-blue-500' },
-                        { id: 'children', name: '儿童短篇', icon: '🧒', color: 'from-green-500 to-emerald-500' },
-                        { id: 'short', name: '其他短篇', icon: '⚡', color: 'from-orange-500 to-amber-500' },
-                      ].map(t => (
-                        <button
-                          key={t.id}
-                          onClick={() => setAiGenType(t.name)}
-                          className={`p-3 rounded-xl border text-center transition-all ${
-                            aiGenType === t.name
-                              ? 'border-cyber-yellow/50 bg-cyber-yellow/10'
-                              : 'border-cyber-purple/20 bg-cyber-dark/50 hover:border-cyber-yellow/30'
-                          }`}
-                        >
-                          <div className={`text-2xl mb-1 ${aiGenType === t.name ? 'text-cyber-yellow' : 'text-gray-500'}`}>{t.icon}</div>
-                          <div className={`text-[10px] ${aiGenType === t.name ? 'text-white' : 'text-gray-500'}`}>{t.name}</div>
-                        </button>
-                      ))}
-                    </div>
+                  {/* 向导创作标题 */}
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="text-lg font-bold text-white">向导创作</div>
+                    <div className="text-[10px] text-gray-500">填设定，一键生成百万字级长篇 · 细纲正文全自动</div>
                   </div>
 
-                  {/* 发表平台 */}
-                  <div>
-                    <h4 className="text-sm text-white mb-2">目标发表平台</h4>
-                    <div className="flex gap-2 flex-wrap">
-                      {[
-                        { id: 'qidian', name: '起点中文' },
-                        { id: 'tomato', name: '番茄小说' },
-                        { id: 'qimao', name: '七猫小说' },
-                        { id: 'feilu', name: '飞卢小说' },
-                        { id: 'jinjiang', name: '晋江文学' },
-                        { id: 'qqread', name: 'QQ阅读' },
-                        { id: 'zhangyue', name: '掌阅' },
-                        { id: 'migu', name: '咪咕阅读' },
-                        { id: 'shuqi', name: '书旗小说' },
-                        { id: 'chuangshi', name: '创世中文' },
-                        { id: 'zongheng', name: '纵横中文' },
-                        { id: 'ihu', name: '爱奇艺文学' },
-                      ].map(p => (
-                        <button
-                          key={p.id}
-                          onClick={() => {
-                            const current = aiGenRequirements;
-                            const platformLine = `发表平台：${p.name}`;
-                            if (current.includes('发表平台：')) {
-                              setAiGenRequirements(current.replace(/发表平台：[^\n;]+;?/, platformLine + ';'));
-                            } else {
-                              setAiGenRequirements(current ? `${platformLine};\n${current}` : platformLine);
-                            }
-                          }}
-                          className="px-3 py-1.5 bg-cyber-dark/60 border border-cyber-purple/15 hover:border-cyber-blue/40 rounded-lg text-[10px] text-gray-400 hover:text-white transition-all"
-                        >
-                          {p.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 篇幅选择 */}
-                  <div>
-                    <h4 className="text-sm text-white mb-2">篇幅要求</h4>
-                    <div className="flex gap-2">
-                      {['长篇 (30万字+)', '中篇 (10-30万字)', '短篇 (10万字以下)', '微短篇 (3万字以下)'].map(p => (
-                        <button
-                          key={p}
-                          onClick={() => {
-                            const current = aiGenRequirements;
-                            const lengthLine = `篇幅：${p}`;
-                            if (current.includes('篇幅：')) {
-                              setAiGenRequirements(current.replace(/篇幅：[^\n;]+;?/, lengthLine + ';'));
-                            } else {
-                              setAiGenRequirements(current ? `${lengthLine};\n${current}` : lengthLine);
-                            }
-                          }}
-                          className="px-3 py-1.5 bg-cyber-dark/60 border border-cyber-purple/15 hover:border-cyber-pink/40 rounded-lg text-[10px] text-gray-400 hover:text-white transition-all"
-                        >
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 核心要求 */}
+                  {/* 核心要求区 */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm text-white">核心要求</h4>
-                      <div className="flex items-center gap-3 text-[10px] text-gray-500">
-                        <button onClick={fillRandomExample} className="flex items-center gap-1 hover:text-cyber-yellow">
-                          <Sparkles className="w-3 h-3" />随机示例
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm text-white font-medium">核心要求</h4>
+                        <div className="text-[10px] text-gray-500">描述题材与核心设定 越详细越可控</div>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <button onClick={fillRandomExample} className="flex items-center gap-1 px-2 py-1 rounded-lg text-gray-400 hover:text-cyber-yellow hover:bg-cyber-yellow/10 transition-all">
+                          <Sparkles className="w-3 h-3" />随机
                         </button>
-                        <button onClick={() => setShowAdvanced(v => !v)} className="flex items-center gap-1 hover:text-cyber-blue">
+                        <button onClick={() => setShowAdvanced(v => !v)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-gray-400 hover:text-cyber-blue hover:bg-cyber-blue/10 transition-all">
                           <Info className="w-3 h-3" />工具箱
                         </button>
                       </div>
@@ -871,136 +946,363 @@ ${aiGenRequirements}
                     <textarea
                       value={aiGenRequirements}
                       onChange={e => setAiGenRequirements(e.target.value)}
-                      placeholder="例如：&#10;女频;&#10;发表平台：起点;&#10;篇幅：中长篇;&#10;视角：第三人称;&#10;文风模式：强爽点;&#10;年代：古代;&#10;题材：职场/官场;&#10;是否出现金手指：否;&#10;背景：无;&#10;章节数：400;&#10;其他要求：无;"
-                      className="w-full h-48 bg-cyber-dark/60 border border-cyber-purple/15 rounded-xl p-3 text-xs text-white placeholder-gray-600 resize-none focus:outline-none focus:border-cyber-yellow/40"
+                      placeholder='男频;\n发表平台：飞卢;\n篇幅：中长篇;\n视角：第三人称;\n文风模式：知乎短文;\n年代：未来;\n题材：仙侠;\n是否出现金手指：是;\n背景：无;\n章节数：400;\n其他要求：无;'
+                      className="w-full h-44 bg-cyber-dark/60 border border-cyber-purple/15 rounded-2xl p-4 text-xs text-white placeholder-gray-600 resize-none focus:outline-none focus:border-cyber-purple/40 leading-relaxed"
                     />
-                    <div className="text-right text-[10px] text-gray-600 mt-1">
+                    <div className="text-right text-[10px] text-gray-500 mt-1">
                       {aiGenRequirements.length}/1500
                     </div>
                   </div>
 
-                  {/* 详细设定（可折叠） */}
-                  {showAdvanced && (
-                    <div className="bg-cyber-dark/40 border border-cyber-purple/10 rounded-xl p-3 space-y-3">
-                      <h5 className="text-xs text-white flex items-center gap-1">
-                        <Info className="w-3 h-3 text-cyber-blue" />
-                        详细设定（可选）
-                      </h5>
-                      <div className="grid grid-cols-2 gap-2">
+                  {/* 更多详细设定 */}
+                  <div className="bg-cyber-dark/40 border border-cyber-purple/10 rounded-2xl p-4 space-y-4">
+                    {/* 标题 + 开关 */}
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => setShowAdvanced(v => !v)} className="flex items-center gap-2 text-sm text-white font-medium">
+                        更多详细设定
+                        <span className={`transition-transform text-gray-400 ${showAdvanced ? '' : '-rotate-90'}`}>▼</span>
+                      </button>
+                    </div>
+                    <div className="text-[10px] text-gray-500 -mt-2">风格、主题、人设等参考选择......</div>
+
+                    {showAdvanced && (
+                      <div className="space-y-4 pt-1">
+                        {/* 语言 */}
                         <div>
-                          <label className="text-[10px] text-gray-500 block mb-1">视角</label>
-                          <select
-                            value={aiGenAdvanced.perspective || ''}
-                            onChange={e => setAiGenAdvanced(p => ({ ...p, perspective: e.target.value }))}
-                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
-                          >
-                            <option value="">不限</option>
-                            <option>第一人称</option>
-                            <option>第二人称</option>
-                            <option>第三人称</option>
-                          </select>
+                          <div className="text-[11px] text-gray-400 mb-2">语言</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {['中文', '英文'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => updateAiConfig('language', opt)}
+                                className={`px-4 py-2 rounded-xl text-xs transition-all ${
+                                  aiConfig.language === opt
+                                    ? 'bg-gradient-to-r from-cyan-500 to-cyber-purple text-white'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
                         </div>
+
+                        {/* 发表平台 */}
                         <div>
-                          <label className="text-[10px] text-gray-500 block mb-1">文风模式</label>
-                          <select
-                            value={aiGenAdvanced.style || ''}
-                            onChange={e => setAiGenAdvanced(p => ({ ...p, style: e.target.value }))}
-                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
-                          >
-                            <option value="">不限</option>
-                            <option>升级流</option>
-                            <option>无敌流</option>
-                            <option>强爽点</option>
-                            <option>轻松日常</option>
-                            <option>烧脑悬疑</option>
-                            <option>暗黑流</option>
-                            <option>甜文</option>
-                            <option>虐文</option>
-                          </select>
+                          <div className="text-[11px] text-gray-400 mb-2">发表平台</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {['起点', '番茄', '七猫', '飞卢', '书旗', '纵横', '...'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => {
+                                  if (opt === '...') return;
+                                  updateAiConfig('platform', opt);
+                                }}
+                                className={`px-4 py-2 rounded-xl text-xs transition-all ${
+                                  aiConfig.platform === opt
+                                    ? 'bg-gradient-to-r from-cyan-500 to-cyber-purple text-white'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
                         </div>
+
+                        {/* 视角 */}
                         <div>
-                          <label className="text-[10px] text-gray-500 block mb-1">年代背景</label>
-                          <select
-                            value={aiGenAdvanced.era || ''}
-                            onChange={e => setAiGenAdvanced(p => ({ ...p, era: e.target.value }))}
-                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
-                          >
-                            <option value="">不限</option>
-                            <option>上古/先秦</option>
-                            <option>秦汉</option>
-                            <option>唐宋</option>
-                            <option>明清</option>
-                            <option>近代/民国</option>
-                            <option>现代</option>
-                            <option>未来/星际</option>
-                            <option>异世/架空</option>
-                          </select>
+                          <div className="text-[11px] text-gray-400 mb-2">视角</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {['第一人称', '第三人称'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => updateAiConfig('perspective', opt)}
+                                className={`px-4 py-2 rounded-xl text-xs transition-all ${
+                                  aiConfig.perspective === opt
+                                    ? 'bg-gradient-to-r from-cyan-500 to-cyber-purple text-white'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
                         </div>
+
+                        {/* 文风模式 */}
                         <div>
-                          <label className="text-[10px] text-gray-500 block mb-1">题材分类</label>
-                          <select
-                            value={aiGenAdvanced.genre || ''}
-                            onChange={e => setAiGenAdvanced(p => ({ ...p, genre: e.target.value }))}
-                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
-                          >
-                            <option value="">不限</option>
-                            <option>都市/异能</option>
-                            <option>职场/官场</option>
-                            <option>玄幻/修真</option>
-                            <option>武侠/仙侠</option>
-                            <option>悬疑/推理</option>
-                            <option>言情/恋爱</option>
-                            <option>古风/宅斗</option>
-                            <option>星际/科幻</option>
-                            <option>游戏/竞技</option>
-                            <option>历史/军事</option>
-                            <option>轻小说/同人</option>
-                          </select>
+                          <div className="text-[11px] text-gray-400 mb-2">文风模式</div>
+                          <div className="flex gap-2 flex-wrap mb-2">
+                            {['预设文风', '自定义 (AI学习)'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => updateAiConfig('writingMode', opt)}
+                                className={`px-4 py-2 rounded-xl text-xs transition-all ${
+                                  aiConfig.writingMode === opt
+                                    ? 'bg-gradient-to-r from-cyan-500 to-cyber-purple text-white'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            {['强爽点', '经典作品', '简洁直白', '强悬疑', '知乎短文', '幽默搞笑', '儿童故事'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => {
+                                  updateAiConfig('writingMode', '预设文风');
+                                  updateAiConfig('writingStyle', opt);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] transition-all ${
+                                  aiConfig.writingStyle === opt
+                                    ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-300'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
                         </div>
+
+                        {/* 年代 */}
                         <div>
-                          <label className="text-[10px] text-gray-500 block mb-1">金手指</label>
-                          <select
-                            value={aiGenAdvanced.hasGoldFinger === undefined ? '' : aiGenAdvanced.hasGoldFinger ? '是' : '否'}
-                            onChange={e => setAiGenAdvanced(p => ({ ...p, hasGoldFinger: e.target.value === '是' ? true : e.target.value === '否' ? false : undefined }))}
-                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
-                          >
-                            <option value="">不限</option>
-                            <option>是</option>
-                            <option>否</option>
-                          </select>
+                          <div className="text-[11px] text-gray-400 mb-2">年代</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {['古代', '现代', '未来', '架空'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => updateAiConfig('era', opt)}
+                                className={`px-4 py-2 rounded-xl text-xs transition-all ${
+                                  aiConfig.era === opt
+                                    ? 'bg-gradient-to-r from-cyan-500 to-cyber-purple text-white'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
                         </div>
+
+                        {/* 题材 */}
                         <div>
-                          <label className="text-[10px] text-gray-500 block mb-1">主角背景</label>
-                          <select
-                            value={aiGenAdvanced.hasBackground === undefined ? '' : aiGenAdvanced.hasBackground ? '是' : '否'}
-                            onChange={e => setAiGenAdvanced(p => ({ ...p, hasBackground: e.target.value === '是' ? true : e.target.value === '否' ? false : undefined }))}
-                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
-                          >
-                            <option value="">不限</option>
-                            <option>是（豪门/世家/权贵）</option>
-                            <option>否（普通人/草根崛起）</option>
-                          </select>
+                          <div className="text-[11px] text-gray-400 mb-2">题材</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {['随机', '玄幻', '都市', '高武', '末世', '仙侠', '武侠', '科幻', '悬疑', '言情', '历史', '军事', '游戏', '轻小说', '校园', '同人', '灵异', '奇幻', '重生', '穿越', '架空', '...'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => {
+                                  if (opt === '...') return;
+                                  if (opt === '随机') {
+                                    const genres = ['玄幻', '都市', '高武', '末世', '仙侠', '武侠', '科幻', '悬疑', '言情', '历史', '游戏', '轻小说', '校园', '灵异', '奇幻', '重生', '穿越', '架空'];
+                                    updateAiConfig('genre', genres[Math.floor(Math.random() * genres.length)]);
+                                  } else {
+                                    updateAiConfig('genre', opt);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-[11px] transition-all ${
+                                  aiConfig.genre === opt
+                                    ? 'bg-gradient-to-r from-cyan-500 to-cyber-purple text-white'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        <div className="col-span-2">
-                          <label className="text-[10px] text-gray-500 block mb-1">章节数（约）</label>
+
+                        {/* 是否出现金手指 */}
+                        <div>
+                          <div className="text-[11px] text-gray-400 mb-2">是否出现金手指</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {['是', '否'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => updateAiConfig('hasGoldFinger', opt)}
+                                className={`px-6 py-2 rounded-xl text-xs transition-all ${
+                                  aiConfig.hasGoldFinger === opt
+                                    ? 'bg-gradient-to-r from-cyan-500 to-cyber-purple text-white'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 金手指类型 */}
+                        {aiConfig.hasGoldFinger === '是' && (
+                          <div>
+                            <div className="text-[11px] text-gray-400 mb-2">金手指类型</div>
+                            <div className="flex gap-2 flex-wrap">
+                              {['不劳而获系统', '势力/店铺系统', '职业类系统', '任务类系统', '选择类系统', '幕后系统', '...'].map(opt => (
+                                <button
+                                  key={opt}
+                                  onClick={() => {
+                                    if (opt === '...') return;
+                                    updateAiConfig('goldFingerType', opt);
+                                  }}
+                                  className={`px-3 py-1.5 rounded-lg text-[11px] transition-all ${
+                                    aiConfig.goldFingerType === opt
+                                      ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-300'
+                                      : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                  }`}
+                                >
+                                  {opt}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 标题结构 */}
+                        <div>
+                          <div className="text-[11px] text-gray-400 mb-2">标题结构</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {['【情绪事件】+【反差】', '【身份标签】+【身份反差/颠覆性行为】', '【世界观】+【反差】/【高燃目标】', '【时间标签】+【爽点】', '【原著IP】+【颠覆性脑洞】', '...'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => {
+                                  if (opt === '...') return;
+                                  updateAiConfig('titleStructure', opt);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] transition-all ${
+                                  aiConfig.titleStructure === opt
+                                    ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-300'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 风格 */}
+                        <div>
+                          <div className="text-[11px] text-gray-400 mb-2">风格</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {['随机', '脑洞文', '废柴流', '凡人流', '洪荒流', '无限流', '无敌流', '系统流', '签到流', '...'].map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => {
+                                  if (opt === '...') return;
+                                  if (opt === '随机') {
+                                    const styles = ['脑洞文', '废柴流', '凡人流', '洪荒流', '无限流', '无敌流', '系统流', '签到流'];
+                                    updateAiConfig('style', styles[Math.floor(Math.random() * styles.length)]);
+                                  } else {
+                                    updateAiConfig('style', opt);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] transition-all ${
+                                  aiConfig.style === opt
+                                    ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-300'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 视频风格 */}
+                        <div>
+                          <div className="text-[11px] text-gray-400 mb-2">视频风格（输出形式）</div>
+                          <div className="flex gap-2 flex-wrap">
+                            {[
+                              { id: '漫剧风格', label: '漫剧', icon: '🎨' },
+                              { id: '真人短剧', label: '真人短剧', icon: '🎬' },
+                              { id: '动漫风格', label: '动漫', icon: '🌸' },
+                              { id: '国风潮', label: '国风', icon: '🏮' },
+                              { id: '电商广告', label: '电商广告', icon: '🛒' },
+                            ].map(opt => (
+                              <button
+                                key={opt.id}
+                                onClick={() => updateAiConfig('videoStyle', opt.id)}
+                                className={`px-3 py-2 rounded-xl text-[11px] transition-all flex items-center gap-1.5 ${
+                                  aiConfig.videoStyle === opt.id
+                                    ? 'bg-gradient-to-r from-cyan-500 to-cyber-purple text-white shadow-md shadow-cyber-purple/20'
+                                    : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                }`}
+                              >
+                                <span>{opt.icon}</span>
+                                <span>{opt.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 分镜数 */}
+                        <div>
+                          <div className="text-[11px] text-gray-400 mb-2">分镜数</div>
+                          <div className="flex gap-2 items-center">
+                            <input
+                              type="number"
+                              value={aiConfig.outputSceneCount}
+                              onChange={e => updateAiConfig('outputSceneCount', e.target.value)}
+                              placeholder="例如：6"
+                              min="1"
+                              max="50"
+                              className="flex-1 bg-cyber-dark/60 border border-cyber-purple/20 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-cyber-purple/40"
+                            />
+                            <div className="flex gap-1">
+                              {['4', '6', '8', '12'].map(n => (
+                                <button
+                                  key={n}
+                                  onClick={() => updateAiConfig('outputSceneCount', n)}
+                                  className={`px-2.5 py-2 rounded-lg text-[10px] transition-all ${
+                                    aiConfig.outputSceneCount === n
+                                      ? 'bg-cyan-500/20 border border-cyan-500/40 text-cyan-300'
+                                      : 'bg-cyber-dark/60 border border-cyber-purple/20 text-gray-400 hover:border-cyber-purple/40'
+                                  }`}
+                                >
+                                  {n}镜
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 章节数 */}
+                        <div>
+                          <div className="text-[11px] text-gray-400 mb-2">章节数（约）</div>
                           <input
                             type="number"
-                            value={aiGenAdvanced.chapterCount || ''}
-                            onChange={e => setAiGenAdvanced(p => ({ ...p, chapterCount: parseInt(e.target.value) || undefined }))}
+                            value={aiConfig.chapterCount}
+                            onChange={e => updateAiConfig('chapterCount', e.target.value)}
                             placeholder="例如：400"
-                            className="w-full bg-cyber-dark border border-cyber-purple/15 rounded-lg px-2 py-1.5 text-[10px] text-white"
+                            className="w-full bg-cyber-dark/60 border border-cyber-purple/20 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-cyber-purple/40"
+                          />
+                        </div>
+
+                        {/* 其他要求 */}
+                        <div>
+                          <div className="text-[11px] text-gray-400 mb-2">其他要求</div>
+                          <input
+                            type="text"
+                            value={aiConfig.extraRequirements}
+                            onChange={e => updateAiConfig('extraRequirements', e.target.value)}
+                            placeholder="例如：无；主角独立自主；快节奏......"
+                            className="w-full bg-cyber-dark/60 border border-cyber-purple/20 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-cyber-purple/40"
                           />
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* 操作按钮 */}
-                  <div className="space-y-3">
+                  <div className="space-y-3 pt-2">
                     <button
                       onClick={handleAiGenerate}
-                      disabled={isAiGenerating || !aiGenType || !aiGenRequirements.trim()}
-                      className="w-full py-3 bg-gradient-to-r from-cyber-yellow to-orange-500 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm text-white font-medium flex items-center justify-center gap-2"
+                      disabled={isAiGenerating || !aiGenRequirements.trim()}
+                      className="w-full py-4 bg-gradient-to-r from-cyber-pink to-cyber-purple hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl text-sm text-white font-medium flex items-center justify-center gap-2 shadow-lg shadow-cyber-purple/20"
                     >
                       {isAiGenerating ? (
                         <>
@@ -1010,20 +1312,20 @@ ${aiGenRequirements}
                       ) : (
                         <>
                           <Sparkles className="w-4 h-4" />
-                          开始创作并导入
+                          开始向导创作
                         </>
                       )}
                     </button>
                     <div className="flex gap-2 text-[10px] text-gray-500">
                       <button
                         onClick={() => setStep('upload')}
-                        className="flex-1 py-2 bg-cyber-dark/60 border border-cyber-purple/15 rounded-lg hover:text-white hover:border-cyber-purple/30 transition-all"
+                        className="flex-1 py-2.5 bg-cyber-dark/60 border border-cyber-purple/15 rounded-xl hover:text-white hover:border-cyber-purple/30 transition-all text-xs"
                       >
                         📁 本地上传
                       </button>
                       <button
                         onClick={() => setStep('search')}
-                        className="flex-1 py-2 bg-cyber-dark/60 border border-cyber-purple/15 rounded-lg hover:text-white hover:border-cyber-purple/30 transition-all"
+                        className="flex-1 py-2.5 bg-cyber-dark/60 border border-cyber-purple/15 rounded-xl hover:text-white hover:border-cyber-purple/30 transition-all text-xs"
                       >
                         🔍 搜索书目
                       </button>
