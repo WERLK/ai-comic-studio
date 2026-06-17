@@ -4,6 +4,25 @@ import { APP_VERSION } from '@/config/version';
 
 const VERSION_HISTORY = [
   {
+    version: '1.27.5',
+    date: '2026-06-17',
+    features: [
+      '完善 AI 生成内容格式，严格匹配截图分镜结构',
+      '5种视频风格对应不同分镜字段（漫剧/真人/动漫/国风/电商）',
+      '生成内容包含：视觉风格/人物设定/故事大纲/分镜脚本'
+    ]
+  },
+  {
+    version: '1.27.4',
+    date: '2026-06-17',
+    features: [
+      '修复 ToolsPage.tsx 导出方式，解决功能中心黑屏',
+      '重构 AI 智能生成小说界面：标签按钮式设定',
+      '新增视频风格选择和分镜数控制',
+      '题材扩充至 22 个类型'
+    ]
+  },
+  {
     version: '1.27.3',
     date: '2026-06-16',
     features: [

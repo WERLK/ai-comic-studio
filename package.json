@@ -1,6 +1,6 @@
 {
   "name": "ai-comic-studio",
-  "version": "1.27.3",
+  "version": "1.27.5",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n server,client -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\"",
